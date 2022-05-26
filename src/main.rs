@@ -3,12 +3,8 @@ use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
 use std::io;
 
-mod app_config;
-mod entities;
-mod graphql;
-
-use crate::graphql::{create_schema, Schema};
-use app_config::AppConfig;
+use average_charactor_cloud_backend::app_config::AppConfig;
+use average_charactor_cloud_backend::graphql::{create_schema, Schema};
 use std::sync::Arc;
 
 fn graphiql(config: web::Data<AppConfig>) -> HttpResponse {

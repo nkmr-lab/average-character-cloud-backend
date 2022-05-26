@@ -4,6 +4,7 @@ use juniper::http::GraphQLRequest;
 use std::io;
 
 mod app_config;
+mod entities;
 mod graphql;
 
 use crate::graphql::{create_schema, Schema};

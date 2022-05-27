@@ -163,7 +163,7 @@ impl MutationRoot {
 
         let record = entities::record::Record {
             id: Ulid::from_datetime(ctx.now.clone()),
-            user_id: ctx.user_id.clone().unwrap(),
+            user_id,
             character,
             figure,
             created_at: ctx.now.clone(),

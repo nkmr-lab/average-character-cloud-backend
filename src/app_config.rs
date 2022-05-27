@@ -6,6 +6,7 @@ pub struct AppConfig {
     pub mount_base: String,
     pub port: u16,
     pub host: String,
+    pub database_url: String,
 }
 
 impl AppConfig {
@@ -15,11 +16,13 @@ impl AppConfig {
             .unwrap_or("8080".to_owned())
             .parse::<u16>()?;
         let host = env::var("HOST").unwrap_or("localhost".to_owned());
+        let database_url = env::var("DATABASE_URL")?;
 
         Ok(AppConfig {
             mount_base,
             port,
             host,
+            database_url,
         })
     }
 }

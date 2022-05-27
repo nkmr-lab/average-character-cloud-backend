@@ -2,6 +2,13 @@ use juniper::FieldResult;
 use juniper::{
     graphql_interface, EmptySubscription, GraphQLInputObject, GraphQLObject, RootNode, ID,
 };
+use sqlx::PgPool;
+
+pub struct AppCtx {
+    pub pool: PgPool,
+}
+
+impl juniper::Context for AppCtx {}
 
 enum NodeID {
     Record(String),
@@ -84,7 +91,7 @@ struct NewRecord {
 #[derive(Clone, Debug)]
 pub struct QueryRoot;
 
-#[juniper::graphql_object]
+#[juniper::graphql_object(Context = AppCtx)]
 impl QueryRoot {
     async fn node(id: ID) -> FieldResult<Option<NodeValue>> {
         Ok(None)
@@ -111,7 +118,7 @@ impl QueryRoot {
 #[derive(Clone, Debug)]
 pub struct MutationRoot;
 
-#[juniper::graphql_object]
+#[juniper::graphql_object(Context = AppCtx)]
 impl MutationRoot {
     fn create_record(new_record: NewRecord) -> FieldResult<Record> {
         Ok(Record {
@@ -124,8 +131,12 @@ impl MutationRoot {
     }
 }
 
-pub type Schema = RootNode<'static, QueryRoot, MutationRoot, EmptySubscription>;
+pub type Schema = RootNode<'static, QueryRoot, MutationRoot, EmptySubscription<AppCtx>>;
 
 pub fn create_schema() -> Schema {
-    Schema::new(QueryRoot {}, MutationRoot {}, EmptySubscription::new())
+    Schema::new(
+        QueryRoot {},
+        MutationRoot {},
+        EmptySubscription::<AppCtx>::new(),
+    )
 }

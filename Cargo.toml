@@ -4,13 +4,13 @@ name = "average-charactor-cloud-backend"
 version = "0.1.0"
 
 [dependencies]
-actix-web = "3.3"
-base64 = "0.13"
-chrono = "0.4"
-env_logger = "0.8"
-juniper = "0.15"
-serde = "1.0"
-serde_derive = "1.0"
-serde_json = "1.0"
-sqlx = {version = "0.5", features = ["runtime-actix-native-tls", "postgres"]}
-ulid = "0.5"
+actix-web = "4.0.1"
+base64 = "0.13.0"
+chrono = "0.4.19"
+env_logger = "0.9.0"
+juniper = "0.15.9"
+serde = "1.0.137"
+serde_derive = "1.0.137"
+serde_json = "1.0.81"
+sqlx = { version = "0.5.13", features = ["runtime-actix-native-tls", "postgres"] }
+ulid = "0.5.0"

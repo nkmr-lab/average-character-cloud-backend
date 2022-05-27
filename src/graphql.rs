@@ -66,7 +66,13 @@ impl QueryRoot {
         Ok(None)
     }
 
-    async fn records(id: ID) -> FieldResult<RecordConnection> {
+    async fn records(
+        character: Option<String>,
+        first: Option<i32>,
+        after: Option<String>,
+        last: Option<i32>,
+        before: Option<String>,
+    ) -> FieldResult<RecordConnection> {
         Ok(RecordConnection {
             page_info: PageInfo {
                 has_next_page: false,

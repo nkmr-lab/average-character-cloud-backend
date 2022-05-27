@@ -26,7 +26,7 @@ impl Figure {
         serde_json::to_string(&self).unwrap()
     }
 
-    pub fn from_json(json: &str) -> Figure {
-        serde_json::from_str(json).unwrap()
+    pub fn from_json(json: &str) -> Option<Figure> {
+        serde_json::from_str(json).ok()
     }
 }

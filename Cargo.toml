@@ -13,3 +13,4 @@ serde_derive = "1.0"
 serde_json = "1.0"
 sqlx = {version = "0.5", features = ["runtime-actix-native-tls", "postgres"]}
 uuid = "1.1"
+base64 = "0.13"

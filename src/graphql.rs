@@ -3,6 +3,30 @@ use juniper::{
     graphql_interface, EmptySubscription, GraphQLInputObject, GraphQLObject, RootNode, ID,
 };
 
+enum NodeID {
+    Record(String),
+}
+
+impl NodeID {
+    fn to_id(&self) -> ID {
+        match self {
+            NodeID::Record(id) => ID::new(base64::encode(format!("record:{}", id))),
+        }
+    }
+
+    fn from_id(id: &ID) -> Option<NodeID> {
+        let id = id.to_string();
+        let buf = base64::decode(id).ok()?;
+        let s = String::from_utf8(buf).ok()?;
+
+        if let Some(record_id) = s.strip_prefix("record:") {
+            Some(NodeID::Record(record_id.to_string()))
+        } else {
+            None
+        }
+    }
+}
+
 /**
  * replayの仕様に従うこと
  *   https://relay.dev/docs/guides/graphql-server-specification/

@@ -6,19 +6,19 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Figure {
-    strokes: Vec<Stroke>,
+    pub strokes: Vec<Stroke>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Stroke {
-    points: Vec<Point>,
+    pub points: Vec<Point>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Point {
-    x: i32,
-    y: i32,
-    z: i32,
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
 }
 
 impl Figure {

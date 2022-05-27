@@ -2,8 +2,8 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 pub struct Record {
-    id: Uuid,
-    character: char,
-    figure: super::figure::Figure,
-    created_at: DateTime<Utc>,
+    pub id: Uuid,
+    pub character: char,
+    pub figure: super::figure::Figure,
+    pub created_at: DateTime<Utc>,
 }

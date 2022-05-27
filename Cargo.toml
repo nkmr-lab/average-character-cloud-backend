@@ -12,5 +12,5 @@ juniper = "0.15.9"
 serde = "1.0.137"
 serde_derive = "1.0.137"
 serde_json = "1.0.81"
-sqlx = { version = "0.5.13", features = ["runtime-actix-native-tls", "postgres"] }
+sqlx = {version = "0.5.13", features = ["runtime-actix-native-tls", "postgres", "json", "chrono", "offline"]}
 ulid = "0.5.0"

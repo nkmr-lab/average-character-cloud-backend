@@ -1,3 +1,19 @@
 {
-  "db": "PostgreSQL"
+  "db": "PostgreSQL",
+  "02dcdcdb50d29258cd02631811f4f0982c590f708b76866726a76f4f593d1dc8": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Varchar",
+          "Varchar",
+          "Jsonb",
+          "Timestamptz"
+        ]
+      }
+    },
+    "query": "\n                INSERT INTO records (id, user_id, character, figure, created_at)\n                VALUES ($1, $2, $3, $4, $5)\n            "
+  }
 }

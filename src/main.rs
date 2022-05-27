@@ -1,4 +1,5 @@
 use actix_web::{error, middleware, web, App, HttpResponse, HttpServer};
+use chrono::Utc;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
 use sqlx::postgres::PgPoolOptions;
@@ -25,6 +26,7 @@ async fn graphql(
     let ctx = AppCtx {
         pool: pool.get_ref().clone(),
         user_id: config.dummy_user_id.clone(), // TODO: 認証機能実装
+        now: Utc::now(),
     };
     let res = data.execute(&st, &ctx).await;
     let json = serde_json::to_string(&res)?;

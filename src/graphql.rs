@@ -6,6 +6,7 @@ use sqlx::PgPool;
 
 pub struct AppCtx {
     pub pool: PgPool,
+    pub user_id: Option<String>,
 }
 
 impl juniper::Context for AppCtx {}

@@ -20,9 +20,11 @@ async fn graphql(
     st: web::Data<Arc<Schema>>,
     pool: web::Data<PgPool>,
     data: web::Json<GraphQLRequest>,
+    config: web::Data<AppConfig>,
 ) -> Result<HttpResponse, error::Error> {
     let ctx = AppCtx {
         pool: pool.get_ref().clone(),
+        user_id: config.dummy_user_id.clone(), // TODO: 認証機能実装
     };
     let res = data.execute(&st, &ctx).await;
     let json = serde_json::to_string(&res)?;

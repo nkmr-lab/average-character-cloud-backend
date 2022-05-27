@@ -40,7 +40,6 @@ async fn main() -> io::Result<()> {
     let port = config.port;
     let schema = Arc::new(create_schema());
     let pool = PgPoolOptions::new()
-        .max_connections(5)
         .connect(&config.database_url)
         .await
         .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;

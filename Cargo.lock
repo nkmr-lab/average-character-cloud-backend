@@ -274,6 +274,7 @@ dependencies = [
  "chrono",
  "env_logger",
  "juniper",
+ "log",
  "serde",
  "serde_derive",
  "serde_json",

@@ -38,12 +38,20 @@ impl<S: ScalarValue> IntoFieldError<S> for AppError {
 
 type AppResult<T> = Result<T, AppError>;
 
+#[derive(Debug, Clone)]
 enum Limit {
     First(i32),
     Last(i32),
 }
 
 impl Limit {
+    fn value(&self) -> i32 {
+        match self {
+            Limit::First(n) => *n,
+            Limit::Last(n) => *n,
+        }
+    }
+
     fn encode(first: Option<i32>, last: Option<i32>) -> AppResult<Self> {
         let max = 100;
 
@@ -101,12 +109,12 @@ impl NodeID {
         let buf = base64::decode(id).ok()?;
         let s = String::from_utf8(buf).ok()?;
 
-        let Some(record_id) = s.strip_prefix("record:") else {
-            return None;
-        };
-
-        let ulid = Ulid::from_str(record_id).ok()?;
-        Some(NodeID::Record(ulid))
+        if let Some(record_id) = s.strip_prefix("record:") {
+            let ulid = Ulid::from_str(record_id).ok()?;
+            Some(NodeID::Record(ulid))
+        } else {
+            None
+        }
     }
 }
 
@@ -193,14 +201,139 @@ impl QueryRoot {
         last: Option<i32>,
         before: Option<String>,
     ) -> AppResult<RecordConnection> {
+        let Some(user_id) = ctx.user_id.clone() else {
+            return Err(AppError::Other("Authentication required".to_string()));
+        } ;
+
+        let character = character
+            .map(|character| -> AppResult<char> {
+                let &[character] = character.chars().collect::<Vec<_>>().as_slice() else {
+                    return Err(AppError::Other(
+                        "character must be one character".to_string(),
+                    ));
+                };
+
+                Ok(character)
+            })
+            .transpose()?;
+
+        let limit = Limit::encode(first, last)?;
+
+        let after_id = after
+            .map(|after| -> AppResult<Ulid> {
+                let Some(NodeID::Record(id)) = NodeID::from_id(&ID::new(after)) else {
+                    return Err(AppError::Other("after must be a valid cursor".to_string()))
+                };
+
+                Ok(id)
+            })
+            .transpose()?;
+
+        let before_id = before
+            .map(|before| -> AppResult<Ulid> {
+                let Some(NodeID::Record(id)) = NodeID::from_id(&ID::new(before)) else {
+                    return Err(AppError::Other("before must be a valid cursor".to_string()));
+                };
+
+                Ok(id)
+            })
+            .transpose()?;
+
+        let result = sqlx::query!(
+            r#"
+                SELECT
+                    id,
+                    user_id,
+                    character,
+                    figure,
+                    created_at
+                FROM
+                    records
+                WHERE
+                    user_id = $1
+                    AND
+                    ($2::VARCHAR(8) IS NULL OR character = $2)
+                    AND
+                    ($3::VARCHAR(64) IS NULL OR id < $3)
+                    AND
+                    ($4::VARCHAR(64) IS NULL OR id > $4)
+                ORDER BY
+                    CASE WHEN $5 = 0 THEN id END DESC,
+                    CASE WHEN $5 = 1 THEN id END ASC
+                LIMIT $6
+            "#,
+            &user_id,
+            character.map(|c| c.to_string()),
+            after_id.map(|id| id.to_string()),
+            before_id.map(|id| id.to_string()),
+            if let Limit::First(_) = limit { 0 } else { 1 },
+            limit.value() as i64 + 1,
+        )
+        .fetch_all(&ctx.pool)
+        .await
+        .map_err(|err| AppError::Internal(Box::new(err)))?;
+
+        let mut records = result
+            .into_iter()
+            .map(|row| -> AppResult<entities::record::Record> {
+                let id =
+                    Ulid::from_str(&row.id).map_err(|err| AppError::Internal(Box::new(err)))?;
+
+                let &[character] = row.character.chars().collect::<Vec<_>>().as_slice() else {
+                    return Err(AppError::Internal(
+                        Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, "character must be one character")),
+                    ));
+                };
+
+                let figure = entities::figure::Figure::from_json_ast(row.figure).ok_or_else(|| AppError::Internal(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, "figure must be valid json"))))?;
+
+                Ok(entities::record::Record {
+                    id,
+                    user_id: user_id.clone(),
+                    character,
+                    figure,
+                    created_at: row.created_at,
+                })
+            })
+            .collect::<AppResult<Vec<_>>>()?;
+
+        let has_extra = records.len() > limit.value() as usize;
+
+        records.truncate(limit.value() as usize);
+
+        if let Limit::Last(_) = limit {
+            records.reverse();
+        }
+
+        let records = records
+            .into_iter()
+            .map(|record| Record::from_entity(&record))
+            .collect::<Vec<_>>();
+
         Ok(RecordConnection {
             page_info: PageInfo {
-                has_next_page: false,
-                has_previous_page: false,
-                start_cursor: None,
-                end_cursor: None,
+                has_next_page: has_extra
+                    && if let Limit::First(_) = limit {
+                        true
+                    } else {
+                        false
+                    },
+                has_previous_page: has_extra
+                    && if let Limit::Last(_) = limit {
+                        true
+                    } else {
+                        false
+                    },
+                start_cursor: records.first().map(|record| record.id.to_string()),
+                end_cursor: records.last().map(|record| record.id.to_string()),
             },
-            edges: vec![],
+            edges: records
+                .into_iter()
+                .map(|record| RecordEdge {
+                    cursor: record.id.to_string(),
+                    node: record,
+                })
+                .collect(),
         })
     }
 }
@@ -233,10 +366,10 @@ impl MutationRoot {
         };
 
         sqlx::query!(
-            "\
-            INSERT INTO records (id, user_id, character, figure, created_at) \
-            VALUES ($1, $2, $3, $4, $5)\
-            ",
+            r#"
+                INSERT INTO records (id, user_id, character, figure, created_at)
+                VALUES ($1, $2, $3, $4, $5)
+            "#,
             record.id.to_string(),
             record.user_id,
             record.character.to_string(),

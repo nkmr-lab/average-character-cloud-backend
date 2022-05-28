@@ -38,20 +38,19 @@ impl<S: ScalarValue> IntoFieldError<S> for AppError {
 
 type AppResult<T> = Result<T, AppError>;
 
-#[derive(Debug, Clone)]
-enum Limit {
-    First(i32),
-    Last(i32),
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum LimitKind {
+    First,
+    Last,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct Limit {
+    kind: LimitKind,
+    value: i32,
 }
 
 impl Limit {
-    fn value(&self) -> i32 {
-        match self {
-            Limit::First(n) => *n,
-            Limit::Last(n) => *n,
-        }
-    }
-
     fn encode(first: Option<i32>, last: Option<i32>) -> AppResult<Self> {
         let max = 100;
 
@@ -67,7 +66,10 @@ impl Limit {
                         max
                     )))
                 } else {
-                    Ok(Limit::First(first))
+                    Ok(Limit {
+                        kind: LimitKind::First,
+                        value: first,
+                    })
                 }
             }
             (None, Some(last)) => {
@@ -81,7 +83,10 @@ impl Limit {
                         max
                     )))
                 } else {
-                    Ok(Limit::Last(last))
+                    Ok(Limit {
+                        kind: LimitKind::Last,
+                        value: last,
+                    })
                 }
             }
             _ => Err(AppError::Other(
@@ -266,8 +271,8 @@ impl QueryRoot {
             character.map(|c| c.to_string()),
             after_id.map(|id| id.to_string()),
             before_id.map(|id| id.to_string()),
-            if let Limit::First(_) = limit { 0 } else { 1 },
-            limit.value() as i64 + 1,
+            (limit.kind == LimitKind::Last) as i32,
+            limit.value as i64 + 1,
         )
         .fetch_all(&ctx.pool)
         .await
@@ -297,11 +302,11 @@ impl QueryRoot {
             })
             .collect::<AppResult<Vec<_>>>()?;
 
-        let has_extra = records.len() > limit.value() as usize;
+        let has_extra = records.len() > limit.value as usize;
 
-        records.truncate(limit.value() as usize);
+        records.truncate(limit.value as usize);
 
-        if let Limit::Last(_) = limit {
+        if limit.kind == LimitKind::Last {
             records.reverse();
         }
 
@@ -312,18 +317,8 @@ impl QueryRoot {
 
         Ok(RecordConnection {
             page_info: PageInfo {
-                has_next_page: has_extra
-                    && if let Limit::First(_) = limit {
-                        true
-                    } else {
-                        false
-                    },
-                has_previous_page: has_extra
-                    && if let Limit::Last(_) = limit {
-                        true
-                    } else {
-                        false
-                    },
+                has_next_page: has_extra && limit.kind == LimitKind::First,
+                has_previous_page: has_extra && limit.kind == LimitKind::Last,
                 start_cursor: records.first().map(|record| record.id.to_string()),
                 end_cursor: records.last().map(|record| record.id.to_string()),
             },

@@ -98,6 +98,7 @@ impl Limit {
 
 impl juniper::Context for AppCtx {}
 
+#[derive(Debug, Clone)]
 enum NodeID {
     Record(Ulid),
 }
@@ -121,6 +122,15 @@ impl NodeID {
             None
         }
     }
+}
+
+#[derive(Debug, Clone)]
+struct RecordModel {
+    id: String,
+    user_id: String,
+    character: String,
+    figure: serde_json::Value,
+    created_at: DateTime<Utc>,
 }
 
 /**
@@ -244,7 +254,8 @@ impl QueryRoot {
             })
             .transpose()?;
 
-        let result = sqlx::query!(
+        let result = sqlx::query_as!(
+            RecordModel,
             r#"
                 SELECT
                     id,

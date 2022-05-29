@@ -133,6 +133,33 @@ struct RecordModel {
     created_at: DateTime<Utc>,
 }
 
+impl RecordModel {
+    fn to_entity(self, user_id: &String) -> AppResult<entities::record::Record> {
+        let id = Ulid::from_str(&self.id).map_err(|err| AppError::Internal(Box::new(err)))?;
+
+        let &[character] = self.character.chars().collect::<Vec<_>>().as_slice() else {
+                    return Err(AppError::Internal(
+                        Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, "character must be one character")),
+                    ));
+                };
+
+        let figure = entities::figure::Figure::from_json_ast(self.figure).ok_or_else(|| {
+            AppError::Internal(Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "figure must be valid json",
+            )))
+        })?;
+
+        Ok(entities::record::Record {
+            id,
+            user_id: user_id.clone(),
+            character,
+            figure,
+            created_at: self.created_at,
+        })
+    }
+}
+
 /**
  * replayの仕様に従うこと
  *   https://relay.dev/docs/guides/graphql-server-specification/
@@ -204,8 +231,45 @@ pub struct QueryRoot;
 
 #[juniper::graphql_object(Context = AppCtx)]
 impl QueryRoot {
-    async fn node(id: ID) -> AppResult<Option<NodeValue>> {
-        Ok(None)
+    async fn node(ctx: &AppCtx, id: ID) -> AppResult<Option<NodeValue>> {
+        let Some(user_id) = ctx.user_id.clone() else {
+            return Err(AppError::Other("Authentication required".to_string()));
+        };
+
+        let Some(id) = NodeID::from_id(&id) else {
+            return Ok(None);
+        };
+
+        match id {
+            NodeID::Record(id) => {
+                let record = sqlx::query_as!(
+                    RecordModel,
+                    r#"
+                        SELECT
+                            id,
+                            user_id,
+                            character,
+                            figure,
+                            created_at
+                        FROM
+                            records
+                        WHERE
+                            id = $1
+                            AND user_id = $2
+                    "#,
+                    id.to_string(),
+                    user_id,
+                )
+                .fetch_optional(&ctx.pool)
+                .await
+                .map_err(|err| AppError::Internal(Box::new(err)))?;
+                let record = record.map(|row| row.to_entity(&user_id)).transpose()?;
+                Ok(record
+                    .as_ref()
+                    .map(Record::from_entity)
+                    .map(NodeValue::Record))
+            }
+        }
     }
 
     async fn records(
@@ -218,7 +282,7 @@ impl QueryRoot {
     ) -> AppResult<RecordConnection> {
         let Some(user_id) = ctx.user_id.clone() else {
             return Err(AppError::Other("Authentication required".to_string()));
-        } ;
+        };
 
         let character = character
             .map(|character| -> AppResult<char> {
@@ -291,26 +355,7 @@ impl QueryRoot {
 
         let mut records = result
             .into_iter()
-            .map(|row| -> AppResult<entities::record::Record> {
-                let id =
-                    Ulid::from_str(&row.id).map_err(|err| AppError::Internal(Box::new(err)))?;
-
-                let &[character] = row.character.chars().collect::<Vec<_>>().as_slice() else {
-                    return Err(AppError::Internal(
-                        Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, "character must be one character")),
-                    ));
-                };
-
-                let figure = entities::figure::Figure::from_json_ast(row.figure).ok_or_else(|| AppError::Internal(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, "figure must be valid json"))))?;
-
-                Ok(entities::record::Record {
-                    id,
-                    user_id: user_id.clone(),
-                    character,
-                    figure,
-                    created_at: row.created_at,
-                })
-            })
+            .map(|row| row.to_entity(&user_id))
             .collect::<AppResult<Vec<_>>>()?;
 
         let has_extra = records.len() > limit.value as usize;

@@ -18,7 +18,7 @@ pub enum AuthConfig {
 
 #[derive(Debug, Clone)]
 pub struct AppConfig {
-    pub mount_base: String,
+    pub mount_base: Vec<String>,
     pub port: u16,
     pub host: String,
     pub database_url: String,
@@ -30,7 +30,9 @@ pub struct AppConfig {
 impl AppConfig {
     pub fn from_env() -> Result<AppConfig, Box<dyn Error + Send + Sync>> {
         let origin = env::var("ORIGIN")?;
-        let mount_base = env::var("MOUNT_BASE").unwrap_or_else(|_| "".to_owned());
+        let mount_base = env::var("MOUNT_BASE")
+            .map(|s| s.split_terminator('/').map(|s| s.to_string()).collect())
+            .unwrap_or_else(|_| Vec::new());
         let port = env::var("PORT")
             .unwrap_or("8080".to_owned())
             .parse::<u16>()?;

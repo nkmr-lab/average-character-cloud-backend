@@ -1,6 +1,6 @@
 [package]
 edition = "2021"
-name = "average-charactor-cloud-backend"
+name = "average-character-cloud-backend"
 version = "0.1.0"
 
 [dependencies]
@@ -19,4 +19,5 @@ serde = "1.0.137"
 serde_derive = "1.0.137"
 serde_json = "1.0.81"
 sqlx = {version = "0.5.13", features = ["runtime-actix-native-tls", "postgres", "json", "chrono", "offline"]}
+time = "0.3.9"
 ulid = "0.5.0"

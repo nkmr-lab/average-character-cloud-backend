@@ -1,7 +1,7 @@
 #![feature(let_else, try_blocks, let_chains, try_trait_v2)]
 
 use actix_session::storage::RedisActorSessionStore;
-use actix_session::{Session, SessionMiddleware};
+use actix_session::{Session, SessionLength, SessionMiddleware};
 use actix_web::cookie::Key;
 use actix_web::{error, middleware, web, App, HttpRequest, HttpResponse, HttpServer};
 use arc_swap::ArcSwap;
@@ -14,14 +14,22 @@ use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use std::collections::HashMap;
 use std::io;
+use time::Duration;
 
-use average_charactor_cloud_backend::app_config::{AppConfig, AuthConfig};
-use average_charactor_cloud_backend::graphql::{create_schema, AppCtx, Schema};
+use average_character_cloud_backend::app_config::{AppConfig, AuthConfig};
+use average_character_cloud_backend::graphql::{create_schema, AppCtx, Schema};
 use jsonwebtoken::jwk::{self, JwkSet};
 use std::sync::Arc;
 
 async fn graphiql(config: web::Data<AppConfig>) -> HttpResponse {
-    let html = graphiql_source(&format!("{}graphql", config.mount_base), None);
+    let html = graphiql_source(
+        &format!("/{}", {
+            let mut path = config.mount_base.clone();
+            path.push("graphql".to_string());
+            path.join("/")
+        }),
+        None,
+    );
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .body(html)
@@ -102,7 +110,7 @@ async fn google_login_front(config: web::Data<AppConfig>) -> HttpResponse {
     <body>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <div id="g_id_onload" data-client_id="{}"
-        data-login_uri="{}{}/google_login_callback" data-auto_prompt="false">
+        data-login_uri="{}/{}" data-auto_prompt="false">
     </div>
     <div class="g_id_signin" data-type="standard" data-size="large" data-theme="outline" data-text="sign_in_with"
         data-shape="rectangular" data-logo_alignment="left">
@@ -111,7 +119,13 @@ async fn google_login_front(config: web::Data<AppConfig>) -> HttpResponse {
 
     </html>
     "#,
-        client_id, config.origin, config.mount_base
+        client_id,
+        config.origin,
+        {
+            let mut path = config.mount_base.clone();
+            path.push("google_login_callback".to_string());
+            path.join("/")
+        }
     );
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
@@ -245,10 +259,18 @@ async fn main() -> io::Result<()> {
             .app_data(web::Data::new(pool.clone()))
             .app_data(google_public_key.clone())
             .wrap(middleware::Logger::default())
-            .wrap(SessionMiddleware::new(
-                RedisActorSessionStore::new(config.session.redis_url.clone()),
-                secret_key.clone(),
-            ))
+            .wrap(
+                SessionMiddleware::builder(
+                    RedisActorSessionStore::new(config.session.redis_url.clone()),
+                    secret_key.clone(),
+                )
+                .cookie_path(format!("/{}", config.mount_base.join("/")))
+                .session_length(SessionLength::Predetermined {
+                    max_session_length: Some(Duration::days(1)),
+                })
+                .cookie_name("average-character-cloud-session".to_string())
+                .build(),
+            )
             .service(web::resource("/graphql").route(web::post().to(graphql)))
             .service(web::resource("/graphiql").route(web::get().to(graphiql)))
             .service(web::resource("/google_login_callback").route(web::post().to(google_callback)))

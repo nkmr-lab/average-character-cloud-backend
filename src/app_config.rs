@@ -4,6 +4,7 @@ use std::error::Error;
 #[derive(Debug, Clone)]
 pub struct SessionConfig {
     pub redis_url: String,
+    pub crypto_key: [u8; 64],
 }
 
 #[derive(Debug, Clone)]
@@ -53,6 +54,9 @@ impl AppConfig {
         };
         let session = SessionConfig {
             redis_url: env::var("SESSION_REDIS_URL")?,
+            crypto_key: base64::decode(env::var("SESSION_CRYPTO_KEY")?)?
+                .as_slice()
+                .try_into()?,
         };
 
         Ok(AppConfig {

@@ -237,7 +237,7 @@ async fn main() -> io::Result<()> {
         .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
     let google_public_key: web::Data<ArcSwap<Option<GooglePublicKey>>> =
         web::Data::new(ArcSwap::from(Arc::new(None)));
-    let secret_key = Key::generate();
+    let secret_key = Key::from(config.session.crypto_key.as_slice());
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(schema.clone()))

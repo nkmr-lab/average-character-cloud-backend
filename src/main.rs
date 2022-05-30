@@ -1,6 +1,6 @@
 #![feature(let_else, try_blocks, let_chains, try_trait_v2)]
 
-use actix_session::storage::RedisActorSessionStore;
+use actix_session::storage::RedisSessionStore;
 use actix_session::{Session, SessionLength, SessionMiddleware};
 use actix_web::cookie::Key;
 use actix_web::{error, middleware, web, App, HttpRequest, HttpResponse, HttpServer};
@@ -252,6 +252,9 @@ async fn main() -> io::Result<()> {
     let google_public_key: web::Data<ArcSwap<Option<GooglePublicKey>>> =
         web::Data::new(ArcSwap::from(Arc::new(None)));
     let secret_key = Key::from(config.session.crypto_key.as_slice());
+    let redis_session_store = RedisSessionStore::new(config.session.redis_url.clone())
+        .await
+        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(schema.clone()))
@@ -260,16 +263,13 @@ async fn main() -> io::Result<()> {
             .app_data(google_public_key.clone())
             .wrap(middleware::Logger::default())
             .wrap(
-                SessionMiddleware::builder(
-                    RedisActorSessionStore::new(config.session.redis_url.clone()),
-                    secret_key.clone(),
-                )
-                .cookie_path(format!("/{}", config.mount_base.join("/")))
-                .session_length(SessionLength::Predetermined {
-                    max_session_length: Some(Duration::days(1)),
-                })
-                .cookie_name("average-character-cloud-session".to_string())
-                .build(),
+                SessionMiddleware::builder(redis_session_store.clone(), secret_key.clone())
+                    .cookie_path(format!("/{}", config.mount_base.join("/")))
+                    .session_length(SessionLength::Predetermined {
+                        max_session_length: Some(Duration::days(1)),
+                    })
+                    .cookie_name("average-character-cloud-session".to_string())
+                    .build(),
             )
             .service(web::resource("/graphql").route(web::post().to(graphql)))
             .service(web::resource("/graphiql").route(web::get().to(graphiql)))

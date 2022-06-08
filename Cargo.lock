@@ -202,6 +202,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "actix-web-extras"
+version = "0.1.0"
+source = "git+https://github.com/ctron/actix-web-extras.git?rev=e896994e38b253e270546f186780e3d1c99d0d3b#e896994e38b253e270546f186780e3d1c99d0d3b"
+dependencies = [
+ "actix-web",
+ "futures-core",
+ "futures-util",
+ "pin-project-lite",
+]
+
+[[package]]
 name = "adler"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -338,6 +349,7 @@ version = "0.1.0"
 dependencies = [
  "actix-session",
  "actix-web",
+ "actix-web-extras",
  "anyhow",
  "arc-swap",
  "base64",

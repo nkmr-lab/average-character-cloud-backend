@@ -2,14 +2,14 @@ use std::env;
 use std::error::Error;
 
 #[derive(Debug, Clone)]
-pub struct SessionConfig {
-    pub redis_url: String,
-    pub crypto_key: [u8; 64],
+pub enum SessionConfig {
+    Redis { url: String, crypto_key: [u8; 64] },
+    Dummy { user_id: String },
 }
 
 #[derive(Debug, Clone)]
 pub enum AuthConfig {
-    Dummy,
+    Disable,
     Google {
         client_id: String,
         enable_front: bool,
@@ -39,7 +39,7 @@ impl AppConfig {
         let host = env::var("HOST").unwrap_or("localhost".to_owned());
         let database_url = env::var("DATABASE_URL")?;
         let auth = match env::var("AUTH_KIND")?.as_str() {
-            "DUMMY" => AuthConfig::Dummy,
+            "DISABLE" => AuthConfig::Disable,
             "GOOGLE" => {
                 let client_id = env::var("AUTH_GOOGLE_CLIENT_ID")?;
                 AuthConfig::Google {
@@ -54,11 +54,22 @@ impl AppConfig {
                 "Invalid auth kind",
             ))?,
         };
-        let session = SessionConfig {
-            redis_url: env::var("SESSION_REDIS_URL")?,
-            crypto_key: base64::decode(env::var("SESSION_CRYPTO_KEY")?)?
-                .as_slice()
-                .try_into()?,
+        let session = match env::var("SESSION_KIND")?.as_str() {
+            "REDIS" => {
+                let url = env::var("SESSION_REDIS_URL")?;
+                let crypto_key = base64::decode(env::var("SESSION_REDIS_CRYPTO_KEY")?)?
+                    .as_slice()
+                    .try_into()?;
+                SessionConfig::Redis { url, crypto_key }
+            }
+            "DUMMY" => {
+                let user_id = env::var("SESSION_DUMMY_USER_ID")?;
+                SessionConfig::Dummy { user_id }
+            }
+            _ => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid session kind",
+            ))?,
         };
 
         Ok(AppConfig {

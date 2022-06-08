@@ -25,7 +25,8 @@ jobs:
       - name: Release build
         id: release-build
         run: |
-          echo "::set-output name=OUT::$(nix build --json | jq -r ".[0].outputs.out")"
+          BUILD_OUT=$(nix build --json)
+          echo "::set-output name=OUT::$(echo $BUILD_OUT | jq -r ".[0].outputs.out")"
       - uses: actions/upload-artifact@v3
         with:
           name: average-character-cloud-backend

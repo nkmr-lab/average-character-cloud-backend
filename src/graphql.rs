@@ -134,7 +134,7 @@ struct RecordModel {
 }
 
 impl RecordModel {
-    fn to_entity(self, user_id: &String) -> AppResult<entities::record::Record> {
+    fn to_entity(self) -> AppResult<entities::record::Record> {
         let id = Ulid::from_str(&self.id).map_err(|err| AppError::Internal(Box::new(err)))?;
 
         let &[character] = self.character.chars().collect::<Vec<_>>().as_slice() else {
@@ -152,7 +152,7 @@ impl RecordModel {
 
         Ok(entities::record::Record {
             id,
-            user_id: user_id.clone(),
+            user_id: self.user_id,
             character,
             figure,
             created_at: self.created_at,
@@ -355,7 +355,7 @@ impl QueryRoot {
 
         let mut records = result
             .into_iter()
-            .map(|row| row.to_entity(&user_id))
+            .map(|row| row.to_entity())
             .collect::<AppResult<Vec<_>>>()?;
 
         let has_extra = records.len() > limit.value as usize;

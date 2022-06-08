@@ -3,7 +3,7 @@
 use actix_session::storage::RedisSessionStore;
 use actix_session::{Session, SessionLength, SessionMiddleware};
 use actix_web::cookie::Key;
-use actix_web::{error, middleware, web, App, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{error, get, middleware, post, web, App, HttpRequest, HttpResponse, HttpServer};
 use arc_swap::ArcSwap;
 use chrono::{DateTime, FixedOffset, Utc};
 use juniper::http::graphiql::graphiql_source;
@@ -21,6 +21,7 @@ use average_character_cloud_backend::graphql::{create_schema, AppCtx, Schema};
 use jsonwebtoken::jwk::{self, JwkSet};
 use std::sync::Arc;
 
+#[get("/graphiql")]
 async fn graphiql(config: web::Data<AppConfig>) -> HttpResponse {
     let html = graphiql_source(
         &format!("/{}", {
@@ -35,6 +36,7 @@ async fn graphiql(config: web::Data<AppConfig>) -> HttpResponse {
         .body(html)
 }
 
+#[post("/graphql")]
 async fn graphql(
     st: web::Data<Arc<Schema>>,
     pool: web::Data<PgPool>,
@@ -87,6 +89,7 @@ async fn fetch_google_public_key(
     })
 }
 
+#[get("/google_login")]
 async fn google_login_front(config: web::Data<AppConfig>) -> HttpResponse {
     let AuthConfig::Google { client_id, enable_front } = &config.auth else {
         return HttpResponse::NotFound().body("Not found");
@@ -171,6 +174,7 @@ fn verify_google_token(
     }
 }
 
+#[post("/google_login_callback")]
 async fn google_callback(
     config: web::Data<AppConfig>,
     req: HttpRequest,
@@ -224,6 +228,7 @@ pub struct DummyAuthParams {
     user_id: String,
 }
 
+#[get("/dummy_auth")]
 async fn dummy_auth(
     config: web::Data<AppConfig>,
     query: web::Query<DummyAuthParams>,
@@ -271,11 +276,11 @@ async fn main() -> io::Result<()> {
                     .cookie_name("average-character-cloud-session".to_string())
                     .build(),
             )
-            .service(web::resource("/graphql").route(web::post().to(graphql)))
-            .service(web::resource("/graphiql").route(web::get().to(graphiql)))
-            .service(web::resource("/google_login_callback").route(web::post().to(google_callback)))
-            .service(web::resource("/google_login").route(web::get().to(google_login_front)))
-            .service(web::resource("/dummy_auth").route(web::get().to(dummy_auth)))
+            .service(graphql)
+            .service(graphiql)
+            .service(google_callback)
+            .service(google_login_front)
+            .service(dummy_auth)
     })
     .bind((host.as_str(), port))?
     .run()

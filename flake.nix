@@ -18,15 +18,15 @@
           rustc = rust-toolchain pkgs;
           defaultCrateOverrides = pkgs.defaultCrateOverrides // {
             "sqlx-macros" = attrs: {
-              buildInputs = [
-                pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
-                pkgs.darwin.apple_sdk.frameworks.CoreFoundation
+              buildInputs = with pkgs; lib.optionals stdenv.isDarwin [
+                darwin.apple_sdk.frameworks.SystemConfiguration
+                darwin.apple_sdk.frameworks.CoreFoundation
               ];
             };
             "average-character-cloud-backend" = attrs: {
-              buildInputs = [
-                pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
-                pkgs.darwin.apple_sdk.frameworks.Security
+              buildInputs = with pkgs; lib.optionals stdenv.isDarwin [
+                darwin.apple_sdk.frameworks.SystemConfiguration
+                darwin.apple_sdk.frameworks.Security
               ];
               SQLX_OFFLINE = "true";
             };

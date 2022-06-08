@@ -41,6 +41,12 @@
         packages = {
           sqldef = callPackage ./sqldef.nix { };
           average-character-cloud-backend = defaultPackage;
+          average-character-cloud-backend-docker = dockerTools.buildImage {
+            name = "average-character-cloud-backend";
+            config = {
+              Cmd = [ "${defaultPackage}/bin/average-character-cloud-backend" ];
+            };
+          };
         };
         devShell = mkShell {
           packages = [

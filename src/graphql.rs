@@ -263,7 +263,7 @@ impl QueryRoot {
                 .fetch_optional(&ctx.pool)
                 .await
                 .map_err(|err| AppError::Internal(Box::new(err)))?;
-                let record = record.map(|row| row.to_entity(&user_id)).transpose()?;
+                let record = record.map(|row| row.to_entity()).transpose()?;
                 Ok(record
                     .as_ref()
                     .map(Record::from_entity)

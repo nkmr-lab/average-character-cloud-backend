@@ -274,7 +274,7 @@ impl QueryRoot {
 
     async fn records(
         ctx: &AppCtx,
-        character: Option<String>,
+        characters: Option<Vec<String>>,
         first: Option<i32>,
         after: Option<String>,
         last: Option<i32>,
@@ -284,15 +284,17 @@ impl QueryRoot {
             return Err(AppError::Other("Authentication required".to_string()));
         };
 
-        let character = character
-            .map(|character| -> AppResult<char> {
-                let &[character] = character.chars().collect::<Vec<_>>().as_slice() else {
-                    return Err(AppError::Other(
-                        "character must be one character".to_string(),
-                    ));
-                };
-
-                Ok(character)
+        let characters = characters
+            .map(|characters| -> AppResult<Vec<char>> {
+                characters.into_iter().map(|character|-> AppResult<char>{
+                    let &[character] = character.chars().collect::<Vec<_>>().as_slice() else {
+                        return Err(AppError::Other(
+                            "character must be one character".to_string(),
+                        ));
+                    };
+    
+                    Ok(character)
+                }).collect::<AppResult<Vec<_>>>()
             })
             .transpose()?;
 
@@ -317,6 +319,8 @@ impl QueryRoot {
                 Ok(id)
             })
             .transpose()?;
+        
+        let characters =  characters.map(|cs|cs.into_iter().map(|c|c.to_string()).collect::<Vec<_>>());
 
         let result = sqlx::query_as!(
             RecordModel,
@@ -332,7 +336,7 @@ impl QueryRoot {
                 WHERE
                     user_id = $1
                     AND
-                    ($2::VARCHAR(8) IS NULL OR character = $2)
+                    ($2::VARCHAR(8)[] IS NULL OR character = Any($2))
                     AND
                     ($3::VARCHAR(64) IS NULL OR id < $3)
                     AND
@@ -343,7 +347,7 @@ impl QueryRoot {
                 LIMIT $6
             "#,
             &user_id,
-            character.map(|c| c.to_string()),
+            characters.as_ref().map(|cs|cs.as_slice()),
             after_id.map(|id| id.to_string()),
             before_id.map(|id| id.to_string()),
             (limit.kind == LimitKind::Last) as i32,

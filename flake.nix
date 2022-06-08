@@ -37,9 +37,10 @@
         };
       in
       with pkgs; rec {
+        defaultPackage = crate.rootCrate.build;
         packages = {
           sqldef = callPackage ./sqldef.nix { };
-          average-character-cloud-backend = crate.rootCrate.build;
+          average-character-cloud-backend = defaultPackage;
         };
         devShell = mkShell {
           packages = [

@@ -46,6 +46,7 @@
             contents = [
               pkgs.coreutils
               pkgs.bash
+              pkgs.cacert
               defaultPackage
             ];
             config = {

@@ -45,6 +45,13 @@ jobs:
           key: cargo-cache-20220609-1-${{ github.sha }}
           restore-keys: |
             cargo-cache-20220609-1-
+      - name: Cache cargo home
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo
+          key: cargo-home-20220609-1-${{ github.sha }}
+          restore-keys: |
+            cargo-home-20220609-1-
       - name: Format
         run: |
           cargo fmt --check

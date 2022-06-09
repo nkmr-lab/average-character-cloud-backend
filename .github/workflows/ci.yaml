@@ -48,9 +48,9 @@ jobs:
       - name: Format
         run: |
           cargo fmt --check
-      - name: Lint
-        run: |
-          cargo clippy
+      # - name: Lint
+      #  run: |
+      #    cargo clippy
       - name: Test
         run: |
           cargo test

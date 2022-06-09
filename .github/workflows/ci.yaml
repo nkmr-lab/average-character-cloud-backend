@@ -89,3 +89,25 @@ jobs:
         run: |
           nix-collect-garbage
           nix-store --export $(nix path-info --all) > ./nix-store-cache
+      -
+        name: Login to Docker
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      -
+        name: Generate tags
+        uses: kgtkr/docker-tags-gen-action@master
+        id: tags
+        with:
+          name: ghcr.io/${{ github.repository_owner }}/average-character-cloud-backend
+      -
+        name: Docker push
+        run: |
+          IMAGE=$(docker load -q < result-docker | awk "{print $3}")
+          TAGS=${{ steps.tags.outputs.tags }}
+          for TAG in ${TAGS//,/ }; do
+            docker tag $IMAGE $TAG
+            docker push $TAG
+          done

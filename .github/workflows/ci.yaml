@@ -18,10 +18,11 @@ jobs:
           restore-keys: |
             nix-store-cache-20220608-1-
       - name: Import nix store cache
-        if: steps.nix-store-cache.outputs.cache-hit == 'true'
         run: |
-          nix-store --import < ./nix-store-cache
-          rm ./nix-store-cache
+          if [ -e ./nix-store-cache ]; then
+            nix-store --import < ./nix-store-cache
+            rm ./nix-store-cache
+          fi
       - name: Build devShell
         run: |
           nix build .#devShell.$(nix eval --expr 'builtins.currentSystem' --impure --raw) --out-link result-devShell

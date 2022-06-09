@@ -105,7 +105,7 @@ jobs:
       -
         name: Docker push
         run: |
-          IMAGE=$(docker load -q < result-docker | awk "{print $3}")
+          IMAGE=$(docker load -q < result-docker | awk '{print $3}')
           TAGS=${{ steps.tags.outputs.tags }}
           for TAG in ${TAGS//,/ }; do
             docker tag $IMAGE $TAG

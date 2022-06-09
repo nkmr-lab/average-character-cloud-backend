@@ -1,4 +1,5 @@
 #![feature(let_else, try_blocks, let_chains, try_trait_v2)]
+#![deny(warnings)]
 
 use actix_session::storage::RedisSessionStore;
 use actix_session::{Session, SessionLength, SessionMiddleware};

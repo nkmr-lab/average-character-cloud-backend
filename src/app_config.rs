@@ -1,5 +1,5 @@
+use anyhow::{anyhow, Context};
 use std::env;
-use std::error::Error;
 
 #[derive(Debug, Clone)]
 pub enum SessionConfig {
@@ -28,20 +28,22 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
-    pub fn from_env() -> Result<AppConfig, Box<dyn Error + Send + Sync>> {
-        let origin = env::var("ORIGIN")?;
+    pub fn from_env() -> anyhow::Result<AppConfig> {
+        let origin = env::var("ORIGIN").context("ORIGIN")?;
         let mount_base = env::var("MOUNT_BASE")
             .map(|s| s.split_terminator('/').map(|s| s.to_string()).collect())
             .unwrap_or_else(|_| Vec::new());
         let port = env::var("PORT")
-            .unwrap_or_else(|_| "8080".to_owned())
-            .parse::<u16>()?;
+            .map(|x| x.parse::<u16>())
+            .unwrap_or(Ok(8080))
+            .context("PORT")?;
         let host = env::var("HOST").unwrap_or_else(|_| "localhost".to_owned());
-        let database_url = env::var("DATABASE_URL")?;
-        let auth = match env::var("AUTH_KIND")?.as_str() {
+        let database_url = env::var("DATABASE_URL").context("DATABASE_URL")?;
+        let auth = match env::var("AUTH_KIND").context("AUTH_KIND")?.as_str() {
             "DISABLE" => AuthConfig::Disable,
             "GOOGLE" => {
-                let client_id = env::var("AUTH_GOOGLE_CLIENT_ID")?;
+                let client_id =
+                    env::var("AUTH_GOOGLE_CLIENT_ID").context("AUTH_GOOGLE_CLIENT_ID")?;
                 AuthConfig::Google {
                     client_id,
                     enable_front: env::var("AUTH_GOOGLE_ENABLE_FRONT")
@@ -49,27 +51,27 @@ impl AppConfig {
                         .unwrap_or(false),
                 }
             }
-            _ => Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid auth kind",
-            ))?,
+            _ => Err(anyhow!("Invalid auth kind"))?,
         };
-        let session = match env::var("SESSION_KIND")?.as_str() {
+        let session = match env::var("SESSION_KIND").context("SESSION_KIND")?.as_str() {
             "REDIS" => {
-                let url = env::var("SESSION_REDIS_URL")?;
-                let crypto_key = base64::decode(env::var("SESSION_REDIS_CRYPTO_KEY")?)?
-                    .as_slice()
-                    .try_into()?;
+                let url = env::var("SESSION_REDIS_URL").context("SESSION_REDIS_URL")?;
+                let crypto_key = {
+                    let res: anyhow::Result<_> = try {
+                        base64::decode(env::var("SESSION_REDIS_CRYPTO_KEY")?)?
+                            .as_slice()
+                            .try_into()?
+                    };
+                    res
+                }
+                .context("SESSION_REDIS_CRYPTO_KEY")?;
                 SessionConfig::Redis { url, crypto_key }
             }
             "DUMMY" => {
-                let user_id = env::var("SESSION_DUMMY_USER_ID")?;
+                let user_id = env::var("SESSION_DUMMY_USER_ID").context("SESSION_DUMMY_USER_ID")?;
                 SessionConfig::Dummy { user_id }
             }
-            _ => Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid session kind",
-            ))?,
+            _ => Err(anyhow!("Invalid session kind"))?,
         };
 
         Ok(AppConfig {

@@ -134,7 +134,7 @@ struct RecordModel {
 }
 
 impl RecordModel {
-    fn to_entity(self) -> AppResult<entities::record::Record> {
+    fn into_entity(self) -> AppResult<entities::record::Record> {
         let id = Ulid::from_str(&self.id).map_err(|err| AppError::Internal(Box::new(err)))?;
 
         let &[character] = self.character.chars().collect::<Vec<_>>().as_slice() else {
@@ -263,7 +263,7 @@ impl QueryRoot {
                 .fetch_optional(&ctx.pool)
                 .await
                 .map_err(|err| AppError::Internal(Box::new(err)))?;
-                let record = record.map(|row| row.to_entity()).transpose()?;
+                let record = record.map(|row| row.into_entity()).transpose()?;
                 Ok(record
                     .as_ref()
                     .map(Record::from_entity)
@@ -284,19 +284,20 @@ impl QueryRoot {
             return Err(AppError::Other("Authentication required".to_string()));
         };
 
-        let characters = characters
-            .map(|characters| -> AppResult<Vec<char>> {
-                characters.into_iter().map(|character|-> AppResult<char>{
+        let characters =
+            characters
+                .map(|characters| -> AppResult<Vec<char>> {
+                    characters.into_iter().map(|character|-> AppResult<char>{
                     let &[character] = character.chars().collect::<Vec<_>>().as_slice() else {
                         return Err(AppError::Other(
                             "character must be one character".to_string(),
                         ));
                     };
-    
+
                     Ok(character)
                 }).collect::<AppResult<Vec<_>>>()
-            })
-            .transpose()?;
+                })
+                .transpose()?;
 
         let limit = Limit::encode(first, last)?;
 
@@ -319,8 +320,9 @@ impl QueryRoot {
                 Ok(id)
             })
             .transpose()?;
-        
-        let characters =  characters.map(|cs|cs.into_iter().map(|c|c.to_string()).collect::<Vec<_>>());
+
+        let characters =
+            characters.map(|cs| cs.into_iter().map(|c| c.to_string()).collect::<Vec<_>>());
 
         let result = sqlx::query_as!(
             RecordModel,
@@ -347,7 +349,7 @@ impl QueryRoot {
                 LIMIT $6
             "#,
             &user_id,
-            characters.as_ref().map(|cs|cs.as_slice()),
+            characters.as_ref().map(|cs| cs.as_slice()),
             after_id.map(|id| id.to_string()),
             before_id.map(|id| id.to_string()),
             (limit.kind == LimitKind::Last) as i32,
@@ -359,7 +361,7 @@ impl QueryRoot {
 
         let mut records = result
             .into_iter()
-            .map(|row| row.to_entity())
+            .map(|row| row.into_entity())
             .collect::<AppResult<Vec<_>>>()?;
 
         let has_extra = records.len() > limit.value as usize;
@@ -413,11 +415,11 @@ impl MutationRoot {
         };
 
         let record = entities::record::Record {
-            id: Ulid::from_datetime(ctx.now.clone()),
+            id: Ulid::from_datetime(ctx.now),
             user_id,
             character,
             figure,
-            created_at: ctx.now.clone(),
+            created_at: ctx.now,
         };
 
         sqlx::query!(

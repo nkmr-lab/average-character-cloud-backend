@@ -1,6 +1,8 @@
 [tasks.add-migrate]
 condition = {profiles = ["development"]}
 script = """
+set -eu
+
 name=${1}
 now=`date -u "+%Y%m%d%H%M%S"`
 current_schema=`mktemp`

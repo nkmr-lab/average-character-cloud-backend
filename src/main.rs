@@ -1,4 +1,5 @@
 #![feature(let_else, try_blocks, let_chains, try_trait_v2)]
+#![deny(warnings)]
 
 use actix_session::storage::RedisSessionStore;
 use actix_session::{Session, SessionLength, SessionMiddleware};
@@ -89,10 +90,7 @@ async fn fetch_google_public_key(
     )?;
     let jwks = serde_json::from_str::<JwkSet>(res.text().await?.as_str())?;
 
-    Ok(GooglePublicKey {
-        jwks: jwks.clone(),
-        expires,
-    })
+    Ok(GooglePublicKey { jwks, expires })
 }
 
 #[get("/google_login")]
@@ -170,13 +168,13 @@ fn verify_google_token(
                 )?;
                 Ok(decoded_token.claims["sub"]
                     .as_str()
-                    .ok_or_else(|| "sub not found")?
+                    .ok_or("sub not found")?
                     .to_string())
             }
-            _ => return Err("this should be a RSA".into()),
+            _ => Err("this should be a RSA".into()),
         }
     } else {
-        return Err("No matching JWK found for the given kid".into());
+        Err("No matching JWK found for the given kid".into())
     }
 }
 
@@ -263,9 +261,7 @@ async fn main() -> io::Result<()> {
         if let AuthConfig::Google { enable_front, .. } = &config.auth {
             let google_public_key: web::Data<ArcSwap<Option<GooglePublicKey>>> =
                 web::Data::new(ArcSwap::from(Arc::new(None)));
-            app = app
-                .app_data(google_public_key.clone())
-                .service(google_callback);
+            app = app.app_data(google_public_key).service(google_callback);
 
             if *enable_front {
                 app = app.service(google_login_front);

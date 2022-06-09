@@ -43,8 +43,13 @@
           average-character-cloud-backend = defaultPackage;
           average-character-cloud-backend-docker = dockerTools.buildImage {
             name = "average-character-cloud-backend";
+            contents = [
+              pkgs.coreutils
+              pkgs.bash
+              defaultPackage
+            ];
             config = {
-              Cmd = [ "${defaultPackage}/bin/average-character-cloud-backend" ];
+              Cmd = [ "average-character-cloud-backend" ];
             };
           };
         };

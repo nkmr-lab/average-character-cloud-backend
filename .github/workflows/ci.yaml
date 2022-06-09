@@ -3,6 +3,8 @@ on: push
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      SQLX_OFFLINE: "true"
     steps:
       - uses: actions/checkout@v3
       - uses: cachix/install-nix-action@v15
@@ -26,6 +28,16 @@ jobs:
       - name: Build devShell
         run: |
           nix build .#devShell.$(nix eval --expr 'builtins.currentSystem' --impure --raw) --out-link result-devShell
+          ". $PWD/result-devShell" >> /etc/profile
+      - name: Format
+        run: |
+          cargo fmt --check
+      - name: Lint
+        run: |
+          cargo clippy
+      - name: Test
+        run: |
+          cargo test
       - name: Release build
         run: |
           nix build . --out-link result-release

@@ -24,9 +24,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ./nix-store-cache
-          key: nix-store-cache-20220608-1-${{ github.sha }}
+          key: nix-store-cache-20220609-1-${{ github.sha }}
           restore-keys: |
-            nix-store-cache-20220608-1-
+            nix-store-cache-20220609-1-
       - name: Import nix store cache
         run: |
           if [ -e ./nix-store-cache ]; then
@@ -42,9 +42,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ./target
-          key: nix-store-cache-20220608-1-${{ github.sha }}
+          key: cargo-cache-20220609-1-${{ github.sha }}
           restore-keys: |
-            nix-store-cache-20220608-1-
+            cargo-cache-20220609-1-
       - name: Format
         run: |
           cargo fmt --check

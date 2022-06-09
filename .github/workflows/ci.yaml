@@ -5,6 +5,14 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SQLX_OFFLINE: "true"
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+    services:
+      redis:
+        image: postgres:10.5
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
     steps:
       - uses: actions/checkout@v3
       - uses: cachix/install-nix-action@v15
@@ -29,6 +37,13 @@ jobs:
         run: |
           nix build .#devShell.$(nix eval --expr 'builtins.currentSystem' --impure --raw) --out-link result-devShell
           ". $PWD/result-devShell" >> /etc/profile
+      - name: Cache cargo target
+        uses: actions/cache@v3
+        with:
+          path: ./target
+          key: nix-store-cache-20220608-1-${{ github.sha }}
+          restore-keys: |
+            nix-store-cache-20220608-1-
       - name: Format
         run: |
           cargo fmt --check
@@ -38,6 +53,15 @@ jobs:
       - name: Test
         run: |
           cargo test
+      - name: crate2nix
+        run: |
+          crate2nix generate
+          git diff --exit-code
+      - name: sqlx prepare
+        run: |
+          sqlx database reset -y
+          cargo make sqlx-prepare
+          git diff --exit-code
       - name: Release build
         run: |
           nix build . --out-link result-release

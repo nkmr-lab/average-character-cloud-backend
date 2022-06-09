@@ -34,9 +34,9 @@ impl AppConfig {
             .map(|s| s.split_terminator('/').map(|s| s.to_string()).collect())
             .unwrap_or_else(|_| Vec::new());
         let port = env::var("PORT")
-            .unwrap_or("8080".to_owned())
+            .unwrap_or_else(|_| "8080".to_owned())
             .parse::<u16>()?;
-        let host = env::var("HOST").unwrap_or("localhost".to_owned());
+        let host = env::var("HOST").unwrap_or_else(|_| "localhost".to_owned());
         let database_url = env::var("DATABASE_URL")?;
         let auth = match env::var("AUTH_KIND")?.as_str() {
             "DISABLE" => AuthConfig::Disable,

@@ -134,7 +134,7 @@ struct RecordModel {
 }
 
 impl RecordModel {
-    fn to_entity(self) -> AppResult<entities::record::Record> {
+    fn into_entity(self) -> AppResult<entities::record::Record> {
         let id = Ulid::from_str(&self.id).map_err(|err| AppError::Internal(Box::new(err)))?;
 
         let &[character] = self.character.chars().collect::<Vec<_>>().as_slice() else {
@@ -263,7 +263,7 @@ impl QueryRoot {
                 .fetch_optional(&ctx.pool)
                 .await
                 .map_err(|err| AppError::Internal(Box::new(err)))?;
-                let record = record.map(|row| row.to_entity()).transpose()?;
+                let record = record.map(|row| row.into_entity()).transpose()?;
                 Ok(record
                     .as_ref()
                     .map(Record::from_entity)
@@ -361,7 +361,7 @@ impl QueryRoot {
 
         let mut records = result
             .into_iter()
-            .map(|row| row.to_entity())
+            .map(|row| row.into_entity())
             .collect::<AppResult<Vec<_>>>()?;
 
         let has_extra = records.len() > limit.value as usize;
@@ -415,11 +415,11 @@ impl MutationRoot {
         };
 
         let record = entities::record::Record {
-            id: Ulid::from_datetime(ctx.now.clone()),
+            id: Ulid::from_datetime(ctx.now),
             user_id,
             character,
             figure,
-            created_at: ctx.now.clone(),
+            created_at: ctx.now,
         };
 
         sqlx::query!(

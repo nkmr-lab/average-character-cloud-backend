@@ -371,7 +371,7 @@ impl QueryRoot {
             .into_iter()
             .map(|row| row.into_entity())
             .collect::<anyhow::Result<Vec<_>>>()
-            .map_err(|err| AppError::Internal(err))?;
+            .map_err(AppError::Internal)?;
 
         let has_extra = records.len() > limit.value as usize;
 

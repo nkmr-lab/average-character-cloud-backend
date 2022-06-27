@@ -102,12 +102,14 @@ impl juniper::Context for AppCtx {}
 #[derive(Debug, Clone)]
 enum NodeID {
     Record(Ulid),
+    Character(Ulid),
 }
 
 impl NodeID {
     fn to_id(&self) -> ID {
         match self {
             NodeID::Record(id) => ID::new(base64::encode(format!("record:{}", id))),
+            NodeID::Character(id) => ID::new(base64::encode(format!("character:{}", id))),
         }
     }
 
@@ -119,6 +121,9 @@ impl NodeID {
         if let Some(record_id) = s.strip_prefix("record:") {
             let ulid = Ulid::from_str(record_id).ok()?;
             Some(NodeID::Record(ulid))
+        } else if let Some(character_id) = s.strip_prefix("character:") {
+            let ulid = Ulid::from_str(character_id).ok()?;
+            Some(NodeID::Character(ulid))
         } else {
             None
         }
@@ -140,10 +145,8 @@ impl RecordModel {
         let id = Ulid::from_str(&self.id).context("ulid decode error")?;
 
         let &[character] = self.character.chars().collect::<Vec<_>>().as_slice() else {
-                    return Err(
-                        anyhow!("character must be one character")
-                    );
-                };
+            return Err(anyhow!("character must be one character"));
+        };
 
         let figure = entities::figure::Figure::from_json_ast(self.figure)
             .ok_or_else(|| anyhow!("figure must be valid json"))?;
@@ -163,13 +166,42 @@ impl RecordModel {
     }
 }
 
+#[derive(Debug, Clone)]
+struct CharacterModel {
+    id: String,
+    user_id: String,
+    character: String,
+    stroke_count: i32,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+}
+
+impl CharacterModel {
+    fn into_entity(self) -> anyhow::Result<entities::character::Character> {
+        let id = Ulid::from_str(&self.id).context("ulid decode error")?;
+
+        let &[character] = self.character.chars().collect::<Vec<_>>().as_slice() else {
+            return Err(anyhow!("character must be one character"));
+        };
+
+        Ok(entities::character::Character {
+            id,
+            user_id: self.user_id,
+            character,
+            stroke_count: self.stroke_count as usize,
+            created_at: self.created_at,
+            updated_at: self.updated_at,
+        })
+    }
+}
+
 /**
  * replayの仕様に従うこと
  *   https://relay.dev/docs/guides/graphql-server-specification/
  *   https://relay.dev/graphql/connections.htm
 */
 
-#[graphql_interface(for = [Record])]
+#[graphql_interface(for = [Record, Character])]
 trait Node {
     fn id(&self) -> &ID;
 }
@@ -229,6 +261,49 @@ struct NewRecord {
     figure: String,
 }
 
+#[derive(GraphQLObject, Clone, Debug)]
+#[graphql(impl = NodeValue)]
+struct Character {
+    id: ID,
+    character_id: String,
+    character: String,
+    stroke_count: i32,
+    created_at: String,
+    updated_at: String,
+}
+
+impl Character {
+    fn from_entity(character: &entities::character::Character) -> Character {
+        Character {
+            id: NodeID::Character(character.id).to_id(),
+            character_id: character.id.to_string(),
+            character: character.character.to_string(),
+            stroke_count: character.stroke_count as i32,
+            created_at: character.created_at.to_rfc3339(),
+            updated_at: character.updated_at.to_rfc3339(),
+        }
+    }
+}
+
+#[graphql_interface]
+impl Node for Character {
+    fn id(&self) -> &ID {
+        &self.id
+    }
+}
+
+#[derive(GraphQLObject, Clone, Debug)]
+struct CharacterEdge {
+    cursor: String,
+    node: Character,
+}
+
+#[derive(GraphQLObject, Clone, Debug)]
+struct CharacterConnection {
+    page_info: PageInfo,
+    edges: Vec<CharacterEdge>,
+}
+
 #[derive(Clone, Debug)]
 pub struct QueryRoot;
 
@@ -275,6 +350,38 @@ impl QueryRoot {
                     .as_ref()
                     .map(Record::from_entity)
                     .map(NodeValue::Record))
+            }
+            NodeID::Character(id) => {
+                let character = sqlx::query_as!(
+                    CharacterModel,
+                    r#"
+                        SELECT
+                            id,
+                            user_id,
+                            character,
+                            stroke_count,
+                            created_at,
+                            updated_at
+                        FROM
+                            characters
+                        WHERE
+                            id = $1
+                            AND user_id = $2
+                    "#,
+                    id.to_string(),
+                    user_id,
+                )
+                .fetch_optional(&ctx.pool)
+                .await
+                .map_err(|err| AppError::Internal(err.into()))?;
+                let character = character
+                    .map(|row| row.into_entity())
+                    .transpose()
+                    .map_err(AppError::Internal)?;
+                Ok(character
+                    .as_ref()
+                    .map(Character::from_entity)
+                    .map(NodeValue::Character))
             }
         }
     }

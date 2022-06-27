@@ -10,6 +10,7 @@ use sqlx::PgPool;
 use ulid::Ulid;
 
 use crate::entities;
+use anyhow::{anyhow, ensure, Context};
 
 #[derive(Debug)]
 pub struct AppCtx {
@@ -21,7 +22,7 @@ pub struct AppCtx {
 #[derive(Debug)]
 pub enum AppError {
     Other(String),
-    Internal(Box<dyn std::error::Error + Send + Sync>),
+    Internal(anyhow::Error),
 }
 
 impl<S: ScalarValue> IntoFieldError<S> for AppError {
@@ -131,24 +132,26 @@ struct RecordModel {
     character: String,
     figure: serde_json::Value,
     created_at: DateTime<Utc>,
+    stroke_count: i32,
 }
 
 impl RecordModel {
-    fn into_entity(self) -> AppResult<entities::record::Record> {
-        let id = Ulid::from_str(&self.id).map_err(|err| AppError::Internal(Box::new(err)))?;
+    fn into_entity(self) -> anyhow::Result<entities::record::Record> {
+        let id = Ulid::from_str(&self.id).context("ulid decode error")?;
 
         let &[character] = self.character.chars().collect::<Vec<_>>().as_slice() else {
-                    return Err(AppError::Internal(
-                        Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, "character must be one character")),
-                    ));
+                    return Err(
+                        anyhow!("character must be one character")
+                    );
                 };
 
-        let figure = entities::figure::Figure::from_json_ast(self.figure).ok_or_else(|| {
-            AppError::Internal(Box::new(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "figure must be valid json",
-            )))
-        })?;
+        let figure = entities::figure::Figure::from_json_ast(self.figure)
+            .ok_or_else(|| anyhow!("figure must be valid json"))?;
+
+        ensure!(
+            self.stroke_count as usize == figure.strokes.len(),
+            "stroke_count invalid"
+        );
 
         Ok(entities::record::Record {
             id,
@@ -250,7 +253,8 @@ impl QueryRoot {
                             user_id,
                             character,
                             figure,
-                            created_at
+                            created_at,
+                            stroke_count
                         FROM
                             records
                         WHERE
@@ -262,8 +266,11 @@ impl QueryRoot {
                 )
                 .fetch_optional(&ctx.pool)
                 .await
-                .map_err(|err| AppError::Internal(Box::new(err)))?;
-                let record = record.map(|row| row.into_entity()).transpose()?;
+                .map_err(|err| AppError::Internal(err.into()))?;
+                let record = record
+                    .map(|row| row.into_entity())
+                    .transpose()
+                    .map_err(AppError::Internal)?;
                 Ok(record
                     .as_ref()
                     .map(Record::from_entity)
@@ -332,7 +339,8 @@ impl QueryRoot {
                     user_id,
                     character,
                     figure,
-                    created_at
+                    created_at,
+                    stroke_count
                 FROM
                     records
                 WHERE
@@ -357,12 +365,13 @@ impl QueryRoot {
         )
         .fetch_all(&ctx.pool)
         .await
-        .map_err(|err| AppError::Internal(Box::new(err)))?;
+        .map_err(|err| AppError::Internal(err.into()))?;
 
         let mut records = result
             .into_iter()
             .map(|row| row.into_entity())
-            .collect::<AppResult<Vec<_>>>()?;
+            .collect::<anyhow::Result<Vec<_>>>()
+            .map_err(|err| AppError::Internal(err))?;
 
         let has_extra = records.len() > limit.value as usize;
 
@@ -424,18 +433,19 @@ impl MutationRoot {
 
         sqlx::query!(
             r#"
-                INSERT INTO records (id, user_id, character, figure, created_at)
-                VALUES ($1, $2, $3, $4, $5)
+                INSERT INTO records (id, user_id, character, figure, created_at, stroke_count)
+                VALUES ($1, $2, $3, $4, $5, $6)
             "#,
             record.id.to_string(),
             record.user_id,
             record.character.to_string(),
             record.figure.to_json_ast(),
             record.created_at,
+            record.figure.strokes.len() as i32,
         )
         .execute(&ctx.pool)
         .await
-        .map_err(|err| AppError::Internal(Box::new(err)))?;
+        .map_err(|err| AppError::Internal(err.into()))?;
 
         Ok(Record::from_entity(&record))
     }

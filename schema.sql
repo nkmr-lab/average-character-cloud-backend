@@ -4,7 +4,7 @@ CREATE TABLE "records" (
   -- 余裕持って長めに確保する(1文字しか許さないのはアプリケーションの責任)
   "character" VARCHAR(8) NOT NULL,
   "figure" JSONB NOT NULL,
-  "created_at" TIMESTAMPTZ NOT NULL,
+  "created_at" TIMESTAMP WITH TIME ZONE NOT NULL,
   "stroke_count" INTEGER NOT NULL
 );
 
@@ -18,8 +18,8 @@ CREATE TABLE "characters" (
   "user_id" VARCHAR(64) NOT NULL,
   "character" VARCHAR(8) NOT NULL,
   "stroke_count" INTEGER NOT NULL,
-  "created_at" TIMESTAMPTZ NOT NULL,
-  "updated_at" TIMESTAMPTZ NOT NULL
+  "created_at" TIMESTAMP WITH TIME ZONE NOT NULL,
+  "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
 CREATE INDEX "characters_user_id_idx" ON "characters" ("user_id");

@@ -27,3 +27,4 @@ CREATE INDEX "characters_character_idx" ON "characters" ("character");
 CREATE INDEX "characters_stroke_count_idx" ON "characters" ("stroke_count");
 CREATE INDEX "characters_created_at_idx" ON "characters" ("created_at");
 CREATE INDEX "characters_updated_at_idx" ON "characters" ("updated_at");
+CREATE UNIQUE INDEX "characters_user_id_character_idx" ON "characters" ("user_id", "character");

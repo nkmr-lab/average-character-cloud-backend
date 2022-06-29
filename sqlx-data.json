@@ -68,6 +68,61 @@
     },
     "query": "\n                INSERT INTO records (id, user_id, character, figure, created_at, stroke_count)\n                VALUES ($1, $2, $3, $4, $5, $6)\n            "
   },
+  "e5349d34c2a2ca81ac805bc5bb83844ad9ebf84be40768c11001b17a4e50f908": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Varchar"
+        },
+        {
+          "name": "user_id",
+          "ordinal": 1,
+          "type_info": "Varchar"
+        },
+        {
+          "name": "character",
+          "ordinal": 2,
+          "type_info": "Varchar"
+        },
+        {
+          "name": "stroke_count",
+          "ordinal": 3,
+          "type_info": "Int4"
+        },
+        {
+          "name": "created_at",
+          "ordinal": 4,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "ordinal": 5,
+          "type_info": "Timestamptz"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "VarcharArray",
+          "Varchar",
+          "Varchar",
+          "Int4",
+          "Int8"
+        ]
+      }
+    },
+    "query": "\n                SELECT\n                    id,\n                    user_id,\n                    character,\n                    stroke_count,\n                    created_at,\n                    updated_at\n                FROM\n                    characters\n                WHERE\n                    user_id = $1\n                    AND\n                    ($2::VARCHAR(8)[] IS NULL OR character = Any($2))\n                    AND\n                    ($3::VARCHAR(64) IS NULL OR id < $3)\n                    AND\n                    ($4::VARCHAR(64) IS NULL OR id > $4)\n                ORDER BY\n                    CASE WHEN $5 = 0 THEN id END DESC,\n                    CASE WHEN $5 = 1 THEN id END ASC\n                LIMIT $6\n            "
+  },
   "eff5439728f450981f63d8b223f34c0bec7331faaf42fa85e60f39d7bdbcdb79": {
     "describe": {
       "columns": [

@@ -74,6 +74,23 @@
     },
     "query": "\n                        SELECT\n                            id,\n                            user_id,\n                            character,\n                            stroke_count,\n                            created_at,\n                            updated_at,\n                            version\n                        FROM\n                            characters\n                        WHERE\n                            id = $1\n                            AND user_id = $2\n                    "
   },
+  "5593af64b2397a5a9734b847a1388046efe880c7091f2a548125be26c926ecec": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Varchar",
+          "Varchar",
+          "Timestamptz",
+          "Timestamptz",
+          "Int4"
+        ]
+      }
+    },
+    "query": "\n                INSERT INTO characters (id, user_id, character, created_at, updated_at, stroke_count, version)\n                VALUES ($1, $2, $3, $4, $5, $6, 1)\n            "
+  },
   "75747db0b40c202f2c7856c2558ef469ccd88178ee05addb62e5cc31d5520257": {
     "describe": {
       "columns": [
@@ -267,21 +284,6 @@
       }
     },
     "query": "\n                SELECT\n                    r.id,\n                    r.user_id,\n                    r.character,\n                    r.figure,\n                    r.created_at,\n                    r.stroke_count\n                FROM\n                    records AS r\n                JOIN\n                    characters AS c ON r.character = c.character AND r.user_id = c.user_id\n                WHERE\n                    r.user_id = $1\n                    AND\n                    ($2::VARCHAR(8)[] IS NULL OR r.character = Any($2))\n                    AND\n                    ($3::VARCHAR(64) IS NULL OR r.id < $3)\n                    AND\n                    ($4::VARCHAR(64) IS NULL OR r.id > $4)\n                    AND\n                    r.stroke_count = c.stroke_count\n                ORDER BY\n                    CASE WHEN $5 = 0 THEN r.id END DESC,\n                    CASE WHEN $5 = 1 THEN r.id END ASC\n                LIMIT $6\n            "
-  },
-  "d0c6008b973288959df3bd88a441ad79205aefce73ffb6673b71693ac9ab0dd4": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Varchar",
-          "Varchar",
-          "Varchar",
-          "Timestamptz"
-        ]
-      }
-    },
-    "query": "\n                INSERT INTO characters (id, user_id, character, created_at)\n                VALUES ($1, $2, $3, $4)\n            "
   },
   "d2ca950c76d88c1144c4dd4c2797da49a428d5c5ff5d912c3eae5eec530ab824": {
     "describe": {

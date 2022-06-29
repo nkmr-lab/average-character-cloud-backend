@@ -844,12 +844,10 @@ impl MutationRoot {
             return Err(AppError::Other("Conflict".to_string()));
         }
 
-        let entity = model
-            .into_entity()
-            .map_err(|err| AppError::Internal(err.into()))?;
+        let entity = model.into_entity().map_err(AppError::Internal)?;
         let entity = entities::character::Character {
             updated_at: ctx.now,
-            stroke_count: stroke_count,
+            stroke_count,
             ..entity
         };
 

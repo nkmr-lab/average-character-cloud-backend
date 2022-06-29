@@ -509,6 +509,130 @@ impl QueryRoot {
                 .collect(),
         })
     }
+
+    async fn characters(
+        ctx: &AppCtx,
+        characters: Option<Vec<String>>,
+        first: Option<i32>,
+        after: Option<String>,
+        last: Option<i32>,
+        before: Option<String>,
+    ) -> AppResult<CharacterConnection> {
+        let Some(user_id) = ctx.user_id.clone() else {
+            return Err(AppError::Other("Authentication required".to_string()));
+        };
+
+        let characters =
+            characters
+                .map(|characters| -> AppResult<Vec<char>> {
+                    characters.into_iter().map(|character|-> AppResult<char>{
+                    let &[character] = character.chars().collect::<Vec<_>>().as_slice() else {
+                        return Err(AppError::Other(
+                            "character must be one character".to_string(),
+                        ));
+                    };
+
+                    Ok(character)
+                }).collect::<AppResult<Vec<_>>>()
+                })
+                .transpose()?;
+
+        let limit = Limit::encode(first, last)?;
+
+        let after_id = after
+            .map(|after| -> AppResult<Ulid> {
+                let Some(NodeID::Record(id)) = NodeID::from_id(&ID::new(after)) else {
+                    return Err(AppError::Other("after must be a valid cursor".to_string()))
+                };
+
+                Ok(id)
+            })
+            .transpose()?;
+
+        let before_id = before
+            .map(|before| -> AppResult<Ulid> {
+                let Some(NodeID::Record(id)) = NodeID::from_id(&ID::new(before)) else {
+                    return Err(AppError::Other("before must be a valid cursor".to_string()));
+                };
+
+                Ok(id)
+            })
+            .transpose()?;
+
+        let characters =
+            characters.map(|cs| cs.into_iter().map(|c| c.to_string()).collect::<Vec<_>>());
+
+        let result = sqlx::query_as!(
+            CharacterModel,
+            r#"
+                SELECT
+                    id,
+                    user_id,
+                    character,
+                    stroke_count,
+                    created_at,
+                    updated_at
+                FROM
+                    characters
+                WHERE
+                    user_id = $1
+                    AND
+                    ($2::VARCHAR(8)[] IS NULL OR character = Any($2))
+                    AND
+                    ($3::VARCHAR(64) IS NULL OR id < $3)
+                    AND
+                    ($4::VARCHAR(64) IS NULL OR id > $4)
+                ORDER BY
+                    CASE WHEN $5 = 0 THEN id END DESC,
+                    CASE WHEN $5 = 1 THEN id END ASC
+                LIMIT $6
+            "#,
+            &user_id,
+            characters.as_ref().map(|cs| cs.as_slice()),
+            after_id.map(|id| id.to_string()),
+            before_id.map(|id| id.to_string()),
+            (limit.kind == LimitKind::Last) as i32,
+            limit.value as i64 + 1,
+        )
+        .fetch_all(&ctx.pool)
+        .await
+        .map_err(|err| AppError::Internal(err.into()))?;
+
+        let mut characters = result
+            .into_iter()
+            .map(|row| row.into_entity())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .map_err(AppError::Internal)?;
+
+        let has_extra = characters.len() > limit.value as usize;
+
+        characters.truncate(limit.value as usize);
+
+        if limit.kind == LimitKind::Last {
+            characters.reverse();
+        }
+
+        let records = characters
+            .into_iter()
+            .map(|character| Character::from_entity(&character))
+            .collect::<Vec<_>>();
+
+        Ok(CharacterConnection {
+            page_info: PageInfo {
+                has_next_page: has_extra && limit.kind == LimitKind::First,
+                has_previous_page: has_extra && limit.kind == LimitKind::Last,
+                start_cursor: records.first().map(|record| record.id.to_string()),
+                end_cursor: records.last().map(|record| record.id.to_string()),
+            },
+            edges: records
+                .into_iter()
+                .map(|character| CharacterEdge {
+                    cursor: character.id.to_string(),
+                    node: character,
+                })
+                .collect(),
+        })
+    }
 }
 #[derive(Clone, Debug)]
 pub struct MutationRoot;

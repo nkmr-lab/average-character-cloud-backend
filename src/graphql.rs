@@ -749,13 +749,15 @@ impl MutationRoot {
 
         sqlx::query!(
             r#"
-                INSERT INTO characters (id, user_id, character, created_at)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO characters (id, user_id, character, created_at, updated_at, stroke_count, version)
+                VALUES ($1, $2, $3, $4, $5, $6, 1)
             "#,
             character.id.to_string(),
             character.user_id,
             character.character.to_string(),
             character.created_at,
+            character.updated_at,
+            character.stroke_count as i32,
         )
         .execute(&ctx.pool)
         .await

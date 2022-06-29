@@ -20,6 +20,7 @@ use time::Duration;
 use actix_web_extras::middleware::Condition as OptionalCondition;
 use average_character_cloud_backend::app_config::{AppConfig, AuthConfig, SessionConfig};
 use average_character_cloud_backend::graphql::{create_schema, AppCtx, Schema};
+use clap::Command;
 use jsonwebtoken::jwk::{self, JwkSet};
 use std::sync::Arc;
 
@@ -231,57 +232,70 @@ async fn google_callback(
 async fn main() -> io::Result<()> {
     env_logger::init();
     let config = AppConfig::from_env().map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
-
-    let host = config.host.clone();
-    let port = config.port;
-    let schema = Arc::new(create_schema());
     let pool = PgPoolOptions::new()
         .connect(&config.database_url)
         .await
         .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
 
-    let redis_session_config = if let SessionConfig::Redis { url, crypto_key } = &config.session {
-        let secret_key = Key::from(crypto_key.as_slice());
-        let store = RedisSessionStore::new(url.clone())
+    let cli = Command::new("average-character-cloud-backend").subcommand(Command::new("migrate"));
+
+    let matches = cli.get_matches();
+    match matches.subcommand() {
+        Some(("migrate", _)) => sqlx::migrate!("./migrations")
+            .run(&pool)
             .await
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+            .map_err(|err| io::Error::new(io::ErrorKind::Other, err)),
+        None => {
+            let host = config.host.clone();
+            let port = config.port;
+            let schema = Arc::new(create_schema());
 
-        Some((secret_key, store))
-    } else {
-        None
-    };
+            let redis_session_config =
+                if let SessionConfig::Redis { url, crypto_key } = &config.session {
+                    let secret_key = Key::from(crypto_key.as_slice());
+                    let store = RedisSessionStore::new(url.clone())
+                        .await
+                        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
 
-    HttpServer::new(move || {
-        let mut app = App::new()
-            .app_data(web::Data::new(schema.clone()))
-            .app_data(web::Data::new(config.clone()))
-            .app_data(web::Data::new(pool.clone()))
-            .service(graphql)
-            .service(graphiql);
-        if let AuthConfig::Google { enable_front, .. } = &config.auth {
-            let google_public_key: web::Data<ArcSwap<Option<GooglePublicKey>>> =
-                web::Data::new(ArcSwap::from(Arc::new(None)));
-            app = app.app_data(google_public_key).service(google_callback);
+                    Some((secret_key, store))
+                } else {
+                    None
+                };
 
-            if *enable_front {
-                app = app.service(google_login_front);
-            }
+            HttpServer::new(move || {
+                let mut app = App::new()
+                    .app_data(web::Data::new(schema.clone()))
+                    .app_data(web::Data::new(config.clone()))
+                    .app_data(web::Data::new(pool.clone()))
+                    .service(graphql)
+                    .service(graphiql);
+                if let AuthConfig::Google { enable_front, .. } = &config.auth {
+                    let google_public_key: web::Data<ArcSwap<Option<GooglePublicKey>>> =
+                        web::Data::new(ArcSwap::from(Arc::new(None)));
+                    app = app.app_data(google_public_key).service(google_callback);
+
+                    if *enable_front {
+                        app = app.service(google_login_front);
+                    }
+                }
+
+                app.wrap(middleware::Logger::default())
+                    .wrap(OptionalCondition::from_option(
+                        redis_session_config.clone().map(|(secret_key, store)| {
+                            SessionMiddleware::builder(store, secret_key)
+                                .cookie_path(format!("/{}", config.mount_base.join("/")))
+                                .session_length(SessionLength::Predetermined {
+                                    max_session_length: Some(Duration::days(1)),
+                                })
+                                .cookie_name("average-character-cloud-session".to_string())
+                                .build()
+                        }),
+                    ))
+            })
+            .bind((host.as_str(), port))?
+            .run()
+            .await
         }
-
-        app.wrap(middleware::Logger::default())
-            .wrap(OptionalCondition::from_option(
-                redis_session_config.clone().map(|(secret_key, store)| {
-                    SessionMiddleware::builder(store, secret_key)
-                        .cookie_path(format!("/{}", config.mount_base.join("/")))
-                        .session_length(SessionLength::Predetermined {
-                            max_session_length: Some(Duration::days(1)),
-                        })
-                        .cookie_name("average-character-cloud-session".to_string())
-                        .build()
-                }),
-            ))
-    })
-    .bind((host.as_str(), port))?
-    .run()
-    .await
+        _ => unreachable!("unreachable clip"),
+    }
 }

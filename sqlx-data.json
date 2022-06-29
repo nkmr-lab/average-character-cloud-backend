@@ -1,6 +1,23 @@
 {
   "db": "PostgreSQL",
-  "80439f40a961de5e8c751dacd82b256d3100c86178f214cc5d92a9bbcfb8063e": {
+  "1105ff73775ea22350333bd0198157de3d3e64834eb6c6281c867b787588a628": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Timestamptz",
+          "Int4",
+          "Int4",
+          "Text",
+          "Text",
+          "Int4"
+        ]
+      }
+    },
+    "query": "\n                UPDATE characters\n                SET\n                    updated_at = $1,\n                    stroke_count = $2,\n                    version = $3\n                WHERE\n                    id = $4\n                    AND\n                    user_id = $5\n                    AND\n                    version = $6\n            "
+  },
+  "5195cdc36c0b7dcf7a9e627ba1395ad3a7c8f1eb5b1100604b0c076c668f8e7b": {
     "describe": {
       "columns": [
         {
@@ -32,9 +49,15 @@
           "name": "updated_at",
           "ordinal": 5,
           "type_info": "Timestamptz"
+        },
+        {
+          "name": "version",
+          "ordinal": 6,
+          "type_info": "Int4"
         }
       ],
       "nullable": [
+        false,
         false,
         false,
         false,
@@ -49,26 +72,87 @@
         ]
       }
     },
-    "query": "\n                        SELECT\n                            id,\n                            user_id,\n                            character,\n                            stroke_count,\n                            created_at,\n                            updated_at\n                        FROM\n                            characters\n                        WHERE\n                            id = $1\n                            AND user_id = $2\n                    "
+    "query": "\n                        SELECT\n                            id,\n                            user_id,\n                            character,\n                            stroke_count,\n                            created_at,\n                            updated_at,\n                            version\n                        FROM\n                            characters\n                        WHERE\n                            id = $1\n                            AND user_id = $2\n                    "
   },
-  "d2ca950c76d88c1144c4dd4c2797da49a428d5c5ff5d912c3eae5eec530ab824": {
+  "75747db0b40c202f2c7856c2558ef469ccd88178ee05addb62e5cc31d5520257": {
     "describe": {
-      "columns": [],
-      "nullable": [],
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Varchar"
+        },
+        {
+          "name": "user_id",
+          "ordinal": 1,
+          "type_info": "Varchar"
+        },
+        {
+          "name": "character",
+          "ordinal": 2,
+          "type_info": "Varchar"
+        },
+        {
+          "name": "created_at",
+          "ordinal": 3,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "ordinal": 4,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "stroke_count",
+          "ordinal": 5,
+          "type_info": "Int4"
+        },
+        {
+          "name": "version",
+          "ordinal": 6,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
       "parameters": {
         "Left": [
-          "Varchar",
-          "Varchar",
-          "Varchar",
-          "Jsonb",
-          "Timestamptz",
-          "Int4"
+          "Text",
+          "Text"
         ]
       }
     },
-    "query": "\n                INSERT INTO records (id, user_id, character, figure, created_at, stroke_count)\n                VALUES ($1, $2, $3, $4, $5, $6)\n            "
+    "query": "\n                SELECT\n                    id,\n                    user_id,\n                    character,\n                    created_at,\n                    updated_at,\n                    stroke_count,\n                    version\n                FROM\n                    characters\n                WHERE\n                    id = $1\n                    AND\n                    user_id = $2\n            "
   },
-  "e5349d34c2a2ca81ac805bc5bb83844ad9ebf84be40768c11001b17a4e50f908": {
+  "8a37f98aa3cc0109da93fee934c74dfb30de8a02c46fab9453fb1083200cfe4a": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Varchar"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      }
+    },
+    "query": "\n                SELECT\n                    id\n                FROM\n                    characters\n                WHERE\n                    user_id = $1\n                    AND\n                    character = $2\n            "
+  },
+  "a61d4c472eabb18f51d6b95448ce4688726dd8f2dd3ffdc8e24830a865f15329": {
     "describe": {
       "columns": [
         {
@@ -100,9 +184,15 @@
           "name": "updated_at",
           "ordinal": 5,
           "type_info": "Timestamptz"
+        },
+        {
+          "name": "version",
+          "ordinal": 6,
+          "type_info": "Int4"
         }
       ],
       "nullable": [
+        false,
         false,
         false,
         false,
@@ -121,7 +211,39 @@
         ]
       }
     },
-    "query": "\n                SELECT\n                    id,\n                    user_id,\n                    character,\n                    stroke_count,\n                    created_at,\n                    updated_at\n                FROM\n                    characters\n                WHERE\n                    user_id = $1\n                    AND\n                    ($2::VARCHAR(8)[] IS NULL OR character = Any($2))\n                    AND\n                    ($3::VARCHAR(64) IS NULL OR id < $3)\n                    AND\n                    ($4::VARCHAR(64) IS NULL OR id > $4)\n                ORDER BY\n                    CASE WHEN $5 = 0 THEN id END DESC,\n                    CASE WHEN $5 = 1 THEN id END ASC\n                LIMIT $6\n            "
+    "query": "\n                SELECT\n                    id,\n                    user_id,\n                    character,\n                    stroke_count,\n                    created_at,\n                    updated_at,\n                    version\n                FROM\n                    characters\n                WHERE\n                    user_id = $1\n                    AND\n                    ($2::VARCHAR(8)[] IS NULL OR character = Any($2))\n                    AND\n                    ($3::VARCHAR(64) IS NULL OR id < $3)\n                    AND\n                    ($4::VARCHAR(64) IS NULL OR id > $4)\n                ORDER BY\n                    CASE WHEN $5 = 0 THEN id END DESC,\n                    CASE WHEN $5 = 1 THEN id END ASC\n                LIMIT $6\n            "
+  },
+  "d0c6008b973288959df3bd88a441ad79205aefce73ffb6673b71693ac9ab0dd4": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Varchar",
+          "Varchar",
+          "Timestamptz"
+        ]
+      }
+    },
+    "query": "\n                INSERT INTO characters (id, user_id, character, created_at)\n                VALUES ($1, $2, $3, $4)\n            "
+  },
+  "d2ca950c76d88c1144c4dd4c2797da49a428d5c5ff5d912c3eae5eec530ab824": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Varchar",
+          "Varchar",
+          "Jsonb",
+          "Timestamptz",
+          "Int4"
+        ]
+      }
+    },
+    "query": "\n                INSERT INTO records (id, user_id, character, figure, created_at, stroke_count)\n                VALUES ($1, $2, $3, $4, $5, $6)\n            "
   },
   "eff5439728f450981f63d8b223f34c0bec7331faaf42fa85e60f39d7bdbcdb79": {
     "describe": {

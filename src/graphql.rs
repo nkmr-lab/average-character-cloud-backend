@@ -174,6 +174,7 @@ struct CharacterModel {
     stroke_count: i32,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
+    version: i32,
 }
 
 impl CharacterModel {
@@ -304,6 +305,17 @@ struct CharacterConnection {
     edges: Vec<CharacterEdge>,
 }
 
+#[derive(GraphQLInputObject, Clone, Debug)]
+struct NewCharacter {
+    character: String,
+    stroke_count: i32,
+}
+
+#[derive(GraphQLInputObject, Clone, Debug)]
+struct UpdateCharacter {
+    stroke_count: Option<i32>,
+}
+
 #[derive(Clone, Debug)]
 pub struct QueryRoot;
 
@@ -361,7 +373,8 @@ impl QueryRoot {
                             character,
                             stroke_count,
                             created_at,
-                            updated_at
+                            updated_at,
+                            version
                         FROM
                             characters
                         WHERE
@@ -571,7 +584,8 @@ impl QueryRoot {
                     character,
                     stroke_count,
                     created_at,
-                    updated_at
+                    updated_at,
+                    version
                 FROM
                     characters
                 WHERE
@@ -679,6 +693,161 @@ impl MutationRoot {
         .map_err(|err| AppError::Internal(err.into()))?;
 
         Ok(Record::from_entity(&record))
+    }
+
+    async fn create_character(ctx: &AppCtx, new_character: NewCharacter) -> AppResult<Character> {
+        let Some(user_id) = ctx.user_id.clone() else {
+            return Err(AppError::Other("Authentication required".to_string()));
+        } ;
+
+        let &[character] = new_character.character.chars().collect::<Vec<_>>().as_slice() else {
+            return Err(AppError::Other(
+                "character must be one character".to_string(),
+            ));
+        };
+
+        let stroke_count = new_character.stroke_count.try_into().map_err(|_| {
+            AppError::Other("stroke_count must be an non negative integer".to_string())
+        })?;
+
+        let character = entities::character::Character {
+            id: Ulid::from_datetime(ctx.now),
+            user_id,
+            character,
+            created_at: ctx.now,
+            updated_at: ctx.now,
+            stroke_count,
+        };
+
+        // check exist
+        let exists = sqlx::query!(
+            r#"
+                SELECT
+                    id
+                FROM
+                    characters
+                WHERE
+                    user_id = $1
+                    AND
+                    character = $2
+            "#,
+            character.user_id,
+            character.character.to_string(),
+        )
+        .fetch_optional(&ctx.pool)
+        .await
+        .map_err(|err| AppError::Internal(err.into()))?
+        .is_some();
+
+        if exists {
+            return Err(AppError::Other("character already exists".to_string()));
+        }
+
+        sqlx::query!(
+            r#"
+                INSERT INTO characters (id, user_id, character, created_at)
+                VALUES ($1, $2, $3, $4)
+            "#,
+            character.id.to_string(),
+            character.user_id,
+            character.character.to_string(),
+            character.created_at,
+        )
+        .execute(&ctx.pool)
+        .await
+        .map_err(|err| AppError::Internal(err.into()))?;
+
+        Ok(Character::from_entity(&character))
+    }
+
+    async fn update_character(
+        ctx: &AppCtx,
+        id: ID,
+        update_character: UpdateCharacter,
+    ) -> AppResult<Character> {
+        let Some(user_id) = ctx.user_id.clone() else {
+            return Err(AppError::Other("Authentication required".to_string()));
+        };
+
+        let Some(NodeID::Character(id)) = NodeID::from_id(&id) else {
+            return Err(AppError::Other("Not found".to_string()));
+        };
+
+        let model = sqlx::query_as!(
+            CharacterModel,
+            r#"
+                SELECT
+                    id,
+                    user_id,
+                    character,
+                    created_at,
+                    updated_at,
+                    stroke_count,
+                    version
+                FROM
+                    characters
+                WHERE
+                    id = $1
+                    AND
+                    user_id = $2
+            "#,
+            id.to_string(),
+            user_id,
+        )
+        .fetch_optional(&ctx.pool)
+        .await
+        .map_err(|err| AppError::Internal(err.into()))?;
+
+        let Some(model) = model else {
+            return Err(AppError::Other("Not found".to_string()));
+        };
+
+        let stroke_count = match update_character.stroke_count {
+            Some(stroke_count) => stroke_count.try_into().map_err(|_| {
+                AppError::Other("stroke_count must be an non negative integer".to_string())
+            })?,
+            None => model.stroke_count as usize,
+        };
+
+        let result = sqlx::query!(
+            r#"
+                UPDATE characters
+                SET
+                    updated_at = $1,
+                    stroke_count = $2,
+                    version = $3
+                WHERE
+                    id = $4
+                    AND
+                    user_id = $5
+                    AND
+                    version = $6
+            "#,
+            ctx.now,
+            stroke_count as i32,
+            model.version + 1,
+            id.to_string(),
+            user_id,
+            model.version,
+        )
+        .execute(&ctx.pool)
+        .await
+        .map_err(|err| AppError::Internal(err.into()))?;
+
+        if result.rows_affected() == 0 {
+            return Err(AppError::Other("Conflict".to_string()));
+        }
+
+        let entity = model
+            .into_entity()
+            .map_err(|err| AppError::Internal(err.into()))?;
+        let entity = entities::character::Character {
+            updated_at: ctx.now,
+            stroke_count: stroke_count,
+            ..entity
+        };
+
+        Ok(Character::from_entity(&entity))
     }
 }
 

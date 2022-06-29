@@ -213,39 +213,7 @@
     },
     "query": "\n                SELECT\n                    id,\n                    user_id,\n                    character,\n                    stroke_count,\n                    created_at,\n                    updated_at,\n                    version\n                FROM\n                    characters\n                WHERE\n                    user_id = $1\n                    AND\n                    ($2::VARCHAR(8)[] IS NULL OR character = Any($2))\n                    AND\n                    ($3::VARCHAR(64) IS NULL OR id < $3)\n                    AND\n                    ($4::VARCHAR(64) IS NULL OR id > $4)\n                ORDER BY\n                    CASE WHEN $5 = 0 THEN id END DESC,\n                    CASE WHEN $5 = 1 THEN id END ASC\n                LIMIT $6\n            "
   },
-  "d0c6008b973288959df3bd88a441ad79205aefce73ffb6673b71693ac9ab0dd4": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Varchar",
-          "Varchar",
-          "Varchar",
-          "Timestamptz"
-        ]
-      }
-    },
-    "query": "\n                INSERT INTO characters (id, user_id, character, created_at)\n                VALUES ($1, $2, $3, $4)\n            "
-  },
-  "d2ca950c76d88c1144c4dd4c2797da49a428d5c5ff5d912c3eae5eec530ab824": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Varchar",
-          "Varchar",
-          "Varchar",
-          "Jsonb",
-          "Timestamptz",
-          "Int4"
-        ]
-      }
-    },
-    "query": "\n                INSERT INTO records (id, user_id, character, figure, created_at, stroke_count)\n                VALUES ($1, $2, $3, $4, $5, $6)\n            "
-  },
-  "eff5439728f450981f63d8b223f34c0bec7331faaf42fa85e60f39d7bdbcdb79": {
+  "b5082b4cf1c5e1b6857f1c3dd9f45dc91924257475ea0dc03a0d349093c9ebd6": {
     "describe": {
       "columns": [
         {
@@ -298,7 +266,39 @@
         ]
       }
     },
-    "query": "\n                SELECT\n                    id,\n                    user_id,\n                    character,\n                    figure,\n                    created_at,\n                    stroke_count\n                FROM\n                    records\n                WHERE\n                    user_id = $1\n                    AND\n                    ($2::VARCHAR(8)[] IS NULL OR character = Any($2))\n                    AND\n                    ($3::VARCHAR(64) IS NULL OR id < $3)\n                    AND\n                    ($4::VARCHAR(64) IS NULL OR id > $4)\n                ORDER BY\n                    CASE WHEN $5 = 0 THEN id END DESC,\n                    CASE WHEN $5 = 1 THEN id END ASC\n                LIMIT $6\n            "
+    "query": "\n                SELECT\n                    r.id,\n                    r.user_id,\n                    r.character,\n                    r.figure,\n                    r.created_at,\n                    r.stroke_count\n                FROM\n                    records AS r\n                JOIN\n                    characters AS c ON r.character = c.character AND r.user_id = c.user_id\n                WHERE\n                    r.user_id = $1\n                    AND\n                    ($2::VARCHAR(8)[] IS NULL OR r.character = Any($2))\n                    AND\n                    ($3::VARCHAR(64) IS NULL OR r.id < $3)\n                    AND\n                    ($4::VARCHAR(64) IS NULL OR r.id > $4)\n                    AND\n                    r.stroke_count = c.stroke_count\n                ORDER BY\n                    CASE WHEN $5 = 0 THEN r.id END DESC,\n                    CASE WHEN $5 = 1 THEN r.id END ASC\n                LIMIT $6\n            "
+  },
+  "d0c6008b973288959df3bd88a441ad79205aefce73ffb6673b71693ac9ab0dd4": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Varchar",
+          "Varchar",
+          "Timestamptz"
+        ]
+      }
+    },
+    "query": "\n                INSERT INTO characters (id, user_id, character, created_at)\n                VALUES ($1, $2, $3, $4)\n            "
+  },
+  "d2ca950c76d88c1144c4dd4c2797da49a428d5c5ff5d912c3eae5eec530ab824": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Varchar",
+          "Varchar",
+          "Jsonb",
+          "Timestamptz",
+          "Int4"
+        ]
+      }
+    },
+    "query": "\n                INSERT INTO records (id, user_id, character, figure, created_at, stroke_count)\n                VALUES ($1, $2, $3, $4, $5, $6)\n            "
   },
   "f690c1db5b7ecd24ee76ad32e9d85dd85dc92434ffaf6d80f11bd1a83f69fe30": {
     "describe": {

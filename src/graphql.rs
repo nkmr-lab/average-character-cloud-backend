@@ -455,25 +455,29 @@ impl QueryRoot {
             RecordModel,
             r#"
                 SELECT
-                    id,
-                    user_id,
-                    character,
-                    figure,
-                    created_at,
-                    stroke_count
+                    r.id,
+                    r.user_id,
+                    r.character,
+                    r.figure,
+                    r.created_at,
+                    r.stroke_count
                 FROM
-                    records
+                    records AS r
+                JOIN
+                    characters AS c ON r.character = c.character AND r.user_id = c.user_id
                 WHERE
-                    user_id = $1
+                    r.user_id = $1
                     AND
-                    ($2::VARCHAR(8)[] IS NULL OR character = Any($2))
+                    ($2::VARCHAR(8)[] IS NULL OR r.character = Any($2))
                     AND
-                    ($3::VARCHAR(64) IS NULL OR id < $3)
+                    ($3::VARCHAR(64) IS NULL OR r.id < $3)
                     AND
-                    ($4::VARCHAR(64) IS NULL OR id > $4)
+                    ($4::VARCHAR(64) IS NULL OR r.id > $4)
+                    AND
+                    r.stroke_count = c.stroke_count
                 ORDER BY
-                    CASE WHEN $5 = 0 THEN id END DESC,
-                    CASE WHEN $5 = 1 THEN id END ASC
+                    CASE WHEN $5 = 0 THEN r.id END DESC,
+                    CASE WHEN $5 = 1 THEN r.id END ASC
                 LIMIT $6
             "#,
             &user_id,

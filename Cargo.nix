@@ -1217,6 +1217,10 @@ rec {
             packageId = "chrono";
           }
           {
+            name = "clap";
+            packageId = "clap";
+          }
+          {
             name = "env_logger";
             packageId = "env_logger";
           }
@@ -1622,6 +1626,88 @@ rec {
           "blobby" = [ "dep:blobby" ];
           "dev" = [ "blobby" ];
         };
+      };
+      "clap" = rec {
+        crateName = "clap";
+        version = "3.2.7";
+        edition = "2021";
+        crateBin = [];
+        sha256 = "056gdrypgcs1dv8aj50sccdij4lv4013516vfx8v8ixj9ckicysv";
+        dependencies = [
+          {
+            name = "atty";
+            packageId = "atty";
+            optional = true;
+          }
+          {
+            name = "bitflags";
+            packageId = "bitflags";
+          }
+          {
+            name = "clap_lex";
+            packageId = "clap_lex";
+          }
+          {
+            name = "indexmap";
+            packageId = "indexmap";
+          }
+          {
+            name = "strsim";
+            packageId = "strsim";
+            optional = true;
+          }
+          {
+            name = "termcolor";
+            packageId = "termcolor";
+            optional = true;
+          }
+          {
+            name = "textwrap";
+            packageId = "textwrap";
+            usesDefaultFeatures = false;
+          }
+        ];
+        features = {
+          "atty" = [ "dep:atty" ];
+          "backtrace" = [ "dep:backtrace" ];
+          "cargo" = [ "once_cell" ];
+          "clap_derive" = [ "dep:clap_derive" ];
+          "color" = [ "atty" "termcolor" ];
+          "debug" = [ "clap_derive/debug" "backtrace" ];
+          "default" = [ "std" "color" "suggestions" ];
+          "deprecated" = [ "clap_derive/deprecated" ];
+          "derive" = [ "clap_derive" "once_cell" ];
+          "once_cell" = [ "dep:once_cell" ];
+          "regex" = [ "dep:regex" ];
+          "std" = [ "indexmap/std" ];
+          "strsim" = [ "dep:strsim" ];
+          "suggestions" = [ "strsim" ];
+          "termcolor" = [ "dep:termcolor" ];
+          "terminal_size" = [ "dep:terminal_size" ];
+          "unicase" = [ "dep:unicase" ];
+          "unicode" = [ "textwrap/unicode-width" "unicase" ];
+          "unstable-doc" = [ "derive" "cargo" "wrap_help" "yaml" "env" "unicode" "regex" "unstable-replace" "unstable-grouped" ];
+          "unstable-v4" = [ "clap_derive/unstable-v4" "deprecated" ];
+          "wrap_help" = [ "terminal_size" "textwrap/terminal_size" ];
+          "yaml" = [ "yaml-rust" ];
+          "yaml-rust" = [ "dep:yaml-rust" ];
+        };
+        resolvedDefaultFeatures = [ "atty" "color" "default" "std" "strsim" "suggestions" "termcolor" ];
+      };
+      "clap_lex" = rec {
+        crateName = "clap_lex";
+        version = "0.2.4";
+        edition = "2021";
+        sha256 = "1ib1a9v55ybnaws11l63az0jgz5xiy24jkdgsmyl7grcm3sz4l18";
+        dependencies = [
+          {
+            name = "os_str_bytes";
+            packageId = "os_str_bytes";
+            usesDefaultFeatures = false;
+            features = [ "raw_os_str" ];
+          }
+        ];
+
       };
       "combine 3.8.1" = rec {
         crateName = "combine";
@@ -4445,6 +4531,22 @@ rec {
           "vendored" = [ "openssl-src" ];
         };
       };
+      "os_str_bytes" = rec {
+        crateName = "os_str_bytes";
+        version = "6.1.0";
+        edition = "2018";
+        sha256 = "1ykav0kv9152z4cmv8smwmd9pac9q42sihi4wphnrzlwx4c6hci1";
+        authors = [
+          "dylni"
+        ];
+        features = {
+          "default" = [ "memchr" "raw_os_str" ];
+          "memchr" = [ "dep:memchr" ];
+          "print_bytes" = [ "dep:print_bytes" ];
+          "uniquote" = [ "dep:uniquote" ];
+        };
+        resolvedDefaultFeatures = [ "raw_os_str" ];
+      };
       "parking_lot 0.11.2" = rec {
         crateName = "parking_lot";
         version = "0.11.2";
@@ -6721,6 +6823,16 @@ rec {
         ];
 
       };
+      "strsim" = rec {
+        crateName = "strsim";
+        version = "0.10.0";
+        edition = "2015";
+        sha256 = "08s69r4rcrahwnickvi0kq49z524ci50capybln83mg6b473qivk";
+        authors = [
+          "Danny Guo <danny@dannyguo.com>"
+        ];
+
+      };
       "subtle" = rec {
         crateName = "subtle";
         version = "2.4.1";
@@ -6829,6 +6941,23 @@ rec {
           }
         ];
 
+      };
+      "textwrap" = rec {
+        crateName = "textwrap";
+        version = "0.15.0";
+        edition = "2018";
+        sha256 = "1yw513k61lfiwgqrfvsjw1a5wpvm0azhpjr2kr0jhnq9c56is55i";
+        authors = [
+          "Martin Geisler <martin@geisler.net>"
+        ];
+        features = {
+          "default" = [ "unicode-linebreak" "unicode-width" "smawk" ];
+          "hyphenation" = [ "dep:hyphenation" ];
+          "smawk" = [ "dep:smawk" ];
+          "terminal_size" = [ "dep:terminal_size" ];
+          "unicode-linebreak" = [ "dep:unicode-linebreak" ];
+          "unicode-width" = [ "dep:unicode-width" ];
+        };
       };
       "thiserror" = rec {
         crateName = "thiserror";

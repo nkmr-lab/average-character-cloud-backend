@@ -69,6 +69,7 @@
             darwin.apple_sdk.frameworks.Security
           ] ++ lib.optionals stdenv.isLinux [
             openssl
+            pkg-config
           ];
         };
       }

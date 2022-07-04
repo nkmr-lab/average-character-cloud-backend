@@ -402,6 +402,7 @@ impl QueryRoot {
     async fn records(
         ctx: &AppCtx,
         characters: Option<Vec<String>>,
+        ids: Option<Vec<ID>>,
         first: Option<i32>,
         after: Option<String>,
         last: Option<i32>,
@@ -425,6 +426,17 @@ impl QueryRoot {
                 }).collect::<AppResult<Vec<_>>>()
                 })
                 .transpose()?;
+
+        let ids = ids
+            .map(|ids| -> AppResult<Vec<Ulid>> {
+                ids.into_iter()
+                    .map(|id| -> AppResult<Ulid> {
+                        Ulid::from_str(id.to_string().as_str())
+                            .map_err(|_| AppError::Other("invalid ids".to_string()))
+                    })
+                    .collect::<AppResult<Vec<_>>>()
+            })
+            .transpose()?;
 
         let limit = Limit::encode(first, last)?;
 
@@ -451,6 +463,8 @@ impl QueryRoot {
         let characters =
             characters.map(|cs| cs.into_iter().map(|c| c.to_string()).collect::<Vec<_>>());
 
+        let ids = ids.map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>());
+
         let result = sqlx::query_as!(
             RecordModel,
             r#"
@@ -470,18 +484,21 @@ impl QueryRoot {
                     AND
                     ($2::VARCHAR(8)[] IS NULL OR r.character = Any($2))
                     AND
-                    ($3::VARCHAR(64) IS NULL OR r.id < $3)
+                    ($3::VARCHAR(64)[] IS NULL OR r.id = Any($3))
                     AND
-                    ($4::VARCHAR(64) IS NULL OR r.id > $4)
+                    ($4::VARCHAR(64) IS NULL OR r.id < $4)
+                    AND
+                    ($5::VARCHAR(64) IS NULL OR r.id > $5)
                     AND
                     r.stroke_count = c.stroke_count
                 ORDER BY
-                    CASE WHEN $5 = 0 THEN r.id END DESC,
-                    CASE WHEN $5 = 1 THEN r.id END ASC
-                LIMIT $6
+                    CASE WHEN $6 = 0 THEN r.id END DESC,
+                    CASE WHEN $6 = 1 THEN r.id END ASC
+                LIMIT $7
             "#,
             &user_id,
             characters.as_ref().map(|cs| cs.as_slice()),
+            ids.as_ref().map(|ids| ids.as_slice()),
             after_id.map(|id| id.to_string()),
             before_id.map(|id| id.to_string()),
             (limit.kind == LimitKind::Last) as i32,
@@ -530,6 +547,7 @@ impl QueryRoot {
     async fn characters(
         ctx: &AppCtx,
         characters: Option<Vec<String>>,
+        ids: Option<Vec<ID>>,
         first: Option<i32>,
         after: Option<String>,
         last: Option<i32>,
@@ -553,6 +571,17 @@ impl QueryRoot {
                 }).collect::<AppResult<Vec<_>>>()
                 })
                 .transpose()?;
+
+        let ids = ids
+            .map(|ids| -> AppResult<Vec<Ulid>> {
+                ids.into_iter()
+                    .map(|id| -> AppResult<Ulid> {
+                        Ulid::from_str(id.to_string().as_str())
+                            .map_err(|_| AppError::Other("invalid ids".to_string()))
+                    })
+                    .collect::<AppResult<Vec<_>>>()
+            })
+            .transpose()?;
 
         let limit = Limit::encode(first, last)?;
 
@@ -579,6 +608,8 @@ impl QueryRoot {
         let characters =
             characters.map(|cs| cs.into_iter().map(|c| c.to_string()).collect::<Vec<_>>());
 
+        let ids = ids.map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>());
+
         let result = sqlx::query_as!(
             CharacterModel,
             r#"
@@ -597,16 +628,19 @@ impl QueryRoot {
                     AND
                     ($2::VARCHAR(8)[] IS NULL OR character = Any($2))
                     AND
-                    ($3::VARCHAR(64) IS NULL OR id < $3)
+                    ($3::VARCHAR(64)[] IS NULL OR id = Any($3))
                     AND
-                    ($4::VARCHAR(64) IS NULL OR id > $4)
+                    ($4::VARCHAR(64) IS NULL OR id < $4)
+                    AND
+                    ($5::VARCHAR(64) IS NULL OR id > $5)
                 ORDER BY
-                    CASE WHEN $5 = 0 THEN id END DESC,
-                    CASE WHEN $5 = 1 THEN id END ASC
-                LIMIT $6
+                    CASE WHEN $6 = 0 THEN id END DESC,
+                    CASE WHEN $6 = 1 THEN id END ASC
+                LIMIT $7
             "#,
             &user_id,
             characters.as_ref().map(|cs| cs.as_slice()),
+            ids.as_ref().map(|ids| ids.as_slice()),
             after_id.map(|id| id.to_string()),
             before_id.map(|id| id.to_string()),
             (limit.kind == LimitKind::Last) as i32,

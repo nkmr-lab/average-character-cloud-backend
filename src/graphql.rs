@@ -402,7 +402,7 @@ impl QueryRoot {
     async fn records(
         ctx: &AppCtx,
         characters: Option<Vec<String>>,
-        ids: Option<Vec<String>>,
+        ids: Option<Vec<ID>>,
         first: Option<i32>,
         after: Option<String>,
         last: Option<i32>,
@@ -431,7 +431,7 @@ impl QueryRoot {
             .map(|ids| -> AppResult<Vec<Ulid>> {
                 ids.into_iter()
                     .map(|id| -> AppResult<Ulid> {
-                        Ulid::from_str(id.as_str())
+                        Ulid::from_str(id.to_string().as_str())
                             .map_err(|_| AppError::Other("invalid ids".to_string()))
                     })
                     .collect::<AppResult<Vec<_>>>()
@@ -547,7 +547,7 @@ impl QueryRoot {
     async fn characters(
         ctx: &AppCtx,
         characters: Option<Vec<String>>,
-        ids: Option<Vec<String>>,
+        ids: Option<Vec<ID>>,
         first: Option<i32>,
         after: Option<String>,
         last: Option<i32>,
@@ -576,7 +576,7 @@ impl QueryRoot {
             .map(|ids| -> AppResult<Vec<Ulid>> {
                 ids.into_iter()
                     .map(|id| -> AppResult<Ulid> {
-                        Ulid::from_str(id.as_str())
+                        Ulid::from_str(id.to_string().as_str())
                             .map_err(|_| AppError::Other("invalid ids".to_string()))
                     })
                     .collect::<AppResult<Vec<_>>>()

@@ -16,9 +16,9 @@ pub struct Stroke {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Point {
-    pub x: i32,
-    pub y: i32,
-    pub z: i32,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
 }
 
 impl Figure {

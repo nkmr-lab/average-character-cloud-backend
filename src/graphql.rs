@@ -319,8 +319,12 @@ struct UpdateCharacter {
 #[derive(Clone, Debug)]
 pub struct QueryRoot;
 
-#[juniper::graphql_object(Context = AppCtx)]
+#[juniper::graphql_object(Context = AppCtx, name = "Query")]
 impl QueryRoot {
+    fn query() -> QueryRoot {
+        QueryRoot
+    }
+
     async fn node(ctx: &AppCtx, id: ID) -> AppResult<Option<NodeValue>> {
         let Some(user_id) = ctx.user_id.clone() else {
             return Err(AppError::Other("Authentication required".to_string()));
@@ -689,7 +693,7 @@ impl QueryRoot {
 #[derive(Clone, Debug)]
 pub struct MutationRoot;
 
-#[juniper::graphql_object(Context = AppCtx)]
+#[juniper::graphql_object(Context = AppCtx, name = "Mutation")]
 impl MutationRoot {
     async fn create_record(ctx: &AppCtx, new_record: NewRecord) -> AppResult<Record> {
         let Some(user_id) = ctx.user_id.clone() else {

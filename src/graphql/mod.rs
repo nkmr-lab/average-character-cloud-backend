@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::future::Future;
 use std::str::FromStr;
 
@@ -10,16 +11,18 @@ use sqlx::PgPool;
 use thiserror::Error;
 use ulid::Ulid;
 
-use crate::entities;
+use crate::entities::{self};
 use anyhow::{anyhow, ensure, Context};
 use std::fmt;
-mod dataloader_with_params;
+pub mod dataloader_with_params;
+use async_trait::async_trait;
+use dataloader_with_params::{BatchFnWithParams, DataloaderWithParams};
 
-#[derive(Debug)]
 pub struct AppCtx {
     pub pool: PgPool,
     pub user_id: Option<String>,
     pub now: DateTime<Utc>,
+    pub character_config_loader: DataloaderWithParams<CharacterConfigLoader>,
 }
 
 #[derive(Debug, Error)]
@@ -386,20 +389,36 @@ impl Character {
     }
 }
 
-#[juniper::graphql_object(Context = AppCtx, impl = NodeValue)]
-impl Character {
-    fn value(&self) -> String {
-        String::from(self.entity.clone())
-    }
+#[derive(Clone, Debug)]
+pub struct CharacterConfigLoader {
+    pub pool: PgPool,
+}
 
-    async fn character_config(&self, ctx: &AppCtx) -> FieldResult<Option<CharacterConfig>> {
-        // TODO: N+1
-        handler(|| async {
-            let Some(user_id) = ctx.user_id.clone() else {
-                return Err(GraphqlUserError::from("Authentication required").into());
-            };
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct CharacterConfigLoaderParams {
+    pub user_id: String,
+}
 
-            let result = sqlx::query_as!(
+#[async_trait]
+impl BatchFnWithParams for CharacterConfigLoader {
+    type K = entities::character::Character;
+    type V = Result<Option<entities::character_config::CharacterConfig>, String>;
+    type P = CharacterConfigLoaderParams;
+
+    async fn load_with_params(
+        &mut self,
+        params: &Self::P,
+        keys: &[Self::K],
+    ) -> HashMap<Self::K, Self::V> {
+        let character_values = keys
+            .iter()
+            .map(|character| String::from(character.clone()))
+            .collect::<Vec<_>>();
+
+        let result: anyhow::Result<
+            HashMap<entities::character::Character, entities::character_config::CharacterConfig>,
+        > = (|| async {
+            let models = sqlx::query_as!(
                 CharacterConfigModel,
                 r#"
                 SELECT
@@ -415,24 +434,64 @@ impl Character {
                 WHERE
                     user_id = $1
                     AND
-                    character = $2
+                    character = Any($2)
             "#,
-                &user_id,
-                String::from(self.entity.clone()),
+                &params.user_id,
+                character_values.as_slice(),
             )
-            .fetch_all(&ctx.pool)
+            .fetch_all(&self.pool)
             .await
             .context("fetch character_configs")?;
 
-            let character = result
+            let character_configs = models
                 .into_iter()
-                .next()
-                .map(|row| row.into_entity())
-                .transpose()
+                .map(|model| model.into_entity())
+                .collect::<anyhow::Result<Vec<_>>>()
                 .context("convert CharacterConfig")?;
 
-            let record = character.map(|character| CharacterConfig::from_entity(&character));
-            Ok(record)
+            let character_config_map = character_configs
+                .into_iter()
+                .map(|character_config| (character_config.character.clone(), character_config))
+                .collect::<HashMap<_, _>>();
+
+            Ok(character_config_map)
+        })()
+        .await;
+
+        keys.iter()
+            .map(|key| {
+                (
+                    key.clone(),
+                    result
+                        .as_ref()
+                        .map(|character_config_map| character_config_map.get(key).cloned())
+                        .map_err(|e| format!("{:?}", e)),
+                )
+            })
+            .collect()
+    }
+}
+
+#[juniper::graphql_object(Context = AppCtx, impl = NodeValue)]
+impl Character {
+    fn value(&self) -> String {
+        String::from(self.entity.clone())
+    }
+
+    async fn character_config(&self, ctx: &mut AppCtx) -> FieldResult<Option<CharacterConfig>> {
+        handler(|| async {
+            let Some(user_id) = ctx.user_id.clone() else {
+                return Err(GraphqlUserError::from("Authentication required").into());
+            };
+
+            let character_config = ctx
+                .character_config_loader
+                .load(CharacterConfigLoaderParams { user_id }, self.entity.clone())
+                .await
+                .context("load character_config")?
+                .map_err(|msg| anyhow!("{}", msg))?;
+
+            Ok(character_config.map(|entity| CharacterConfig::from_entity(&entity)))
         })
         .await
     }

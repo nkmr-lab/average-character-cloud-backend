@@ -4,57 +4,61 @@ use dataloader::BatchFn;
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::Hash;
+use std::io;
 use std::marker::Send;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[async_trait]
-pub trait BatchFnWithParams<K, V, P> {
-    async fn load_with_params(&mut self, params: &P, keys: &[K]) -> HashMap<K, V>
-    where
-        K: 'async_trait,
-        V: 'async_trait,
-        P: 'async_trait;
+pub trait BatchFnWithParams: Clone + Send {
+    type K: Eq + Hash + Clone + fmt::Debug + Send + Sync;
+    type V: Clone + Send;
+    type P: Eq + Hash + Clone + Send + Sync;
+    async fn load_with_params(
+        &mut self,
+        params: &Self::P,
+        keys: &[Self::K],
+    ) -> HashMap<Self::K, Self::V>;
 }
 
 #[derive(Debug, Clone)]
-pub struct DataloaderWithParamsBatchFn<P, F> {
-    params: P,
+pub struct DataloaderWithParamsBatchFn<F: BatchFnWithParams> {
+    params: F::P,
     f: F,
 }
 
 #[async_trait]
-impl<K: Send + Sync, V: Send, P: Send + Sync, F: BatchFnWithParams<K, V, P> + Send> BatchFn<K, V>
-    for DataloaderWithParamsBatchFn<P, F>
-{
-    async fn load(&mut self, keys: &[K]) -> HashMap<K, V>
-    where
-        K: 'async_trait,
-        V: 'async_trait,
-        P: 'async_trait,
-    {
+impl<F: BatchFnWithParams> BatchFn<F::K, F::V> for DataloaderWithParamsBatchFn<F> {
+    async fn load(&mut self, keys: &[F::K]) -> HashMap<F::K, F::V> {
         self.f.load_with_params(&self.params, keys).await
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct DataloaderWithParams<F, A, B>(F, HashMap<A, B>);
+#[derive(Clone)]
+pub struct DataloaderWithParams<F: BatchFnWithParams>(
+    F,
+    Arc<Mutex<HashMap<F::P, Loader<F::K, F::V, DataloaderWithParamsBatchFn<F>>>>>,
+);
 
-impl<
-        K: Eq + Hash + Clone + fmt::Debug + Send + Sync,
-        V: Clone + Send,
-        P: Eq + Hash + Clone + Send + Sync,
-        F: BatchFnWithParams<K, V, P> + Clone + Send,
-    > DataloaderWithParams<F, P, Loader<K, V, DataloaderWithParamsBatchFn<P, F>>>
-{
-    pub async fn load(&mut self, params: P, key: K) -> V {
-        self.1
-            .entry(params.clone())
-            .or_insert_with(|| {
-                Loader::new(DataloaderWithParamsBatchFn {
-                    params,
-                    f: self.0.clone(),
+impl<F: BatchFnWithParams> DataloaderWithParams<F> {
+    pub fn new(f: F) -> Self {
+        Self(f, Arc::new(Mutex::new(HashMap::new())))
+    }
+
+    pub async fn load(&self, params: F::P, key: F::K) -> io::Result<F::V> {
+        {
+            self.1
+                .lock()
+                .await
+                .entry(params.clone())
+                .or_insert_with(|| {
+                    Loader::new(DataloaderWithParamsBatchFn {
+                        params,
+                        f: self.0.clone(),
+                    })
                 })
-            })
-            .load(key)
-            .await
+        }
+        .try_load(key)
+        .await
     }
 }

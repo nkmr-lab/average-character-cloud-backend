@@ -1,7 +1,7 @@
 use std::fmt;
 use thiserror::Error;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Character {
     value: char,
 }

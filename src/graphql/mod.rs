@@ -827,6 +827,8 @@ impl MutationRoot {
         input: CreateFigureRecordInput,
     ) -> FieldResult<FigureRecord> {
         handler(|| async {
+            let mut trx = ctx.pool.begin().await?;
+
             let Some(user_id) = ctx.user_id.clone() else {
                 return Err(GraphqlUserError::from("Authentication required").into());
             } ;
@@ -858,11 +860,13 @@ impl MutationRoot {
                 record.created_at,
                 record.figure.strokes.len() as i32,
             )
-            .execute(&ctx.pool)
+            .execute(&mut trx)
             .await
             .context("fetch figure_records")?;
 
-            Ok(FigureRecord::from_entity(&record))
+            let result = Ok(FigureRecord::from_entity(&record));
+            trx.commit().await?;
+            result
         }).await
     }
 
@@ -871,6 +875,8 @@ impl MutationRoot {
         input: CreateCharacterConfigInput,
     ) -> FieldResult<CharacterConfig> {
         handler(|| async {
+            let mut trx = ctx.pool.begin().await?;
+
             let Some(user_id) = ctx.user_id.clone() else {
                 return Err(GraphqlUserError::from("Authentication required").into());
             } ;
@@ -907,7 +913,7 @@ impl MutationRoot {
                 character.user_id,
                 Into::<String>::into(character.character.clone()),
             )
-            .fetch_optional(&ctx.pool)
+            .fetch_optional(&mut trx)
             .await
             .context("check character_config exist")?
             .is_some();
@@ -917,22 +923,24 @@ impl MutationRoot {
             }
 
             sqlx::query!(
-            r#"
-                INSERT INTO character_configs (id, user_id, character, created_at, updated_at, stroke_count, version)
-                VALUES ($1, $2, $3, $4, $5, $6, 1)
-            "#,
-            character.id.to_string(),
-            character.user_id,
-            Into::<String>::into(character.character.clone()),
-            character.created_at,
-            character.updated_at,
-            character.stroke_count as i32,
-        )
-        .execute(&ctx.pool)
-        .await
-        .context("insert character_configs")?;
+                r#"
+                    INSERT INTO character_configs (id, user_id, character, created_at, updated_at, stroke_count, version)
+                    VALUES ($1, $2, $3, $4, $5, $6, 1)
+                "#,
+                character.id.to_string(),
+                character.user_id,
+                Into::<String>::into(character.character.clone()),
+                character.created_at,
+                character.updated_at,
+                character.stroke_count as i32,
+            )
+            .execute(&mut trx)
+            .await
+            .context("insert character_configs")?;
 
-            Ok(CharacterConfig::from_entity(&character))
+            let result = Ok(CharacterConfig::from_entity(&character));
+            trx.commit().await?;
+            result
         }).await
     }
 
@@ -941,6 +949,7 @@ impl MutationRoot {
         input: UpdateCharacterConfigInput,
     ) -> FieldResult<CharacterConfig> {
         handler(|| async {
+            let mut trx = ctx.pool.begin().await?;
             let Some(user_id) = ctx.user_id.clone() else {
                 return Err(GraphqlUserError::from("Authentication required").into());
             };
@@ -970,7 +979,7 @@ impl MutationRoot {
                 id.to_string(),
                 user_id,
             )
-            .fetch_optional(&ctx.pool)
+            .fetch_optional(&mut trx)
             .await
             .context("fetch character_configs")?;
 
@@ -1006,7 +1015,7 @@ impl MutationRoot {
                 user_id,
                 model.version,
             )
-            .execute(&ctx.pool)
+            .execute(&mut trx)
             .await
             .context("update character_config")?;
 
@@ -1021,7 +1030,9 @@ impl MutationRoot {
                 ..entity
             };
 
-            Ok(CharacterConfig::from_entity(&entity))
+            let result = Ok(CharacterConfig::from_entity(&entity));
+            trx.commit().await?;
+            result
         })
         .await
     }

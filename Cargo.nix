@@ -1264,6 +1264,10 @@ rec {
             features = [ "runtime-actix-native-tls" "postgres" "json" "chrono" "offline" ];
           }
           {
+            name = "thiserror";
+            packageId = "thiserror";
+          }
+          {
             name = "time";
             packageId = "time 0.3.9";
           }

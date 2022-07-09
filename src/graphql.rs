@@ -1,17 +1,18 @@
+use std::future::Future;
 use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
-use juniper::FieldError;
+use juniper::FieldResult;
 use juniper::{
-    graphql_interface, EmptySubscription, GraphQLInputObject, GraphQLObject, IntoFieldError,
-    RootNode, ScalarValue, ID,
+    graphql_interface, EmptySubscription, GraphQLInputObject, GraphQLObject, RootNode, ID,
 };
 use sqlx::PgPool;
+use thiserror::Error;
 use ulid::Ulid;
 
 use crate::entities;
 use anyhow::{anyhow, ensure, Context};
-
+use std::fmt;
 #[derive(Debug)]
 pub struct AppCtx {
     pub pool: PgPool,
@@ -19,25 +20,46 @@ pub struct AppCtx {
     pub now: DateTime<Utc>,
 }
 
-#[derive(Debug)]
-pub enum AppError {
-    Other(String),
-    Internal(anyhow::Error),
+#[derive(Debug, Error)]
+pub struct GraphqlUserError {
+    #[source]
+    pub source: anyhow::Error,
 }
 
-impl<S: ScalarValue> IntoFieldError<S> for AppError {
-    fn into_field_error(self) -> FieldError<S> {
-        match self {
-            AppError::Other(msg) => msg.into(),
-            AppError::Internal(err) => {
-                log::error!("{}", err);
-                "Internal error".into()
-            }
+impl fmt::Display for GraphqlUserError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.source)
+    }
+}
+
+impl From<anyhow::Error> for GraphqlUserError {
+    fn from(source: anyhow::Error) -> Self {
+        Self { source }
+    }
+}
+
+impl From<&str> for GraphqlUserError {
+    fn from(source: &str) -> Self {
+        Self {
+            source: anyhow!("{}", source),
         }
     }
 }
 
-type AppResult<T> = Result<T, AppError>;
+async fn handler<T, Fut: Future<Output = anyhow::Result<T>>>(
+    f: impl FnOnce() -> Fut,
+) -> FieldResult<T> {
+    match f().await {
+        Ok(value) => Ok(value),
+        Err(err) => Err(match err.downcast_ref::<GraphqlUserError>() {
+            Some(err) => err.source.to_string().into(),
+            None => {
+                log::error!("{:?}", err);
+                "Internal error".into()
+            }
+        }),
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum LimitKind {
@@ -52,20 +74,18 @@ struct Limit {
 }
 
 impl Limit {
-    fn encode(first: Option<i32>, last: Option<i32>) -> AppResult<Self> {
+    fn encode(first: Option<i32>, last: Option<i32>) -> anyhow::Result<Self> {
         let max = 100;
 
         match (first, last) {
             (Some(first), None) => {
                 if first < 0 {
-                    Err(AppError::Other(
-                        "first must be greater than or equal to 0".to_string(),
-                    ))
+                    Err(GraphqlUserError::from("first must be greater than or equal to 0").into())
                 } else if first > max {
-                    Err(AppError::Other(format!(
-                        "first must be less than or equal to {}",
-                        max
-                    )))
+                    Err(GraphqlUserError::from(
+                        format!("first must be less than or equal to {}", max).as_str(),
+                    )
+                    .into())
                 } else {
                     Ok(Limit {
                         kind: LimitKind::First,
@@ -75,14 +95,12 @@ impl Limit {
             }
             (None, Some(last)) => {
                 if last < 0 {
-                    Err(AppError::Other(
-                        "last must be greater than or equal to 0".to_string(),
-                    ))
+                    Err(GraphqlUserError::from("last must be greater than or equal to 0").into())
                 } else if last > max {
-                    Err(AppError::Other(format!(
-                        "last must be less than or equal to {}",
-                        max
-                    )))
+                    Err(GraphqlUserError::from(
+                        format!("last must be less than or equal to {}", max).as_str(),
+                    )
+                    .into())
                 } else {
                     Ok(Limit {
                         kind: LimitKind::Last,
@@ -90,9 +108,7 @@ impl Limit {
                     })
                 }
             }
-            _ => Err(AppError::Other(
-                "Must provide either first or last, not both".to_string(),
-            )),
+            _ => Err(GraphqlUserError::from("Must provide either first or last, not both").into()),
         }
     }
 }
@@ -146,7 +162,7 @@ impl FigureRecordModel {
     fn into_entity(self) -> anyhow::Result<entities::figure_record::FigureRecord> {
         let id = Ulid::from_str(&self.id).context("ulid decode error")?;
 
-        let character = self.character.as_str().try_into()?;
+        let character = entities::character::Character::try_from(self.character.as_str())?;
 
         let figure = entities::figure::Figure::from_json_ast(self.figure)
             .ok_or_else(|| anyhow!("figure must be valid json"))?;
@@ -181,7 +197,7 @@ impl CharacterConfigModel {
     fn into_entity(self) -> anyhow::Result<entities::character_config::CharacterConfig> {
         let id = Ulid::from_str(&self.id).context("ulid decode error")?;
 
-        let character = self.character.as_str().try_into()?;
+        let character = entities::character::Character::try_from(self.character.as_str())?;
 
         Ok(entities::character_config::CharacterConfig {
             id,
@@ -323,20 +339,21 @@ impl QueryRoot {
         QueryRoot
     }
 
-    async fn node(ctx: &AppCtx, id: ID) -> AppResult<Option<NodeValue>> {
-        let Some(user_id) = ctx.user_id.clone() else {
-            return Err(AppError::Other("Authentication required".to_string()));
-        };
+    async fn node(ctx: &AppCtx, id: ID) -> FieldResult<Option<NodeValue>> {
+        handler(|| async {
+            let Some(user_id) = ctx.user_id.clone() else {
+                return Err(GraphqlUserError::from("Authentication required").into());
+            };
 
-        let Some(id) = NodeID::from_id(&id) else {
-            return Ok(None);
-        };
+            let Some(id) = NodeID::from_id(&id) else {
+                return Ok(None);
+            };
 
-        match id {
-            NodeID::FigureRecord(id) => {
-                let record = sqlx::query_as!(
-                    FigureRecordModel,
-                    r#"
+            match id {
+                NodeID::FigureRecord(id) => {
+                    let record = sqlx::query_as!(
+                        FigureRecordModel,
+                        r#"
                         SELECT
                             id,
                             user_id,
@@ -350,25 +367,25 @@ impl QueryRoot {
                             id = $1
                             AND user_id = $2
                     "#,
-                    id.to_string(),
-                    user_id,
-                )
-                .fetch_optional(&ctx.pool)
-                .await
-                .map_err(|err| AppError::Internal(err.into()))?;
-                let record = record
-                    .map(|row| row.into_entity())
-                    .transpose()
-                    .map_err(AppError::Internal)?;
-                Ok(record
-                    .as_ref()
-                    .map(FigureRecord::from_entity)
-                    .map(NodeValue::FigureRecord))
-            }
-            NodeID::CharacterConfig(id) => {
-                let character = sqlx::query_as!(
-                    CharacterConfigModel,
-                    r#"
+                        id.to_string(),
+                        user_id,
+                    )
+                    .fetch_optional(&ctx.pool)
+                    .await
+                    .context("fetch figure_records")?;
+                    let record = record
+                        .map(|row| row.into_entity())
+                        .transpose()
+                        .context("FigureRecordModel::into_entity")?;
+                    Ok(record
+                        .as_ref()
+                        .map(FigureRecord::from_entity)
+                        .map(NodeValue::FigureRecord))
+                }
+                NodeID::CharacterConfig(id) => {
+                    let character = sqlx::query_as!(
+                        CharacterConfigModel,
+                        r#"
                         SELECT
                             id,
                             user_id,
@@ -383,22 +400,24 @@ impl QueryRoot {
                             id = $1
                             AND user_id = $2
                     "#,
-                    id.to_string(),
-                    user_id,
-                )
-                .fetch_optional(&ctx.pool)
-                .await
-                .map_err(|err| AppError::Internal(err.into()))?;
-                let character = character
-                    .map(|row| row.into_entity())
-                    .transpose()
-                    .map_err(AppError::Internal)?;
-                Ok(character
-                    .as_ref()
-                    .map(CharacterConfig::from_entity)
-                    .map(NodeValue::CharacterConfig))
+                        id.to_string(),
+                        user_id,
+                    )
+                    .fetch_optional(&ctx.pool)
+                    .await
+                    .context("fetch character_configs")?;
+                    let character = character
+                        .map(|row| row.into_entity())
+                        .transpose()
+                        .context("fetch character_configs")?;
+                    Ok(character
+                        .as_ref()
+                        .map(CharacterConfig::from_entity)
+                        .map(NodeValue::CharacterConfig))
+                }
             }
-        }
+        })
+        .await
     }
 
     async fn figure_records(
@@ -409,67 +428,75 @@ impl QueryRoot {
         after: Option<String>,
         last: Option<i32>,
         before: Option<String>,
-    ) -> AppResult<FigureRecordConnection> {
-        let Some(user_id) = ctx.user_id.clone() else {
-            return Err(AppError::Other("Authentication required".to_string()));
-        };
+    ) -> FieldResult<FigureRecordConnection> {
+        handler(|| async {
+            let Some(user_id) = ctx.user_id.clone() else {
+                return Err(GraphqlUserError::from("Authentication required").into());
+            };
 
-        let characters =
-            characters
-                .map(|characters| -> AppResult<Vec<char>> {
-                    characters.into_iter().map(|character|-> AppResult<char>{
-                    let &[character] = character.chars().collect::<Vec<_>>().as_slice() else {
-                        return Err(AppError::Other(
-                            "character must be one character".to_string(),
-                        ));
-                    };
+            let characters = characters
+                .map(
+                    |characters| -> anyhow::Result<Vec<entities::character::Character>> {
+                        characters
+                            .into_iter()
+                            .map(
+                                |character| -> anyhow::Result<entities::character::Character> {
+                                    let character = entities::character::Character::try_from(
+                                        character.as_str(),
+                                    )
+                                    .map_err(|err| {
+                                        GraphqlUserError::from(anyhow::Error::new(err))
+                                    })?;
 
-                    Ok(character)
-                }).collect::<AppResult<Vec<_>>>()
+                                    Ok(character)
+                                },
+                            )
+                            .collect::<anyhow::Result<Vec<_>>>()
+                    },
+                )
+                .transpose()?;
+
+            let ids = ids
+                .map(|ids| -> anyhow::Result<Vec<Ulid>> {
+                    ids.into_iter()
+                        .map(|id| -> anyhow::Result<Ulid> {
+                            Ulid::from_str(id.to_string().as_str())
+                                .map_err(|_| GraphqlUserError::from("invalid ids").into())
+                        })
+                        .collect::<anyhow::Result<Vec<_>>>()
                 })
                 .transpose()?;
 
-        let ids = ids
-            .map(|ids| -> AppResult<Vec<Ulid>> {
-                ids.into_iter()
-                    .map(|id| -> AppResult<Ulid> {
-                        Ulid::from_str(id.to_string().as_str())
-                            .map_err(|_| AppError::Other("invalid ids".to_string()))
-                    })
-                    .collect::<AppResult<Vec<_>>>()
-            })
-            .transpose()?;
+            let limit = Limit::encode(first, last)?;
 
-        let limit = Limit::encode(first, last)?;
-
-        let after_id = after
-            .map(|after| -> AppResult<Ulid> {
-                let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(after)) else {
-                    return Err(AppError::Other("after must be a valid cursor".to_string()))
+            let after_id = after
+                .map(|after| -> anyhow::Result<Ulid> {
+                    let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(after)) else {
+                    return Err(GraphqlUserError::from("after must be a valid cursor").into())
                 };
 
-                Ok(id)
-            })
-            .transpose()?;
+                    Ok(id)
+                })
+                .transpose()?;
 
-        let before_id = before
-            .map(|before| -> AppResult<Ulid> {
-                let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(before)) else {
-                    return Err(AppError::Other("before must be a valid cursor".to_string()));
+            let before_id = before
+                .map(|before| -> anyhow::Result<Ulid> {
+                    let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(before)) else {
+                    return Err(GraphqlUserError::from("before must be a valid cursor").into());
                 };
 
-                Ok(id)
-            })
-            .transpose()?;
+                    Ok(id)
+                })
+                .transpose()?;
 
-        let characters =
-            characters.map(|cs| cs.into_iter().map(|c| c.to_string()).collect::<Vec<_>>());
+            let characters =
+                characters.map(|cs| cs.into_iter().map(|c| String::from(c)).collect::<Vec<_>>());
 
-        let ids = ids.map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>());
+            let ids = ids.map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>());
 
-        let result = sqlx::query_as!(
-            FigureRecordModel,
-            r#"
+            let result = sqlx::query_as!(
+                FigureRecordModel,
+                r#"
                 SELECT
                     r.id,
                     r.user_id,
@@ -498,52 +525,54 @@ impl QueryRoot {
                     CASE WHEN $6 = 1 THEN r.id END ASC
                 LIMIT $7
             "#,
-            &user_id,
-            characters.as_ref().map(|cs| cs.as_slice()),
-            ids.as_ref().map(|ids| ids.as_slice()),
-            after_id.map(|id| id.to_string()),
-            before_id.map(|id| id.to_string()),
-            (limit.kind == LimitKind::Last) as i32,
-            limit.value as i64 + 1,
-        )
-        .fetch_all(&ctx.pool)
-        .await
-        .map_err(|err| AppError::Internal(err.into()))?;
+                &user_id,
+                characters.as_ref().map(|cs| cs.as_slice()),
+                ids.as_ref().map(|ids| ids.as_slice()),
+                after_id.map(|id| id.to_string()),
+                before_id.map(|id| id.to_string()),
+                (limit.kind == LimitKind::Last) as i32,
+                limit.value as i64 + 1,
+            )
+            .fetch_all(&ctx.pool)
+            .await
+            .context("fetch figure_records")?;
 
-        let mut records = result
-            .into_iter()
-            .map(|row| row.into_entity())
-            .collect::<anyhow::Result<Vec<_>>>()
-            .map_err(AppError::Internal)?;
-
-        let has_extra = records.len() > limit.value as usize;
-
-        records.truncate(limit.value as usize);
-
-        if limit.kind == LimitKind::Last {
-            records.reverse();
-        }
-
-        let records = records
-            .into_iter()
-            .map(|record| FigureRecord::from_entity(&record))
-            .collect::<Vec<_>>();
-
-        Ok(FigureRecordConnection {
-            page_info: PageInfo {
-                has_next_page: has_extra && limit.kind == LimitKind::First,
-                has_previous_page: has_extra && limit.kind == LimitKind::Last,
-                start_cursor: records.first().map(|record| record.id.to_string()),
-                end_cursor: records.last().map(|record| record.id.to_string()),
-            },
-            edges: records
+            let mut records = result
                 .into_iter()
-                .map(|record| FigureRecordEdge {
-                    cursor: record.id.to_string(),
-                    node: record,
-                })
-                .collect(),
+                .map(|row| row.into_entity())
+                .collect::<anyhow::Result<Vec<_>>>()
+                .context("convert records")?;
+
+            let has_extra = records.len() > limit.value as usize;
+
+            records.truncate(limit.value as usize);
+
+            if limit.kind == LimitKind::Last {
+                records.reverse();
+            }
+
+            let records = records
+                .into_iter()
+                .map(|record| FigureRecord::from_entity(&record))
+                .collect::<Vec<_>>();
+
+            Ok(FigureRecordConnection {
+                page_info: PageInfo {
+                    has_next_page: has_extra && limit.kind == LimitKind::First,
+                    has_previous_page: has_extra && limit.kind == LimitKind::Last,
+                    start_cursor: records.first().map(|record| record.id.to_string()),
+                    end_cursor: records.last().map(|record| record.id.to_string()),
+                },
+                edges: records
+                    .into_iter()
+                    .map(|record| FigureRecordEdge {
+                        cursor: record.id.to_string(),
+                        node: record,
+                    })
+                    .collect(),
+            })
         })
+        .await
     }
 
     async fn character_configs(
@@ -554,67 +583,75 @@ impl QueryRoot {
         after: Option<String>,
         last: Option<i32>,
         before: Option<String>,
-    ) -> AppResult<CharacterConfigConnection> {
-        let Some(user_id) = ctx.user_id.clone() else {
-            return Err(AppError::Other("Authentication required".to_string()));
-        };
+    ) -> FieldResult<CharacterConfigConnection> {
+        handler(|| async {
+            let Some(user_id) = ctx.user_id.clone() else {
+                return Err(GraphqlUserError::from("Authentication required").into());
+            };
 
-        let characters =
-            characters
-                .map(|characters| -> AppResult<Vec<char>> {
-                    characters.into_iter().map(|character|-> AppResult<char>{
-                    let &[character] = character.chars().collect::<Vec<_>>().as_slice() else {
-                        return Err(AppError::Other(
-                            "character must be one character".to_string(),
-                        ));
-                    };
+            let characters = characters
+                .map(
+                    |characters| -> anyhow::Result<Vec<entities::character::Character>> {
+                        characters
+                            .into_iter()
+                            .map(
+                                |character| -> anyhow::Result<entities::character::Character> {
+                                    let character = entities::character::Character::try_from(
+                                        character.as_str(),
+                                    )
+                                    .map_err(|err| {
+                                        GraphqlUserError::from(anyhow::Error::new(err))
+                                    })?;
 
-                    Ok(character)
-                }).collect::<AppResult<Vec<_>>>()
+                                    Ok(character)
+                                },
+                            )
+                            .collect::<anyhow::Result<Vec<_>>>()
+                    },
+                )
+                .transpose()?;
+
+            let ids = ids
+                .map(|ids| -> anyhow::Result<Vec<Ulid>> {
+                    ids.into_iter()
+                        .map(|id| -> anyhow::Result<Ulid> {
+                            Ulid::from_str(id.to_string().as_str())
+                                .map_err(|_| GraphqlUserError::from("invalid ids").into())
+                        })
+                        .collect::<anyhow::Result<Vec<_>>>()
                 })
                 .transpose()?;
 
-        let ids = ids
-            .map(|ids| -> AppResult<Vec<Ulid>> {
-                ids.into_iter()
-                    .map(|id| -> AppResult<Ulid> {
-                        Ulid::from_str(id.to_string().as_str())
-                            .map_err(|_| AppError::Other("invalid ids".to_string()))
-                    })
-                    .collect::<AppResult<Vec<_>>>()
-            })
-            .transpose()?;
+            let limit = Limit::encode(first, last)?;
 
-        let limit = Limit::encode(first, last)?;
-
-        let after_id = after
-            .map(|after| -> AppResult<Ulid> {
-                let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(after)) else {
-                    return Err(AppError::Other("after must be a valid cursor".to_string()))
+            let after_id = after
+                .map(|after| -> anyhow::Result<Ulid> {
+                    let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(after)) else {
+                    return Err(GraphqlUserError::from("after must be a valid cursor").into())
                 };
 
-                Ok(id)
-            })
-            .transpose()?;
+                    Ok(id)
+                })
+                .transpose()?;
 
-        let before_id = before
-            .map(|before| -> AppResult<Ulid> {
-                let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(before)) else {
-                    return Err(AppError::Other("before must be a valid cursor".to_string()));
+            let before_id = before
+                .map(|before| -> anyhow::Result<Ulid> {
+                    let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(before)) else {
+                    return Err(GraphqlUserError::from("before must be a valid cursor").into());
                 };
 
-                Ok(id)
-            })
-            .transpose()?;
+                    Ok(id)
+                })
+                .transpose()?;
 
-        let characters =
-            characters.map(|cs| cs.into_iter().map(|c| c.to_string()).collect::<Vec<_>>());
+            let characters =
+                characters.map(|cs| cs.into_iter().map(|c| String::from(c)).collect::<Vec<_>>());
 
-        let ids = ids.map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>());
+            let ids = ids.map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>());
 
-        let result = sqlx::query_as!(
-            CharacterConfigModel,
-            r#"
+            let result = sqlx::query_as!(
+                CharacterConfigModel,
+                r#"
                 SELECT
                     id,
                     user_id,
@@ -640,52 +677,54 @@ impl QueryRoot {
                     CASE WHEN $6 = 1 THEN id END ASC
                 LIMIT $7
             "#,
-            &user_id,
-            characters.as_ref().map(|cs| cs.as_slice()),
-            ids.as_ref().map(|ids| ids.as_slice()),
-            after_id.map(|id| id.to_string()),
-            before_id.map(|id| id.to_string()),
-            (limit.kind == LimitKind::Last) as i32,
-            limit.value as i64 + 1,
-        )
-        .fetch_all(&ctx.pool)
-        .await
-        .map_err(|err| AppError::Internal(err.into()))?;
+                &user_id,
+                characters.as_ref().map(|cs| cs.as_slice()),
+                ids.as_ref().map(|ids| ids.as_slice()),
+                after_id.map(|id| id.to_string()),
+                before_id.map(|id| id.to_string()),
+                (limit.kind == LimitKind::Last) as i32,
+                limit.value as i64 + 1,
+            )
+            .fetch_all(&ctx.pool)
+            .await
+            .context("fetch character_configs")?;
 
-        let mut characters = result
-            .into_iter()
-            .map(|row| row.into_entity())
-            .collect::<anyhow::Result<Vec<_>>>()
-            .map_err(AppError::Internal)?;
-
-        let has_extra = characters.len() > limit.value as usize;
-
-        characters.truncate(limit.value as usize);
-
-        if limit.kind == LimitKind::Last {
-            characters.reverse();
-        }
-
-        let records = characters
-            .into_iter()
-            .map(|character| CharacterConfig::from_entity(&character))
-            .collect::<Vec<_>>();
-
-        Ok(CharacterConfigConnection {
-            page_info: PageInfo {
-                has_next_page: has_extra && limit.kind == LimitKind::First,
-                has_previous_page: has_extra && limit.kind == LimitKind::Last,
-                start_cursor: records.first().map(|record| record.id.to_string()),
-                end_cursor: records.last().map(|record| record.id.to_string()),
-            },
-            edges: records
+            let mut characters = result
                 .into_iter()
-                .map(|character| CharacterConfigEdge {
-                    cursor: character.id.to_string(),
-                    node: character,
-                })
-                .collect(),
+                .map(|row| row.into_entity())
+                .collect::<anyhow::Result<Vec<_>>>()
+                .context("convert CharacterConfig")?;
+
+            let has_extra = characters.len() > limit.value as usize;
+
+            characters.truncate(limit.value as usize);
+
+            if limit.kind == LimitKind::Last {
+                characters.reverse();
+            }
+
+            let records = characters
+                .into_iter()
+                .map(|character| CharacterConfig::from_entity(&character))
+                .collect::<Vec<_>>();
+
+            Ok(CharacterConfigConnection {
+                page_info: PageInfo {
+                    has_next_page: has_extra && limit.kind == LimitKind::First,
+                    has_previous_page: has_extra && limit.kind == LimitKind::Last,
+                    start_cursor: records.first().map(|record| record.id.to_string()),
+                    end_cursor: records.last().map(|record| record.id.to_string()),
+                },
+                edges: records
+                    .into_iter()
+                    .map(|character| CharacterConfigEdge {
+                        cursor: character.id.to_string(),
+                        node: character,
+                    })
+                    .collect(),
+            })
         })
+        .await
     }
 }
 #[derive(Clone, Debug)]
@@ -696,76 +735,76 @@ impl MutationRoot {
     async fn create_figure_record(
         ctx: &AppCtx,
         new_record: NewFigureRecord,
-    ) -> AppResult<FigureRecord> {
-        let Some(user_id) = ctx.user_id.clone() else {
-            return Err(AppError::Other("Authentication required".to_string()));
-        } ;
+    ) -> FieldResult<FigureRecord> {
+        handler(|| async {
+            let Some(user_id) = ctx.user_id.clone() else {
+                return Err(GraphqlUserError::from("Authentication required").into());
+            } ;
 
-        let &[character] = new_record.character.chars().collect::<Vec<_>>().as_slice() else {
-            return Err(AppError::Other(
-                "character must be one character".to_string(),
-            ));
-        };
+                let character = entities::character::Character::try_from(new_record.character.as_str())
+                    .map_err(|err| GraphqlUserError::from(anyhow::Error::new(err)))?;
 
-        let Some(figure) = entities::figure::Figure::from_json(&new_record.figure) else {
-            return Err(AppError::Other("figure must be valid json".to_string()));
-        };
+                let Some(figure) = entities::figure::Figure::from_json(&new_record.figure) else {
+                return Err(GraphqlUserError::from("figure must be valid json").into());
+            };
 
-        let record = entities::figure_record::FigureRecord {
-            id: Ulid::from_datetime(ctx.now),
-            user_id,
-            character: Into::<entities::character::Character>::into(character),
-            figure,
-            created_at: ctx.now,
-        };
+                let record = entities::figure_record::FigureRecord {
+                    id: Ulid::from_datetime(ctx.now),
+                    user_id,
+                    character: Into::<entities::character::Character>::into(character),
+                    figure,
+                    created_at: ctx.now,
+                };
 
-        sqlx::query!(
-            r#"
-                INSERT INTO figure_records (id, user_id, character, figure, created_at, stroke_count)
-                VALUES ($1, $2, $3, $4, $5, $6)
-            "#,
-            record.id.to_string(),
-            record.user_id,
-            Into::<String>::into(record.character.clone()),
-            record.figure.to_json_ast(),
-            record.created_at,
-            record.figure.strokes.len() as i32,
-        )
-        .execute(&ctx.pool)
-        .await
-        .map_err(|err| AppError::Internal(err.into()))?;
+                sqlx::query!(
+                r#"
+                    INSERT INTO figure_records (id, user_id, character, figure, created_at, stroke_count)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                "#,
+                record.id.to_string(),
+                record.user_id,
+                Into::<String>::into(record.character.clone()),
+                record.figure.to_json_ast(),
+                record.created_at,
+                record.figure.strokes.len() as i32,
+            )
+            .execute(&ctx.pool)
+            .await
+            .context("fetch figure_records")?;
 
-        Ok(FigureRecord::from_entity(&record))
+            Ok(FigureRecord::from_entity(&record))
+        }).await
     }
 
     async fn create_character_config(
         ctx: &AppCtx,
         new_character: NewCharacterConfig,
-    ) -> AppResult<CharacterConfig> {
-        let Some(user_id) = ctx.user_id.clone() else {
-            return Err(AppError::Other("Authentication required".to_string()));
-        } ;
+    ) -> FieldResult<CharacterConfig> {
+        handler(|| async {
+            let Some(user_id) = ctx.user_id.clone() else {
+                return Err(GraphqlUserError::from("Authentication required").into());
+            } ;
 
-        let character =
-            TryInto::<entities::character::Character>::try_into(new_character.character.as_str())
-                .map_err(|err| AppError::Other(err.to_string()))?;
+            let character =
+                entities::character::Character::try_from(new_character.character.as_str())
+                    .map_err(|err| GraphqlUserError::from(anyhow::Error::new(err)))?;
 
-        let stroke_count = new_character.stroke_count.try_into().map_err(|_| {
-            AppError::Other("stroke_count must be an non negative integer".to_string())
-        })?;
+            let stroke_count = new_character.stroke_count.try_into().map_err(|_| {
+                GraphqlUserError::from("stroke_count must be an non negative integer")
+            })?;
 
-        let character = entities::character_config::CharacterConfig {
-            id: Ulid::from_datetime(ctx.now),
-            user_id,
-            character,
-            created_at: ctx.now,
-            updated_at: ctx.now,
-            stroke_count,
-        };
+            let character = entities::character_config::CharacterConfig {
+                id: Ulid::from_datetime(ctx.now),
+                user_id,
+                character,
+                created_at: ctx.now,
+                updated_at: ctx.now,
+                stroke_count,
+            };
 
-        // check exist
-        let exists = sqlx::query!(
-            r#"
+            // check exist
+            let exists = sqlx::query!(
+                r#"
                 SELECT
                     id
                 FROM
@@ -775,19 +814,19 @@ impl MutationRoot {
                     AND
                     character = $2
             "#,
-            character.user_id,
-            Into::<String>::into(character.character.clone()),
-        )
-        .fetch_optional(&ctx.pool)
-        .await
-        .map_err(|err| AppError::Internal(err.into()))?
-        .is_some();
+                character.user_id,
+                Into::<String>::into(character.character.clone()),
+            )
+            .fetch_optional(&ctx.pool)
+            .await
+            .context("check character_config exist")?
+            .is_some();
 
-        if exists {
-            return Err(AppError::Other("character already exists".to_string()));
-        }
+            if exists {
+                return Err(GraphqlUserError::from("character already exists").into());
+            }
 
-        sqlx::query!(
+            sqlx::query!(
             r#"
                 INSERT INTO character_configs (id, user_id, character, created_at, updated_at, stroke_count, version)
                 VALUES ($1, $2, $3, $4, $5, $6, 1)
@@ -801,27 +840,29 @@ impl MutationRoot {
         )
         .execute(&ctx.pool)
         .await
-        .map_err(|err| AppError::Internal(err.into()))?;
+        .context("insert character_configs")?;
 
-        Ok(CharacterConfig::from_entity(&character))
+            Ok(CharacterConfig::from_entity(&character))
+        }).await
     }
 
     async fn update_character(
         ctx: &AppCtx,
         id: ID,
         update_character: UpdateCharacterConfig,
-    ) -> AppResult<CharacterConfig> {
-        let Some(user_id) = ctx.user_id.clone() else {
-            return Err(AppError::Other("Authentication required".to_string()));
-        };
+    ) -> FieldResult<CharacterConfig> {
+        handler(|| async {
+            let Some(user_id) = ctx.user_id.clone() else {
+                return Err(GraphqlUserError::from("Authentication required").into());
+            };
 
-        let Some(NodeID::CharacterConfig(id)) = NodeID::from_id(&id) else {
-            return Err(AppError::Other("Not found".to_string()));
-        };
+            let Some(NodeID::CharacterConfig(id)) = NodeID::from_id(&id) else {
+                return Err(GraphqlUserError::from("Not found").into());
+            };
 
-        let model = sqlx::query_as!(
-            CharacterConfigModel,
-            r#"
+            let model = sqlx::query_as!(
+                CharacterConfigModel,
+                r#"
                 SELECT
                     id,
                     user_id,
@@ -837,26 +878,26 @@ impl MutationRoot {
                     AND
                     user_id = $2
             "#,
-            id.to_string(),
-            user_id,
-        )
-        .fetch_optional(&ctx.pool)
-        .await
-        .map_err(|err| AppError::Internal(err.into()))?;
+                id.to_string(),
+                user_id,
+            )
+            .fetch_optional(&ctx.pool)
+            .await
+            .context("fetch character_configs")?;
 
-        let Some(model) = model else {
-            return Err(AppError::Other("Not found".to_string()));
-        };
+            let Some(model) = model else {
+                return Err(GraphqlUserError::from("Not found").into());
+            };
 
-        let stroke_count = match update_character.stroke_count {
-            Some(stroke_count) => stroke_count.try_into().map_err(|_| {
-                AppError::Other("stroke_count must be an non negative integer".to_string())
-            })?,
-            None => model.stroke_count as usize,
-        };
+            let stroke_count = match update_character.stroke_count {
+                Some(stroke_count) => stroke_count.try_into().map_err(|_| {
+                    GraphqlUserError::from("stroke_count must be an non negative integer")
+                })?,
+                None => model.stroke_count as usize,
+            };
 
-        let result = sqlx::query!(
-            r#"
+            let result = sqlx::query!(
+                r#"
                 UPDATE character_configs
                 SET
                     updated_at = $1,
@@ -869,29 +910,31 @@ impl MutationRoot {
                     AND
                     version = $6
             "#,
-            ctx.now,
-            stroke_count as i32,
-            model.version + 1,
-            id.to_string(),
-            user_id,
-            model.version,
-        )
-        .execute(&ctx.pool)
+                ctx.now,
+                stroke_count as i32,
+                model.version + 1,
+                id.to_string(),
+                user_id,
+                model.version,
+            )
+            .execute(&ctx.pool)
+            .await
+            .context("update character_config")?;
+
+            if result.rows_affected() == 0 {
+                return Err(anyhow!("conflict").into());
+            }
+
+            let entity = model.into_entity().context("convert character model")?;
+            let entity = entities::character_config::CharacterConfig {
+                updated_at: ctx.now,
+                stroke_count,
+                ..entity
+            };
+
+            Ok(CharacterConfig::from_entity(&entity))
+        })
         .await
-        .map_err(|err| AppError::Internal(err.into()))?;
-
-        if result.rows_affected() == 0 {
-            return Err(AppError::Other("Conflict".to_string()));
-        }
-
-        let entity = model.into_entity().map_err(AppError::Internal)?;
-        let entity = entities::character_config::CharacterConfig {
-            updated_at: ctx.now,
-            stroke_count,
-            ..entity
-        };
-
-        Ok(CharacterConfig::from_entity(&entity))
     }
 }
 

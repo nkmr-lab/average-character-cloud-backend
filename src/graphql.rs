@@ -146,9 +146,7 @@ impl FigureRecordModel {
     fn into_entity(self) -> anyhow::Result<entities::figure_record::FigureRecord> {
         let id = Ulid::from_str(&self.id).context("ulid decode error")?;
 
-        let &[character] = self.character.chars().collect::<Vec<_>>().as_slice() else {
-            return Err(anyhow!("character must be one character"));
-        };
+        let character = self.character.as_str().try_into()?;
 
         let figure = entities::figure::Figure::from_json_ast(self.figure)
             .ok_or_else(|| anyhow!("figure must be valid json"))?;
@@ -183,9 +181,7 @@ impl CharacterConfigModel {
     fn into_entity(self) -> anyhow::Result<entities::character_config::CharacterConfig> {
         let id = Ulid::from_str(&self.id).context("ulid decode error")?;
 
-        let &[character] = self.character.chars().collect::<Vec<_>>().as_slice() else {
-            return Err(anyhow!("character must be one character"));
-        };
+        let character = self.character.as_str().try_into()?;
 
         Ok(entities::character_config::CharacterConfig {
             id,
@@ -232,7 +228,7 @@ impl FigureRecord {
         FigureRecord {
             id: NodeID::FigureRecord(record.id).to_id(),
             record_id: record.id.to_string(),
-            character: record.character.to_string(),
+            character: Into::<String>::into(record.character.clone()),
             figure: record.figure.to_json(),
             created_at: record.created_at.to_rfc3339(),
         }
@@ -280,7 +276,7 @@ impl CharacterConfig {
         CharacterConfig {
             id: NodeID::CharacterConfig(character.id).to_id(),
             character_id: character.id.to_string(),
-            character: character.character.to_string(),
+            character: Into::<String>::into(character.character.clone()),
             stroke_count: character.stroke_count as i32,
             created_at: character.created_at.to_rfc3339(),
             updated_at: character.updated_at.to_rfc3339(),
@@ -718,7 +714,7 @@ impl MutationRoot {
         let record = entities::figure_record::FigureRecord {
             id: Ulid::from_datetime(ctx.now),
             user_id,
-            character,
+            character: Into::<entities::character::Character>::into(character),
             figure,
             created_at: ctx.now,
         };
@@ -730,7 +726,7 @@ impl MutationRoot {
             "#,
             record.id.to_string(),
             record.user_id,
-            record.character.to_string(),
+            Into::<String>::into(record.character.clone()),
             record.figure.to_json_ast(),
             record.created_at,
             record.figure.strokes.len() as i32,
@@ -750,11 +746,9 @@ impl MutationRoot {
             return Err(AppError::Other("Authentication required".to_string()));
         } ;
 
-        let &[character] = new_character.character.chars().collect::<Vec<_>>().as_slice() else {
-            return Err(AppError::Other(
-                "character must be one character".to_string(),
-            ));
-        };
+        let character =
+            TryInto::<entities::character::Character>::try_into(new_character.character.as_str())
+                .map_err(|err| AppError::Other(err.to_string()))?;
 
         let stroke_count = new_character.stroke_count.try_into().map_err(|_| {
             AppError::Other("stroke_count must be an non negative integer".to_string())
@@ -782,7 +776,7 @@ impl MutationRoot {
                     character = $2
             "#,
             character.user_id,
-            character.character.to_string(),
+            Into::<String>::into(character.character.clone()),
         )
         .fetch_optional(&ctx.pool)
         .await
@@ -800,7 +794,7 @@ impl MutationRoot {
             "#,
             character.id.to_string(),
             character.user_id,
-            character.character.to_string(),
+            Into::<String>::into(character.character.clone()),
             character.created_at,
             character.updated_at,
             character.stroke_count as i32,

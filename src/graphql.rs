@@ -101,15 +101,17 @@ impl juniper::Context for AppCtx {}
 
 #[derive(Debug, Clone)]
 enum NodeID {
-    Record(Ulid),
-    Character(Ulid),
+    FigureRecord(Ulid),
+    CharacterConfig(Ulid),
 }
 
 impl NodeID {
     fn to_id(&self) -> ID {
         match self {
-            NodeID::Record(id) => ID::new(base64::encode(format!("record:{}", id))),
-            NodeID::Character(id) => ID::new(base64::encode(format!("character:{}", id))),
+            NodeID::FigureRecord(id) => ID::new(base64::encode(format!("FigureRecord:{}", id))),
+            NodeID::CharacterConfig(id) => {
+                ID::new(base64::encode(format!("CharacterConfig:{}", id)))
+            }
         }
     }
 
@@ -118,12 +120,12 @@ impl NodeID {
         let buf = base64::decode(id).ok()?;
         let s = String::from_utf8(buf).ok()?;
 
-        if let Some(record_id) = s.strip_prefix("record:") {
+        if let Some(record_id) = s.strip_prefix("FigureRecord:") {
             let ulid = Ulid::from_str(record_id).ok()?;
-            Some(NodeID::Record(ulid))
-        } else if let Some(character_id) = s.strip_prefix("character:") {
+            Some(NodeID::FigureRecord(ulid))
+        } else if let Some(character_id) = s.strip_prefix("CharacterConfig:") {
             let ulid = Ulid::from_str(character_id).ok()?;
-            Some(NodeID::Character(ulid))
+            Some(NodeID::CharacterConfig(ulid))
         } else {
             None
         }
@@ -131,7 +133,7 @@ impl NodeID {
 }
 
 #[derive(Debug, Clone)]
-struct RecordModel {
+struct FigureRecordModel {
     id: String,
     user_id: String,
     character: String,
@@ -140,8 +142,8 @@ struct RecordModel {
     stroke_count: i32,
 }
 
-impl RecordModel {
-    fn into_entity(self) -> anyhow::Result<entities::record::Record> {
+impl FigureRecordModel {
+    fn into_entity(self) -> anyhow::Result<entities::figure_record::FigureRecord> {
         let id = Ulid::from_str(&self.id).context("ulid decode error")?;
 
         let &[character] = self.character.chars().collect::<Vec<_>>().as_slice() else {
@@ -156,7 +158,7 @@ impl RecordModel {
             "stroke_count invalid"
         );
 
-        Ok(entities::record::Record {
+        Ok(entities::figure_record::FigureRecord {
             id,
             user_id: self.user_id,
             character,
@@ -167,7 +169,7 @@ impl RecordModel {
 }
 
 #[derive(Debug, Clone)]
-struct CharacterModel {
+struct CharacterConfigModel {
     id: String,
     user_id: String,
     character: String,
@@ -177,15 +179,15 @@ struct CharacterModel {
     version: i32,
 }
 
-impl CharacterModel {
-    fn into_entity(self) -> anyhow::Result<entities::character::Character> {
+impl CharacterConfigModel {
+    fn into_entity(self) -> anyhow::Result<entities::character_config::CharacterConfig> {
         let id = Ulid::from_str(&self.id).context("ulid decode error")?;
 
         let &[character] = self.character.chars().collect::<Vec<_>>().as_slice() else {
             return Err(anyhow!("character must be one character"));
         };
 
-        Ok(entities::character::Character {
+        Ok(entities::character_config::CharacterConfig {
             id,
             user_id: self.user_id,
             character,
@@ -202,7 +204,7 @@ impl CharacterModel {
  *   https://relay.dev/graphql/connections.htm
 */
 
-#[graphql_interface(for = [Record, Character])]
+#[graphql_interface(for = [FigureRecord, CharacterConfig])]
 trait Node {
     fn id(&self) -> &ID;
 }
@@ -217,7 +219,7 @@ struct PageInfo {
 
 #[derive(GraphQLObject, Clone, Debug)]
 #[graphql(impl = NodeValue)]
-struct Record {
+struct FigureRecord {
     id: ID,
     record_id: String,
     character: String,
@@ -225,10 +227,10 @@ struct Record {
     created_at: String,
 }
 
-impl Record {
-    fn from_entity(record: &entities::record::Record) -> Record {
-        Record {
-            id: NodeID::Record(record.id).to_id(),
+impl FigureRecord {
+    fn from_entity(record: &entities::figure_record::FigureRecord) -> FigureRecord {
+        FigureRecord {
+            id: NodeID::FigureRecord(record.id).to_id(),
             record_id: record.id.to_string(),
             character: record.character.to_string(),
             figure: record.figure.to_json(),
@@ -238,33 +240,33 @@ impl Record {
 }
 
 #[graphql_interface]
-impl Node for Record {
+impl Node for FigureRecord {
     fn id(&self) -> &ID {
         &self.id
     }
 }
 
 #[derive(GraphQLObject, Clone, Debug)]
-struct RecordEdge {
+struct FigureRecordEdge {
     cursor: String,
-    node: Record,
+    node: FigureRecord,
 }
 
 #[derive(GraphQLObject, Clone, Debug)]
-struct RecordConnection {
+struct FigureRecordConnection {
     page_info: PageInfo,
-    edges: Vec<RecordEdge>,
+    edges: Vec<FigureRecordEdge>,
 }
 
 #[derive(GraphQLInputObject, Clone, Debug)]
-struct NewRecord {
+struct NewFigureRecord {
     character: String,
     figure: String,
 }
 
 #[derive(GraphQLObject, Clone, Debug)]
 #[graphql(impl = NodeValue)]
-struct Character {
+struct CharacterConfig {
     id: ID,
     character_id: String,
     character: String,
@@ -273,10 +275,10 @@ struct Character {
     updated_at: String,
 }
 
-impl Character {
-    fn from_entity(character: &entities::character::Character) -> Character {
-        Character {
-            id: NodeID::Character(character.id).to_id(),
+impl CharacterConfig {
+    fn from_entity(character: &entities::character_config::CharacterConfig) -> CharacterConfig {
+        CharacterConfig {
+            id: NodeID::CharacterConfig(character.id).to_id(),
             character_id: character.id.to_string(),
             character: character.character.to_string(),
             stroke_count: character.stroke_count as i32,
@@ -287,32 +289,32 @@ impl Character {
 }
 
 #[graphql_interface]
-impl Node for Character {
+impl Node for CharacterConfig {
     fn id(&self) -> &ID {
         &self.id
     }
 }
 
 #[derive(GraphQLObject, Clone, Debug)]
-struct CharacterEdge {
+struct CharacterConfigEdge {
     cursor: String,
-    node: Character,
+    node: CharacterConfig,
 }
 
 #[derive(GraphQLObject, Clone, Debug)]
-struct CharacterConnection {
+struct CharacterConfigConnection {
     page_info: PageInfo,
-    edges: Vec<CharacterEdge>,
+    edges: Vec<CharacterConfigEdge>,
 }
 
 #[derive(GraphQLInputObject, Clone, Debug)]
-struct NewCharacter {
+struct NewCharacterConfig {
     character: String,
     stroke_count: i32,
 }
 
 #[derive(GraphQLInputObject, Clone, Debug)]
-struct UpdateCharacter {
+struct UpdateCharacterConfig {
     stroke_count: Option<i32>,
 }
 
@@ -335,9 +337,9 @@ impl QueryRoot {
         };
 
         match id {
-            NodeID::Record(id) => {
+            NodeID::FigureRecord(id) => {
                 let record = sqlx::query_as!(
-                    RecordModel,
+                    FigureRecordModel,
                     r#"
                         SELECT
                             id,
@@ -347,7 +349,7 @@ impl QueryRoot {
                             created_at,
                             stroke_count
                         FROM
-                            records
+                            figure_records
                         WHERE
                             id = $1
                             AND user_id = $2
@@ -364,12 +366,12 @@ impl QueryRoot {
                     .map_err(AppError::Internal)?;
                 Ok(record
                     .as_ref()
-                    .map(Record::from_entity)
-                    .map(NodeValue::Record))
+                    .map(FigureRecord::from_entity)
+                    .map(NodeValue::FigureRecord))
             }
-            NodeID::Character(id) => {
+            NodeID::CharacterConfig(id) => {
                 let character = sqlx::query_as!(
-                    CharacterModel,
+                    CharacterConfigModel,
                     r#"
                         SELECT
                             id,
@@ -380,7 +382,7 @@ impl QueryRoot {
                             updated_at,
                             version
                         FROM
-                            characters
+                            character_configs
                         WHERE
                             id = $1
                             AND user_id = $2
@@ -397,13 +399,13 @@ impl QueryRoot {
                     .map_err(AppError::Internal)?;
                 Ok(character
                     .as_ref()
-                    .map(Character::from_entity)
-                    .map(NodeValue::Character))
+                    .map(CharacterConfig::from_entity)
+                    .map(NodeValue::CharacterConfig))
             }
         }
     }
 
-    async fn records(
+    async fn figure_records(
         ctx: &AppCtx,
         characters: Option<Vec<String>>,
         ids: Option<Vec<ID>>,
@@ -411,7 +413,7 @@ impl QueryRoot {
         after: Option<String>,
         last: Option<i32>,
         before: Option<String>,
-    ) -> AppResult<RecordConnection> {
+    ) -> AppResult<FigureRecordConnection> {
         let Some(user_id) = ctx.user_id.clone() else {
             return Err(AppError::Other("Authentication required".to_string()));
         };
@@ -446,7 +448,7 @@ impl QueryRoot {
 
         let after_id = after
             .map(|after| -> AppResult<Ulid> {
-                let Some(NodeID::Record(id)) = NodeID::from_id(&ID::new(after)) else {
+                let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(after)) else {
                     return Err(AppError::Other("after must be a valid cursor".to_string()))
                 };
 
@@ -456,7 +458,7 @@ impl QueryRoot {
 
         let before_id = before
             .map(|before| -> AppResult<Ulid> {
-                let Some(NodeID::Record(id)) = NodeID::from_id(&ID::new(before)) else {
+                let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(before)) else {
                     return Err(AppError::Other("before must be a valid cursor".to_string()));
                 };
 
@@ -470,7 +472,7 @@ impl QueryRoot {
         let ids = ids.map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>());
 
         let result = sqlx::query_as!(
-            RecordModel,
+            FigureRecordModel,
             r#"
                 SELECT
                     r.id,
@@ -480,9 +482,9 @@ impl QueryRoot {
                     r.created_at,
                     r.stroke_count
                 FROM
-                    records AS r
+                    figure_records AS r
                 JOIN
-                    characters AS c ON r.character = c.character AND r.user_id = c.user_id
+                    character_configs AS c ON r.character = c.character AND r.user_id = c.user_id
                 WHERE
                     r.user_id = $1
                     AND
@@ -528,10 +530,10 @@ impl QueryRoot {
 
         let records = records
             .into_iter()
-            .map(|record| Record::from_entity(&record))
+            .map(|record| FigureRecord::from_entity(&record))
             .collect::<Vec<_>>();
 
-        Ok(RecordConnection {
+        Ok(FigureRecordConnection {
             page_info: PageInfo {
                 has_next_page: has_extra && limit.kind == LimitKind::First,
                 has_previous_page: has_extra && limit.kind == LimitKind::Last,
@@ -540,7 +542,7 @@ impl QueryRoot {
             },
             edges: records
                 .into_iter()
-                .map(|record| RecordEdge {
+                .map(|record| FigureRecordEdge {
                     cursor: record.id.to_string(),
                     node: record,
                 })
@@ -548,7 +550,7 @@ impl QueryRoot {
         })
     }
 
-    async fn characters(
+    async fn character_configs(
         ctx: &AppCtx,
         characters: Option<Vec<String>>,
         ids: Option<Vec<ID>>,
@@ -556,7 +558,7 @@ impl QueryRoot {
         after: Option<String>,
         last: Option<i32>,
         before: Option<String>,
-    ) -> AppResult<CharacterConnection> {
+    ) -> AppResult<CharacterConfigConnection> {
         let Some(user_id) = ctx.user_id.clone() else {
             return Err(AppError::Other("Authentication required".to_string()));
         };
@@ -591,7 +593,7 @@ impl QueryRoot {
 
         let after_id = after
             .map(|after| -> AppResult<Ulid> {
-                let Some(NodeID::Record(id)) = NodeID::from_id(&ID::new(after)) else {
+                let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(after)) else {
                     return Err(AppError::Other("after must be a valid cursor".to_string()))
                 };
 
@@ -601,7 +603,7 @@ impl QueryRoot {
 
         let before_id = before
             .map(|before| -> AppResult<Ulid> {
-                let Some(NodeID::Record(id)) = NodeID::from_id(&ID::new(before)) else {
+                let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(before)) else {
                     return Err(AppError::Other("before must be a valid cursor".to_string()));
                 };
 
@@ -615,7 +617,7 @@ impl QueryRoot {
         let ids = ids.map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>());
 
         let result = sqlx::query_as!(
-            CharacterModel,
+            CharacterConfigModel,
             r#"
                 SELECT
                     id,
@@ -626,7 +628,7 @@ impl QueryRoot {
                     updated_at,
                     version
                 FROM
-                    characters
+                    character_configs
                 WHERE
                     user_id = $1
                     AND
@@ -670,10 +672,10 @@ impl QueryRoot {
 
         let records = characters
             .into_iter()
-            .map(|character| Character::from_entity(&character))
+            .map(|character| CharacterConfig::from_entity(&character))
             .collect::<Vec<_>>();
 
-        Ok(CharacterConnection {
+        Ok(CharacterConfigConnection {
             page_info: PageInfo {
                 has_next_page: has_extra && limit.kind == LimitKind::First,
                 has_previous_page: has_extra && limit.kind == LimitKind::Last,
@@ -682,7 +684,7 @@ impl QueryRoot {
             },
             edges: records
                 .into_iter()
-                .map(|character| CharacterEdge {
+                .map(|character| CharacterConfigEdge {
                     cursor: character.id.to_string(),
                     node: character,
                 })
@@ -695,7 +697,10 @@ pub struct MutationRoot;
 
 #[juniper::graphql_object(Context = AppCtx, name = "Mutation")]
 impl MutationRoot {
-    async fn create_record(ctx: &AppCtx, new_record: NewRecord) -> AppResult<Record> {
+    async fn create_figure_record(
+        ctx: &AppCtx,
+        new_record: NewFigureRecord,
+    ) -> AppResult<FigureRecord> {
         let Some(user_id) = ctx.user_id.clone() else {
             return Err(AppError::Other("Authentication required".to_string()));
         } ;
@@ -710,7 +715,7 @@ impl MutationRoot {
             return Err(AppError::Other("figure must be valid json".to_string()));
         };
 
-        let record = entities::record::Record {
+        let record = entities::figure_record::FigureRecord {
             id: Ulid::from_datetime(ctx.now),
             user_id,
             character,
@@ -720,7 +725,7 @@ impl MutationRoot {
 
         sqlx::query!(
             r#"
-                INSERT INTO records (id, user_id, character, figure, created_at, stroke_count)
+                INSERT INTO figure_records (id, user_id, character, figure, created_at, stroke_count)
                 VALUES ($1, $2, $3, $4, $5, $6)
             "#,
             record.id.to_string(),
@@ -734,10 +739,13 @@ impl MutationRoot {
         .await
         .map_err(|err| AppError::Internal(err.into()))?;
 
-        Ok(Record::from_entity(&record))
+        Ok(FigureRecord::from_entity(&record))
     }
 
-    async fn create_character(ctx: &AppCtx, new_character: NewCharacter) -> AppResult<Character> {
+    async fn create_character_config(
+        ctx: &AppCtx,
+        new_character: NewCharacterConfig,
+    ) -> AppResult<CharacterConfig> {
         let Some(user_id) = ctx.user_id.clone() else {
             return Err(AppError::Other("Authentication required".to_string()));
         } ;
@@ -752,7 +760,7 @@ impl MutationRoot {
             AppError::Other("stroke_count must be an non negative integer".to_string())
         })?;
 
-        let character = entities::character::Character {
+        let character = entities::character_config::CharacterConfig {
             id: Ulid::from_datetime(ctx.now),
             user_id,
             character,
@@ -767,7 +775,7 @@ impl MutationRoot {
                 SELECT
                     id
                 FROM
-                    characters
+                    character_configs
                 WHERE
                     user_id = $1
                     AND
@@ -787,7 +795,7 @@ impl MutationRoot {
 
         sqlx::query!(
             r#"
-                INSERT INTO characters (id, user_id, character, created_at, updated_at, stroke_count, version)
+                INSERT INTO character_configs (id, user_id, character, created_at, updated_at, stroke_count, version)
                 VALUES ($1, $2, $3, $4, $5, $6, 1)
             "#,
             character.id.to_string(),
@@ -801,24 +809,24 @@ impl MutationRoot {
         .await
         .map_err(|err| AppError::Internal(err.into()))?;
 
-        Ok(Character::from_entity(&character))
+        Ok(CharacterConfig::from_entity(&character))
     }
 
     async fn update_character(
         ctx: &AppCtx,
         id: ID,
-        update_character: UpdateCharacter,
-    ) -> AppResult<Character> {
+        update_character: UpdateCharacterConfig,
+    ) -> AppResult<CharacterConfig> {
         let Some(user_id) = ctx.user_id.clone() else {
             return Err(AppError::Other("Authentication required".to_string()));
         };
 
-        let Some(NodeID::Character(id)) = NodeID::from_id(&id) else {
+        let Some(NodeID::CharacterConfig(id)) = NodeID::from_id(&id) else {
             return Err(AppError::Other("Not found".to_string()));
         };
 
         let model = sqlx::query_as!(
-            CharacterModel,
+            CharacterConfigModel,
             r#"
                 SELECT
                     id,
@@ -829,7 +837,7 @@ impl MutationRoot {
                     stroke_count,
                     version
                 FROM
-                    characters
+                    character_configs
                 WHERE
                     id = $1
                     AND
@@ -855,7 +863,7 @@ impl MutationRoot {
 
         let result = sqlx::query!(
             r#"
-                UPDATE characters
+                UPDATE character_configs
                 SET
                     updated_at = $1,
                     stroke_count = $2,
@@ -883,13 +891,13 @@ impl MutationRoot {
         }
 
         let entity = model.into_entity().map_err(AppError::Internal)?;
-        let entity = entities::character::Character {
+        let entity = entities::character_config::CharacterConfig {
             updated_at: ctx.now,
             stroke_count,
             ..entity
         };
 
-        Ok(Character::from_entity(&entity))
+        Ok(CharacterConfig::from_entity(&entity))
     }
 }
 

@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use ulid::Ulid;
 
-pub struct Character {
+pub struct CharacterConfig {
     pub id: Ulid,
     pub user_id: String,
     pub character: char,

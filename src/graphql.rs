@@ -119,6 +119,7 @@ impl juniper::Context for AppCtx {}
 enum NodeID {
     FigureRecord(Ulid),
     CharacterConfig(Ulid),
+    Character(entities::character::Character),
 }
 
 impl NodeID {
@@ -128,6 +129,10 @@ impl NodeID {
             NodeID::CharacterConfig(id) => {
                 ID::new(base64::encode(format!("CharacterConfig:{}", id)))
             }
+            NodeID::Character(character) => ID::new(base64::encode(format!(
+                "Character:{}",
+                String::from(character.clone())
+            ))),
         }
     }
 
@@ -142,6 +147,10 @@ impl NodeID {
         } else if let Some(character_id) = s.strip_prefix("CharacterConfig:") {
             let ulid = Ulid::from_str(character_id).ok()?;
             Some(NodeID::CharacterConfig(ulid))
+        } else if let Some(character) = s.strip_prefix("Character:") {
+            Some(NodeID::Character(
+                entities::character::Character::try_from(character).ok()?,
+            ))
         } else {
             None
         }
@@ -216,9 +225,9 @@ impl CharacterConfigModel {
  *   https://relay.dev/graphql/connections.htm
 */
 
-#[graphql_interface(for = [FigureRecord, CharacterConfig])]
+#[graphql_interface(for = [FigureRecord, CharacterConfig, Character], context = AppCtx)]
 trait Node {
-    fn id(&self) -> &ID;
+    fn id(&self) -> ID;
 }
 
 #[derive(GraphQLObject, Clone, Debug)]
@@ -230,11 +239,11 @@ struct PageInfo {
 }
 
 #[derive(GraphQLObject, Clone, Debug)]
-#[graphql(impl = NodeValue)]
+#[graphql(impl = NodeValue, context = AppCtx)]
 struct FigureRecord {
     id: ID,
-    record_id: String,
-    character: String,
+    figure_record_id: String,
+    character: Character,
     figure: String,
     created_at: String,
 }
@@ -243,8 +252,8 @@ impl FigureRecord {
     fn from_entity(record: &entities::figure_record::FigureRecord) -> FigureRecord {
         FigureRecord {
             id: NodeID::FigureRecord(record.id).to_id(),
-            record_id: record.id.to_string(),
-            character: Into::<String>::into(record.character.clone()),
+            figure_record_id: record.id.to_string(),
+            character: Character::from_entity(record.character.clone()),
             figure: record.figure.to_json(),
             created_at: record.created_at.to_rfc3339(),
         }
@@ -253,18 +262,20 @@ impl FigureRecord {
 
 #[graphql_interface]
 impl Node for FigureRecord {
-    fn id(&self) -> &ID {
-        &self.id
+    fn id(&self) -> ID {
+        self.id.clone()
     }
 }
 
 #[derive(GraphQLObject, Clone, Debug)]
+#[graphql(context = AppCtx)]
 struct FigureRecordEdge {
     cursor: String,
     node: FigureRecord,
 }
 
 #[derive(GraphQLObject, Clone, Debug)]
+#[graphql(context = AppCtx)]
 struct FigureRecordConnection {
     page_info: PageInfo,
     edges: Vec<FigureRecordEdge>,
@@ -276,12 +287,11 @@ struct CreateFigureRecordInput {
     figure: String,
 }
 
-#[derive(GraphQLObject, Clone, Debug)]
-#[graphql(impl = NodeValue)]
+#[derive(Clone, Debug)]
 struct CharacterConfig {
     id: ID,
-    character_id: String,
-    character: String,
+    character_config_id: String,
+    character: Character,
     stroke_count: i32,
     created_at: String,
     updated_at: String,
@@ -291,8 +301,8 @@ impl CharacterConfig {
     fn from_entity(character: &entities::character_config::CharacterConfig) -> CharacterConfig {
         CharacterConfig {
             id: NodeID::CharacterConfig(character.id).to_id(),
-            character_id: character.id.to_string(),
-            character: Into::<String>::into(character.character.clone()),
+            character_config_id: character.id.to_string(),
+            character: Character::from_entity(character.character.clone()),
             stroke_count: character.stroke_count as i32,
             created_at: character.created_at.to_rfc3339(),
             updated_at: character.updated_at.to_rfc3339(),
@@ -302,18 +312,197 @@ impl CharacterConfig {
 
 #[graphql_interface]
 impl Node for CharacterConfig {
-    fn id(&self) -> &ID {
-        &self.id
+    fn id(&self) -> ID {
+        self.id.clone()
+    }
+}
+
+#[juniper::graphql_object(Context = AppCtx, impl = NodeValue)]
+impl CharacterConfig {
+    fn character_config_id(&self) -> String {
+        self.character_config_id.clone()
+    }
+
+    fn character(&self) -> Character {
+        self.character.clone()
+    }
+
+    fn stroke_count(&self) -> i32 {
+        self.stroke_count
+    }
+
+    fn created_at(&self) -> String {
+        self.created_at.clone()
+    }
+
+    fn updated_at(&self) -> String {
+        self.updated_at.clone()
+    }
+
+    async fn figure_records(
+        &self,
+        ctx: &AppCtx,
+        ids: Option<Vec<ID>>,
+        first: Option<i32>,
+        after: Option<String>,
+        last: Option<i32>,
+        before: Option<String>,
+    ) -> FieldResult<FigureRecordConnection> {
+        // TODO: N+1
+        handler(|| async {
+            let Some(user_id) = ctx.user_id.clone() else {
+                return Err(GraphqlUserError::from("Authentication required").into());
+            };
+
+            let characters = vec![self.character.entity.clone()];
+
+            let ids = ids
+                .map(|ids| -> anyhow::Result<Vec<Ulid>> {
+                    ids.into_iter()
+                        .map(|id| -> anyhow::Result<Ulid> {
+                            Ulid::from_str(id.to_string().as_str())
+                                .map_err(|_| GraphqlUserError::from("invalid ids").into())
+                        })
+                        .collect::<anyhow::Result<Vec<_>>>()
+                })
+                .transpose()?;
+
+            let limit = Limit::encode(first, last)?;
+
+            let after_id = after
+                .map(|after| -> anyhow::Result<Ulid> {
+                    let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(after)) else {
+                    return Err(GraphqlUserError::from("after must be a valid cursor").into())
+                };
+
+                    Ok(id)
+                })
+                .transpose()?;
+
+            let before_id = before
+                .map(|before| -> anyhow::Result<Ulid> {
+                    let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(before)) else {
+                    return Err(GraphqlUserError::from("before must be a valid cursor").into());
+                };
+
+                    Ok(id)
+                })
+                .transpose()?;
+
+            let characters = characters
+                .into_iter()
+                .map(|c| String::from(c))
+                .collect::<Vec<_>>();
+
+            let ids = ids.map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>());
+
+            // TODO: charactersごとにlimit
+            /*
+            本来文字とストローク数のペアはselfから参照するべきだが、タプルの配列をINするのは難しいので, JOINしてテーブルから参照する
+            mutation後のqueryといったエッジケースを除いて正常に動作するはず
+            */
+            let result = sqlx::query_as!(
+                FigureRecordModel,
+                r#"
+                SELECT
+                    id,
+                    user_id,
+                    character,
+                    figure,
+                    created_at,
+                    stroke_count
+                FROM (
+                    SELECT
+                        r.id,
+                        r.user_id,
+                        r.character,
+                        r.figure,
+                        r.created_at,
+                        r.stroke_count,
+                        rank() OVER (
+                            PARTITION BY r.character
+                            ORDER BY
+                                CASE WHEN $6 = 0 THEN r.id END DESC,
+                                CASE WHEN $6 = 1 THEN r.id END ASC
+                        ) AS rank
+                    FROM
+                        figure_records AS r
+                    JOIN
+                        character_configs AS c ON r.character = c.character AND r.user_id = c.user_id
+                    WHERE
+                        r.user_id = $1
+                        AND
+                        r.character = Any($2)
+                        AND
+                        ($3::VARCHAR(64)[] IS NULL OR r.id = Any($3))
+                        AND
+                        ($4::VARCHAR(64) IS NULL OR r.id < $4)
+                        AND
+                        ($5::VARCHAR(64) IS NULL OR r.id > $5)
+                        AND
+                        r.stroke_count = c.stroke_count
+                ) as r
+                WHERE
+                    rank <= $7
+                ORDER BY
+                    id DESC
+            "#,
+                &user_id,
+                characters.as_slice(),
+                ids.as_ref().map(|ids| ids.as_slice()),
+                after_id.map(|id| id.to_string()),
+                before_id.map(|id| id.to_string()),
+                (limit.kind == LimitKind::Last) as i32,
+                limit.value as i64 + 1,
+            )
+            .fetch_all(&ctx.pool)
+            .await
+            .context("fetch figure_records")?;
+
+            let mut records = result
+                .into_iter()
+                .map(|row| row.into_entity())
+                .collect::<anyhow::Result<Vec<_>>>()
+                .context("convert records")?;
+
+            let has_extra = records.len() > limit.value as usize;
+
+            records.truncate(limit.value as usize);
+
+            let records = records
+                .into_iter()
+                .map(|record| FigureRecord::from_entity(&record))
+                .collect::<Vec<_>>();
+
+            Ok(FigureRecordConnection {
+                page_info: PageInfo {
+                    has_next_page: has_extra && limit.kind == LimitKind::First,
+                    has_previous_page: has_extra && limit.kind == LimitKind::Last,
+                    start_cursor: records.first().map(|record| record.id.to_string()),
+                    end_cursor: records.last().map(|record| record.id.to_string()),
+                },
+                edges: records
+                    .into_iter()
+                    .map(|record| FigureRecordEdge {
+                        cursor: record.id.to_string(),
+                        node: record,
+                    })
+                    .collect(),
+            })
+        })
+        .await
     }
 }
 
 #[derive(GraphQLObject, Clone, Debug)]
+#[graphql(context = AppCtx)]
 struct CharacterConfigEdge {
     cursor: String,
     node: CharacterConfig,
 }
 
 #[derive(GraphQLObject, Clone, Debug)]
+#[graphql(context = AppCtx)]
 struct CharacterConfigConnection {
     page_info: PageInfo,
     edges: Vec<CharacterConfigEdge>,
@@ -332,8 +521,77 @@ struct UpdateCharacterConfigInput {
 }
 
 #[derive(Clone, Debug)]
-pub struct QueryRoot;
+struct Character {
+    entity: entities::character::Character,
+}
 
+#[graphql_interface]
+impl Node for Character {
+    fn id(&self) -> ID {
+        NodeID::Character(self.entity.clone()).to_id()
+    }
+}
+
+impl Character {
+    fn from_entity(entity: entities::character::Character) -> Character {
+        Character { entity }
+    }
+}
+
+#[juniper::graphql_object(Context = AppCtx, impl = NodeValue)]
+impl Character {
+    fn value(&self) -> String {
+        String::from(self.entity.clone())
+    }
+
+    async fn character_config(&self, ctx: &AppCtx) -> FieldResult<Option<CharacterConfig>> {
+        // TODO: N+1
+        handler(|| async {
+            let Some(user_id) = ctx.user_id.clone() else {
+                return Err(GraphqlUserError::from("Authentication required").into());
+            };
+
+            let result = sqlx::query_as!(
+                CharacterConfigModel,
+                r#"
+                SELECT
+                    id,
+                    user_id,
+                    character,
+                    stroke_count,
+                    created_at,
+                    updated_at,
+                    version
+                FROM
+                    character_configs
+                WHERE
+                    user_id = $1
+                    AND
+                    character = $2
+            "#,
+                &user_id,
+                String::from(self.entity.clone()),
+            )
+            .fetch_all(&ctx.pool)
+            .await
+            .context("fetch character_configs")?;
+
+            let character = result
+                .into_iter()
+                .next()
+                .map(|row| row.into_entity())
+                .transpose()
+                .context("convert CharacterConfig")?;
+
+            let record = character.map(|character| CharacterConfig::from_entity(&character));
+            Ok(record)
+        })
+        .await
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct QueryRoot;
 #[juniper::graphql_object(Context = AppCtx, name = "Query")]
 impl QueryRoot {
     fn query() -> QueryRoot {
@@ -416,169 +674,31 @@ impl QueryRoot {
                         .map(CharacterConfig::from_entity)
                         .map(NodeValue::CharacterConfig))
                 }
+                NodeID::Character(character) => Ok(Some(NodeValue::Character(
+                    Character::from_entity(character),
+                ))),
             }
         })
         .await
     }
 
-    async fn figure_records(
-        ctx: &AppCtx,
-        characters: Option<Vec<String>>,
-        ids: Option<Vec<ID>>,
-        first: Option<i32>,
-        after: Option<String>,
-        last: Option<i32>,
-        before: Option<String>,
-    ) -> FieldResult<FigureRecordConnection> {
+    async fn characters(values: Vec<String>) -> FieldResult<Vec<Character>> {
         handler(|| async {
-            let Some(user_id) = ctx.user_id.clone() else {
-                return Err(GraphqlUserError::from("Authentication required").into());
-            };
-
-            let characters = characters
-                .map(
-                    |characters| -> anyhow::Result<Vec<entities::character::Character>> {
-                        characters
-                            .into_iter()
-                            .map(
-                                |character| -> anyhow::Result<entities::character::Character> {
-                                    let character = entities::character::Character::try_from(
-                                        character.as_str(),
-                                    )
-                                    .map_err(|err| {
-                                        GraphqlUserError::from(anyhow::Error::new(err))
-                                    })?;
-
-                                    Ok(character)
-                                },
-                            )
-                            .collect::<anyhow::Result<Vec<_>>>()
-                    },
-                )
-                .transpose()?;
-
-            let ids = ids
-                .map(|ids| -> anyhow::Result<Vec<Ulid>> {
-                    ids.into_iter()
-                        .map(|id| -> anyhow::Result<Ulid> {
-                            Ulid::from_str(id.to_string().as_str())
-                                .map_err(|_| GraphqlUserError::from("invalid ids").into())
-                        })
-                        .collect::<anyhow::Result<Vec<_>>>()
-                })
-                .transpose()?;
-
-            let limit = Limit::encode(first, last)?;
-
-            let after_id = after
-                .map(|after| -> anyhow::Result<Ulid> {
-                    let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(after)) else {
-                    return Err(GraphqlUserError::from("after must be a valid cursor").into())
-                };
-
-                    Ok(id)
-                })
-                .transpose()?;
-
-            let before_id = before
-                .map(|before| -> anyhow::Result<Ulid> {
-                    let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(before)) else {
-                    return Err(GraphqlUserError::from("before must be a valid cursor").into());
-                };
-
-                    Ok(id)
-                })
-                .transpose()?;
-
-            let characters =
-                characters.map(|cs| cs.into_iter().map(|c| String::from(c)).collect::<Vec<_>>());
-
-            let ids = ids.map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>());
-
-            let result = sqlx::query_as!(
-                FigureRecordModel,
-                r#"
-                SELECT
-                    r.id,
-                    r.user_id,
-                    r.character,
-                    r.figure,
-                    r.created_at,
-                    r.stroke_count
-                FROM
-                    figure_records AS r
-                JOIN
-                    character_configs AS c ON r.character = c.character AND r.user_id = c.user_id
-                WHERE
-                    r.user_id = $1
-                    AND
-                    ($2::VARCHAR(8)[] IS NULL OR r.character = Any($2))
-                    AND
-                    ($3::VARCHAR(64)[] IS NULL OR r.id = Any($3))
-                    AND
-                    ($4::VARCHAR(64) IS NULL OR r.id < $4)
-                    AND
-                    ($5::VARCHAR(64) IS NULL OR r.id > $5)
-                    AND
-                    r.stroke_count = c.stroke_count
-                ORDER BY
-                    CASE WHEN $6 = 0 THEN r.id END DESC,
-                    CASE WHEN $6 = 1 THEN r.id END ASC
-                LIMIT $7
-            "#,
-                &user_id,
-                characters.as_ref().map(|cs| cs.as_slice()),
-                ids.as_ref().map(|ids| ids.as_slice()),
-                after_id.map(|id| id.to_string()),
-                before_id.map(|id| id.to_string()),
-                (limit.kind == LimitKind::Last) as i32,
-                limit.value as i64 + 1,
-            )
-            .fetch_all(&ctx.pool)
-            .await
-            .context("fetch figure_records")?;
-
-            let mut records = result
+            values
                 .into_iter()
-                .map(|row| row.into_entity())
-                .collect::<anyhow::Result<Vec<_>>>()
-                .context("convert records")?;
-
-            let has_extra = records.len() > limit.value as usize;
-
-            records.truncate(limit.value as usize);
-
-            if limit.kind == LimitKind::Last {
-                records.reverse();
-            }
-
-            let records = records
-                .into_iter()
-                .map(|record| FigureRecord::from_entity(&record))
-                .collect::<Vec<_>>();
-
-            Ok(FigureRecordConnection {
-                page_info: PageInfo {
-                    has_next_page: has_extra && limit.kind == LimitKind::First,
-                    has_previous_page: has_extra && limit.kind == LimitKind::Last,
-                    start_cursor: records.first().map(|record| record.id.to_string()),
-                    end_cursor: records.last().map(|record| record.id.to_string()),
-                },
-                edges: records
-                    .into_iter()
-                    .map(|record| FigureRecordEdge {
-                        cursor: record.id.to_string(),
-                        node: record,
+                .map(|value| {
+                    Ok(Character {
+                        entity: entities::character::Character::try_from(value.as_str())
+                            .map_err(|e| GraphqlUserError::from(anyhow::Error::new(e)))?,
                     })
-                    .collect(),
-            })
+                })
+                .collect::<anyhow::Result<Vec<Character>>>()
         })
         .await
     }
 
     async fn character_configs(
         ctx: &AppCtx,
-        characters: Option<Vec<String>>,
         ids: Option<Vec<ID>>,
         first: Option<i32>,
         after: Option<String>,
@@ -590,28 +710,6 @@ impl QueryRoot {
                 return Err(GraphqlUserError::from("Authentication required").into());
             };
 
-            let characters = characters
-                .map(
-                    |characters| -> anyhow::Result<Vec<entities::character::Character>> {
-                        characters
-                            .into_iter()
-                            .map(
-                                |character| -> anyhow::Result<entities::character::Character> {
-                                    let character = entities::character::Character::try_from(
-                                        character.as_str(),
-                                    )
-                                    .map_err(|err| {
-                                        GraphqlUserError::from(anyhow::Error::new(err))
-                                    })?;
-
-                                    Ok(character)
-                                },
-                            )
-                            .collect::<anyhow::Result<Vec<_>>>()
-                    },
-                )
-                .transpose()?;
-
             let ids = ids
                 .map(|ids| -> anyhow::Result<Vec<Ulid>> {
                     ids.into_iter()
@@ -644,9 +742,6 @@ impl QueryRoot {
                     Ok(id)
                 })
                 .transpose()?;
-
-            let characters =
-                characters.map(|cs| cs.into_iter().map(|c| String::from(c)).collect::<Vec<_>>());
 
             let ids = ids.map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>());
 
@@ -666,20 +761,17 @@ impl QueryRoot {
                 WHERE
                     user_id = $1
                     AND
-                    ($2::VARCHAR(8)[] IS NULL OR character = Any($2))
+                    ($2::VARCHAR(64)[] IS NULL OR id = Any($2))
                     AND
-                    ($3::VARCHAR(64)[] IS NULL OR id = Any($3))
+                    ($3::VARCHAR(64) IS NULL OR id < $3)
                     AND
-                    ($4::VARCHAR(64) IS NULL OR id < $4)
-                    AND
-                    ($5::VARCHAR(64) IS NULL OR id > $5)
+                    ($4::VARCHAR(64) IS NULL OR id > $4)
                 ORDER BY
-                    CASE WHEN $6 = 0 THEN id END DESC,
-                    CASE WHEN $6 = 1 THEN id END ASC
-                LIMIT $7
+                    CASE WHEN $5 = 0 THEN id END DESC,
+                    CASE WHEN $5 = 1 THEN id END ASC
+                LIMIT $6
             "#,
                 &user_id,
-                characters.as_ref().map(|cs| cs.as_slice()),
                 ids.as_ref().map(|ids| ids.as_slice()),
                 after_id.map(|id| id.to_string()),
                 before_id.map(|id| id.to_string()),

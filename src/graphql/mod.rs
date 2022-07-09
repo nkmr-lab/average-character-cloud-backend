@@ -13,6 +13,8 @@ use ulid::Ulid;
 use crate::entities;
 use anyhow::{anyhow, ensure, Context};
 use std::fmt;
+mod dataloader_with_params;
+
 #[derive(Debug)]
 pub struct AppCtx {
     pub pool: PgPool,

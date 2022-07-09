@@ -396,7 +396,6 @@ impl CharacterConfig {
 
             let ids = ids.map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>());
 
-            // TODO: charactersごとにlimit
             /*
             本来文字とストローク数のペアはselfから参照するべきだが、タプルの配列をINするのは難しいので, JOINしてテーブルから参照する
             mutation後のqueryといったエッジケースを除いて正常に動作するはず

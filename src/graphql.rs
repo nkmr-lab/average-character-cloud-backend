@@ -271,7 +271,7 @@ struct FigureRecordConnection {
 }
 
 #[derive(GraphQLInputObject, Clone, Debug)]
-struct NewFigureRecord {
+struct CreateFigureRecordInput {
     character: String,
     figure: String,
 }
@@ -320,13 +320,14 @@ struct CharacterConfigConnection {
 }
 
 #[derive(GraphQLInputObject, Clone, Debug)]
-struct NewCharacterConfig {
+struct CreateCharacterConfigInput {
     character: String,
     stroke_count: i32,
 }
 
 #[derive(GraphQLInputObject, Clone, Debug)]
-struct UpdateCharacterConfig {
+struct UpdateCharacterConfigInput {
+    id: ID,
     stroke_count: Option<i32>,
 }
 
@@ -734,17 +735,17 @@ pub struct MutationRoot;
 impl MutationRoot {
     async fn create_figure_record(
         ctx: &AppCtx,
-        new_record: NewFigureRecord,
+        input: CreateFigureRecordInput,
     ) -> FieldResult<FigureRecord> {
         handler(|| async {
             let Some(user_id) = ctx.user_id.clone() else {
                 return Err(GraphqlUserError::from("Authentication required").into());
             } ;
 
-                let character = entities::character::Character::try_from(new_record.character.as_str())
+                let character = entities::character::Character::try_from(input.character.as_str())
                     .map_err(|err| GraphqlUserError::from(anyhow::Error::new(err)))?;
 
-                let Some(figure) = entities::figure::Figure::from_json(&new_record.figure) else {
+                let Some(figure) = entities::figure::Figure::from_json(&input.figure) else {
                 return Err(GraphqlUserError::from("figure must be valid json").into());
             };
 
@@ -778,7 +779,7 @@ impl MutationRoot {
 
     async fn create_character_config(
         ctx: &AppCtx,
-        new_character: NewCharacterConfig,
+        input: CreateCharacterConfigInput,
     ) -> FieldResult<CharacterConfig> {
         handler(|| async {
             let Some(user_id) = ctx.user_id.clone() else {
@@ -786,10 +787,10 @@ impl MutationRoot {
             } ;
 
             let character =
-                entities::character::Character::try_from(new_character.character.as_str())
+                entities::character::Character::try_from(input.character.as_str())
                     .map_err(|err| GraphqlUserError::from(anyhow::Error::new(err)))?;
 
-            let stroke_count = new_character.stroke_count.try_into().map_err(|_| {
+            let stroke_count = input.stroke_count.try_into().map_err(|_| {
                 GraphqlUserError::from("stroke_count must be an non negative integer")
             })?;
 
@@ -846,17 +847,16 @@ impl MutationRoot {
         }).await
     }
 
-    async fn update_character(
+    async fn update_character_config(
         ctx: &AppCtx,
-        id: ID,
-        update_character: UpdateCharacterConfig,
+        input: UpdateCharacterConfigInput,
     ) -> FieldResult<CharacterConfig> {
         handler(|| async {
             let Some(user_id) = ctx.user_id.clone() else {
                 return Err(GraphqlUserError::from("Authentication required").into());
             };
 
-            let Some(NodeID::CharacterConfig(id)) = NodeID::from_id(&id) else {
+            let Some(NodeID::CharacterConfig(id)) = NodeID::from_id(&input.id) else {
                 return Err(GraphqlUserError::from("Not found").into());
             };
 
@@ -889,7 +889,7 @@ impl MutationRoot {
                 return Err(GraphqlUserError::from("Not found").into());
             };
 
-            let stroke_count = match update_character.stroke_count {
+            let stroke_count = match input.stroke_count {
                 Some(stroke_count) => stroke_count.try_into().map_err(|_| {
                     GraphqlUserError::from("stroke_count must be an non negative integer")
                 })?,

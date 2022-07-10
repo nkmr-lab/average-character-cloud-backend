@@ -11,6 +11,7 @@ use juniper::{
 use ulid::Ulid;
 
 use crate::entities;
+use crate::graphql::figure_record_query::FigureRecordByIdLoaderParams;
 use anyhow::{anyhow, Context};
 
 pub mod dataloader_with_params;
@@ -369,33 +370,15 @@ impl QueryRoot {
 
             match id {
                 NodeID::FigureRecord(id) => {
-                    let record = sqlx::query_as!(
-                        FigureRecordModel,
-                        r#"
-                        SELECT
-                            id,
-                            user_id,
-                            character,
-                            figure,
-                            created_at,
-                            stroke_count
-                        FROM
-                            figure_records
-                        WHERE
-                            id = $1
-                            AND user_id = $2
-                    "#,
-                        id.to_string(),
-                        user_id,
-                    )
-                    .fetch_optional(&ctx.pool)
-                    .await
-                    .context("fetch figure_records")?;
-                    let record = record
-                        .map(|row| row.into_entity())
-                        .transpose()
-                        .context("FigureRecordModel::into_entity")?;
-                    Ok(record.map(FigureRecord::from).map(NodeValue::FigureRecord))
+                    let figure_record = ctx
+                        .loaders
+                        .figure_record_by_id_loader
+                        .load(FigureRecordByIdLoaderParams { user_id }, id)
+                        .await
+                        .context("load FigureRecord")??;
+                    Ok(figure_record
+                        .map(FigureRecord::from)
+                        .map(NodeValue::FigureRecord))
                 }
                 NodeID::CharacterConfig(id) => {
                     let character_config = ctx

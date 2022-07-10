@@ -5,6 +5,7 @@ use super::{
         CharacterConfigByCharacterLoader, CharacterConfigByIdLoader, CharacterConfigsLoader,
     },
     dataloader_with_params::DataloaderWithParams,
+    figure_record_query::FigureRecordByIdLoader,
 };
 
 pub struct Loaders {
@@ -12,6 +13,7 @@ pub struct Loaders {
         DataloaderWithParams<CharacterConfigByCharacterLoader>,
     pub character_config_by_id_loader: DataloaderWithParams<CharacterConfigByIdLoader>,
     pub character_configs_loader: DataloaderWithParams<CharacterConfigsLoader>,
+    pub figure_record_by_id_loader: DataloaderWithParams<FigureRecordByIdLoader>,
 }
 
 impl Loaders {
@@ -24,6 +26,9 @@ impl Loaders {
                 pool: pool.clone(),
             }),
             character_configs_loader: DataloaderWithParams::new(CharacterConfigsLoader {
+                pool: pool.clone(),
+            }),
+            figure_record_by_id_loader: DataloaderWithParams::new(FigureRecordByIdLoader {
                 pool: pool.clone(),
             }),
         }

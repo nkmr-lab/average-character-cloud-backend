@@ -2,7 +2,6 @@ use std::collections::HashSet;
 
 use std::str::FromStr;
 
-use chrono::{DateTime, Utc};
 use derive_more::From;
 use juniper::FieldResult;
 use juniper::{
@@ -12,7 +11,7 @@ use juniper::{
 use ulid::Ulid;
 
 use crate::entities;
-use anyhow::{anyhow, ensure, Context};
+use anyhow::{anyhow, Context};
 
 pub mod dataloader_with_params;
 
@@ -27,40 +26,9 @@ use character_config_query::{
 };
 
 mod character_config_query;
+mod figure_record_query;
 
-#[derive(Debug, Clone)]
-struct FigureRecordModel {
-    id: String,
-    user_id: String,
-    character: String,
-    figure: serde_json::Value,
-    created_at: DateTime<Utc>,
-    stroke_count: i32,
-}
-
-impl FigureRecordModel {
-    fn into_entity(self) -> anyhow::Result<entities::figure_record::FigureRecord> {
-        let id = Ulid::from_str(&self.id).context("ulid decode error")?;
-
-        let character = entities::character::Character::try_from(self.character.as_str())?;
-
-        let figure = entities::figure::Figure::from_json_ast(self.figure)
-            .ok_or_else(|| anyhow!("figure must be valid json"))?;
-
-        ensure!(
-            self.stroke_count as usize == figure.strokes.len(),
-            "stroke_count invalid"
-        );
-
-        Ok(entities::figure_record::FigureRecord {
-            id,
-            user_id: self.user_id,
-            character,
-            figure,
-            created_at: self.created_at,
-        })
-    }
-}
+use figure_record_query::FigureRecordModel;
 
 /**
  * replayの仕様に従うこと

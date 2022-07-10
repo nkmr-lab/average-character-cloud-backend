@@ -39,6 +39,7 @@ impl CharacterConfigModel {
             stroke_count: self.stroke_count as usize,
             created_at: self.created_at,
             updated_at: self.updated_at,
+            version: self.version,
         })
     }
 }

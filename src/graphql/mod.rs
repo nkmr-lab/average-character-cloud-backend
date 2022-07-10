@@ -676,6 +676,7 @@ impl MutationRoot {
                 created_at: ctx.now,
                 updated_at: ctx.now,
                 stroke_count,
+                version: 1,
             };
 
             // check exist
@@ -705,7 +706,7 @@ impl MutationRoot {
             sqlx::query!(
                 r#"
                     INSERT INTO character_configs (id, user_id, character, created_at, updated_at, stroke_count, version)
-                    VALUES ($1, $2, $3, $4, $5, $6, 1)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
                 "#,
                 character.id.to_string(),
                 character.user_id,
@@ -713,6 +714,7 @@ impl MutationRoot {
                 character.created_at,
                 character.updated_at,
                 character.stroke_count as i32,
+                character.version,
             )
             .execute(&mut trx)
             .await

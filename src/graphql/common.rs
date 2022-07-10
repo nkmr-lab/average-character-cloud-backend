@@ -2,6 +2,7 @@ use std::future::Future;
 use std::str::FromStr;
 
 use juniper::FieldResult;
+use juniper::GraphQLObject;
 use juniper::ID;
 
 use thiserror::Error;
@@ -145,4 +146,12 @@ impl NodeID {
             None
         }
     }
+}
+
+#[derive(GraphQLObject, Clone, Debug)]
+pub struct PageInfo {
+    pub has_next_page: bool,
+    pub has_previous_page: bool,
+    pub start_cursor: Option<String>,
+    pub end_cursor: Option<String>,
 }

@@ -11,7 +11,7 @@ use juniper::{
 
 use ulid::Ulid;
 
-use crate::entities::{self};
+use crate::entities;
 use anyhow::{anyhow, ensure, Context};
 
 pub mod dataloader_with_params;
@@ -67,14 +67,6 @@ impl FigureRecordModel {
 trait Node {
     #[graphql(name = "id")]
     fn node_id(&self) -> ID;
-}
-
-#[derive(GraphQLObject, Clone, Debug)]
-struct PageInfo {
-    has_next_page: bool,
-    has_previous_page: bool,
-    start_cursor: Option<String>,
-    end_cursor: Option<String>,
 }
 
 #[derive(Clone, Debug, From)]

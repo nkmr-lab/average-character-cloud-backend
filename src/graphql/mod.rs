@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
-use derive_more::{From, Into};
+use derive_more::From;
 use juniper::FieldResult;
 use juniper::{
     graphql_interface, EmptySubscription, GraphQLInputObject, GraphQLObject, RootNode, ID,
@@ -77,7 +77,7 @@ struct PageInfo {
     end_cursor: Option<String>,
 }
 
-#[derive(Clone, Debug, From, Into)]
+#[derive(Clone, Debug, From)]
 struct FigureRecord(entities::figure_record::FigureRecord);
 
 #[juniper::graphql_object(Context = AppCtx, impl = NodeValue)]
@@ -91,7 +91,7 @@ impl FigureRecord {
     }
 
     fn character(&self) -> Character {
-        Character::from_entity(self.0.character.clone())
+        Character::from(self.0.character.clone())
     }
 
     fn figure(&self) -> String {
@@ -130,33 +130,13 @@ struct CreateFigureRecordInput {
     figure: String,
 }
 
-#[derive(Clone, Debug)]
-struct CharacterConfig {
-    id: ID,
-    character_config_id: String,
-    character: Character,
-    stroke_count: i32,
-    created_at: String,
-    updated_at: String,
-}
-
-impl CharacterConfig {
-    fn from_entity(character: &entities::character_config::CharacterConfig) -> CharacterConfig {
-        CharacterConfig {
-            id: NodeID::CharacterConfig(character.id).to_id(),
-            character_config_id: character.id.to_string(),
-            character: Character::from_entity(character.character.clone()),
-            stroke_count: character.stroke_count as i32,
-            created_at: character.created_at.to_rfc3339(),
-            updated_at: character.updated_at.to_rfc3339(),
-        }
-    }
-}
+#[derive(Clone, Debug, From)]
+struct CharacterConfig(entities::character_config::CharacterConfig);
 
 #[graphql_interface]
 impl Node for CharacterConfig {
     fn node_id(&self) -> ID {
-        self.id.clone()
+        NodeID::CharacterConfig(self.0.id).to_id()
     }
 }
 
@@ -167,23 +147,23 @@ impl CharacterConfig {
     }
 
     fn character_config_id(&self) -> String {
-        self.character_config_id.clone()
+        self.0.id.to_string()
     }
 
     fn character(&self) -> Character {
-        self.character.clone()
+        Character::from(self.0.character.clone())
     }
 
     fn stroke_count(&self) -> i32 {
-        self.stroke_count
+        self.0.stroke_count as i32
     }
 
     fn created_at(&self) -> String {
-        self.created_at.clone()
+        self.0.created_at.to_rfc3339()
     }
 
     fn updated_at(&self) -> String {
-        self.updated_at.clone()
+        self.0.updated_at.to_rfc3339()
     }
 }
 
@@ -213,21 +193,13 @@ struct UpdateCharacterConfigInput {
     stroke_count: Option<i32>,
 }
 
-#[derive(Clone, Debug)]
-struct Character {
-    entity: entities::character::Character,
-}
+#[derive(Clone, Debug, From)]
+struct Character(entities::character::Character);
 
 #[graphql_interface]
 impl Node for Character {
     fn node_id(&self) -> ID {
-        NodeID::Character(self.entity.clone()).to_id()
-    }
-}
-
-impl Character {
-    fn from_entity(entity: entities::character::Character) -> Character {
-        Character { entity }
+        NodeID::Character(self.0.clone()).to_id()
     }
 }
 
@@ -238,7 +210,7 @@ impl Character {
     }
 
     fn value(&self) -> String {
-        String::from(self.entity.clone())
+        String::from(self.0.clone())
     }
 
     async fn character_config(&self, ctx: &mut AppCtx) -> FieldResult<Option<CharacterConfig>> {
@@ -250,11 +222,11 @@ impl Character {
             let character_config = ctx
                 .loaders
                 .character_config_loader
-                .load(CharacterConfigLoaderParams { user_id }, self.entity.clone())
+                .load(CharacterConfigLoaderParams { user_id }, self.0.clone())
                 .await
                 .context("load character_config")??;
 
-            Ok(character_config.map(|entity| CharacterConfig::from_entity(&entity)))
+            Ok(character_config.map(|entity| CharacterConfig::from(entity)))
         })
         .await
     }
@@ -274,7 +246,7 @@ impl Character {
                 return Err(GraphqlUserError::from("Authentication required").into());
             };
 
-            let characters = vec![self.entity.clone()];
+            let characters = vec![self.0.clone()];
 
             let ids = ids
                 .map(|ids| -> anyhow::Result<Vec<Ulid>> {
@@ -486,13 +458,12 @@ impl QueryRoot {
                         .transpose()
                         .context("fetch character_configs")?;
                     Ok(character
-                        .as_ref()
-                        .map(CharacterConfig::from_entity)
+                        .map(CharacterConfig::from)
                         .map(NodeValue::CharacterConfig))
                 }
-                NodeID::Character(character) => Ok(Some(NodeValue::Character(
-                    Character::from_entity(character),
-                ))),
+                NodeID::Character(character) => {
+                    Ok(Some(NodeValue::Character(Character::from(character))))
+                }
             }
         })
         .await
@@ -518,7 +489,7 @@ impl QueryRoot {
 
             Ok(entities
                 .into_iter()
-                .map(Character::from_entity)
+                .map(Character::from)
                 .collect::<Vec<_>>())
         })
         .await
@@ -625,20 +596,20 @@ impl QueryRoot {
 
             let records = characters
                 .into_iter()
-                .map(|character| CharacterConfig::from_entity(&character))
+                .map(|character| CharacterConfig::from(character))
                 .collect::<Vec<_>>();
 
             Ok(CharacterConfigConnection {
                 page_info: PageInfo {
                     has_next_page: has_extra && limit.kind == LimitKind::First,
                     has_previous_page: has_extra && limit.kind == LimitKind::Last,
-                    start_cursor: records.first().map(|record| record.id.to_string()),
-                    end_cursor: records.last().map(|record| record.id.to_string()),
+                    start_cursor: records.first().map(|record| record.node_id().to_string()),
+                    end_cursor: records.last().map(|record| record.node_id().to_string()),
                 },
                 edges: records
                     .into_iter()
                     .map(|character| CharacterConfigEdge {
-                        cursor: character.id.to_string(),
+                        cursor: character.node_id().to_string(),
                         node: character,
                     })
                     .collect(),
@@ -673,7 +644,7 @@ impl MutationRoot {
                 let record = entities::figure_record::FigureRecord {
                     id: Ulid::from_datetime(ctx.now),
                     user_id,
-                    character: Into::<entities::character::Character>::into(character),
+                    character,
                     figure,
                     created_at: ctx.now,
                 };
@@ -685,7 +656,7 @@ impl MutationRoot {
                 "#,
                 record.id.to_string(),
                 record.user_id,
-                Into::<String>::into(record.character.clone()),
+                String::from(record.character.clone()),
                 record.figure.to_json_ast(),
                 record.created_at,
                 record.figure.strokes.len() as i32,
@@ -741,7 +712,7 @@ impl MutationRoot {
                     character = $2
             "#,
                 character.user_id,
-                Into::<String>::into(character.character.clone()),
+                String::from(character.character.clone()),
             )
             .fetch_optional(&mut trx)
             .await
@@ -759,7 +730,7 @@ impl MutationRoot {
                 "#,
                 character.id.to_string(),
                 character.user_id,
-                Into::<String>::into(character.character.clone()),
+                String::from(character.character.clone()),
                 character.created_at,
                 character.updated_at,
                 character.stroke_count as i32,
@@ -768,7 +739,7 @@ impl MutationRoot {
             .await
             .context("insert character_configs")?;
 
-            let result = Ok(CharacterConfig::from_entity(&character));
+            let result = Ok(CharacterConfig::from(character));
             trx.commit().await?;
             result
         }).await
@@ -860,7 +831,7 @@ impl MutationRoot {
                 ..entity
             };
 
-            let result = Ok(CharacterConfig::from_entity(&entity));
+            let result = Ok(CharacterConfig::from(entity));
             trx.commit().await?;
             result
         })

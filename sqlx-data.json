@@ -136,6 +136,23 @@
     },
     "query": "\n                    INSERT INTO character_configs (id, user_id, character, created_at, updated_at, stroke_count, version)\n                    VALUES ($1, $2, $3, $4, $5, $6, $7)\n                "
   },
+  "5d2433e19db059c10e849101933918a73545c6b82a5fd3621af6615194c9af23": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Timestamptz",
+          "Int4",
+          "Int4",
+          "Text",
+          "Text",
+          "Int4"
+        ]
+      }
+    },
+    "query": "\n                UPDATE character_configs\n                    SET\n                        updated_at = $1,\n                        stroke_count = $2,\n                        version = $3\n                    WHERE\n                        id = $4\n                        AND\n                        user_id = $5\n                        AND\n                        version = $6\n                "
+  },
   "82057a0bb000435195b6cf1fb039398f47ce15a7762d06fec8a86cc9f4606ba9": {
     "describe": {
       "columns": [
@@ -316,23 +333,6 @@
       }
     },
     "query": "\n                    SELECT\n                        id,\n                        user_id,\n                        character,\n                        figure,\n                        created_at,\n                        stroke_count\n                    FROM (\n                        SELECT\n                            r.id,\n                            r.user_id,\n                            r.character,\n                            r.figure,\n                            r.created_at,\n                            r.stroke_count,\n                            rank() OVER (\n                                PARTITION BY r.character\n                                ORDER BY\n                                    CASE WHEN $6 = 0 THEN r.id END DESC,\n                                    CASE WHEN $6 = 1 THEN r.id END ASC\n                            ) AS rank\n                        FROM\n                            figure_records AS r\n                        JOIN\n                            character_configs AS c ON r.character = c.character AND r.user_id = c.user_id\n                        WHERE\n                            r.user_id = $1\n                            AND\n                            r.character = Any($2)\n                            AND\n                            ($3::VARCHAR(64)[] IS NULL OR r.id = Any($3))\n                            AND\n                            ($4::VARCHAR(64) IS NULL OR r.id < $4)\n                            AND\n                            ($5::VARCHAR(64) IS NULL OR r.id > $5)\n                            AND\n                            r.stroke_count = c.stroke_count\n                    ) as r\n                    WHERE\n                        rank <= $7\n                    ORDER BY\n                        id DESC\n                "
-  },
-  "d8805b09d6c0f1af0d8d0e9c16fb1cca3e1658daa6319d0e36b3f041010619f6": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Timestamptz",
-          "Int4",
-          "Int4",
-          "Text",
-          "Text",
-          "Int4"
-        ]
-      }
-    },
-    "query": "\n                UPDATE character_configs\n                SET\n                    updated_at = $1,\n                    stroke_count = $2,\n                    version = $3\n                WHERE\n                    id = $4\n                    AND\n                    user_id = $5\n                    AND\n                    version = $6\n            "
   },
   "daf7de1ef242a09e60fb4424e18d4a2616d693350376ac653484e08283f02188": {
     "describe": {

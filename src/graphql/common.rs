@@ -155,3 +155,9 @@ pub struct PageInfo {
     pub start_cursor: Option<String>,
     pub end_cursor: Option<String>,
 }
+
+#[derive(GraphQLObject, Clone, Debug)]
+#[graphql(name = "Error")]
+pub struct GraphqlErrorType {
+    pub message: String,
+}

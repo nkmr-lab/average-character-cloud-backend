@@ -96,6 +96,13 @@ struct CreateFigureRecordInput {
     figure: String,
 }
 
+#[derive(GraphQLObject, Clone, Debug)]
+#[graphql(context = AppCtx)]
+struct CreateFigureRecordPayload {
+    figure_record: Option<FigureRecord>,
+    errors: Option<Vec<GraphqlErrorType>>,
+}
+
 #[derive(Clone, Debug, From)]
 struct CharacterConfig(entities::character_config::CharacterConfig);
 
@@ -153,10 +160,24 @@ struct CreateCharacterConfigInput {
     stroke_count: i32,
 }
 
+#[derive(GraphQLObject, Clone, Debug)]
+#[graphql(context = AppCtx)]
+struct CreateCharacterConfigPayload {
+    character_config: Option<CharacterConfig>,
+    errors: Option<Vec<GraphqlErrorType>>,
+}
+
 #[derive(GraphQLInputObject, Clone, Debug)]
 struct UpdateCharacterConfigInput {
     id: ID,
     stroke_count: Option<i32>,
+}
+
+#[derive(GraphQLObject, Clone, Debug)]
+#[graphql(context = AppCtx)]
+struct UpdateCharacterConfigPayload {
+    character_config: Option<CharacterConfig>,
+    errors: Option<Vec<GraphqlErrorType>>,
 }
 
 #[derive(Clone, Debug, From)]
@@ -458,7 +479,7 @@ impl MutationRoot {
     async fn create_figure_record(
         ctx: &AppCtx,
         input: CreateFigureRecordInput,
-    ) -> FieldResult<FigureRecord> {
+    ) -> FieldResult<CreateFigureRecordPayload> {
         handler(|| async {
             let mut trx = ctx.pool.begin().await?;
 
@@ -466,12 +487,24 @@ impl MutationRoot {
                 return Err(GraphqlUserError::from("Authentication required").into());
             } ;
 
-                let character = entities::character::Character::try_from(input.character.as_str())
-                    .map_err(|err| GraphqlUserError::from(anyhow::Error::new(err)))?;
+                let character = match entities::character::Character::try_from(input.character.as_str()) {
+                    Ok(character) => character,
+                    Err(err) => return Ok(CreateFigureRecordPayload {
+                        figure_record: None,
+                        errors: Some(vec![GraphqlErrorType {
+                            message: err.to_string(),
+                        }])
+                    }),
+                };
 
                 let Some(figure) = entities::figure::Figure::from_json(&input.figure) else {
-                return Err(GraphqlUserError::from("figure must be valid json").into());
-            };
+                    return Ok(CreateFigureRecordPayload {
+                        figure_record: None,
+                        errors: Some(vec![GraphqlErrorType {
+                            message: "figure must be valid json".to_string(),
+                        }])
+                    });
+                };
 
                 let record = entities::figure_record::FigureRecord {
                     id: Ulid::from_datetime(ctx.now),
@@ -497,7 +530,10 @@ impl MutationRoot {
             .await
             .context("fetch figure_records")?;
 
-            let result = Ok(FigureRecord::from(record));
+            let result = Ok(CreateFigureRecordPayload {
+                figure_record:Some(FigureRecord::from(record)),
+                errors: None,
+            });
             trx.commit().await?;
             result
         }).await
@@ -506,21 +542,32 @@ impl MutationRoot {
     async fn create_character_config(
         ctx: &AppCtx,
         input: CreateCharacterConfigInput,
-    ) -> FieldResult<CharacterConfig> {
+    ) -> FieldResult<CreateCharacterConfigPayload> {
         handler(|| async {
             let mut trx = ctx.pool.begin().await?;
 
             let Some(user_id) = ctx.user_id.clone() else {
                 return Err(GraphqlUserError::from("Authentication required").into());
-            } ;
+            };
 
-            let character =
-                entities::character::Character::try_from(input.character.as_str())
-                    .map_err(|err| GraphqlUserError::from(anyhow::Error::new(err)))?;
+            let character = match entities::character::Character::try_from(input.character.as_str()) {
+                Ok(character) => character,
+                Err(err) => return Ok(CreateCharacterConfigPayload {
+                    character_config: None,
+                    errors: Some(vec![GraphqlErrorType {
+                        message: err.to_string(),
+                    }])
+                }),
+            };
 
-            let stroke_count = input.stroke_count.try_into().map_err(|_| {
-                GraphqlUserError::from("stroke_count must be an non negative integer")
-            })?;
+            let Ok(stroke_count) = input.stroke_count.try_into() else {
+                return Ok(CreateCharacterConfigPayload {
+                    character_config: None,
+                    errors: Some(vec![GraphqlErrorType {
+                        message: "stroke_count must be an non negative integer".to_string(),
+                    }])
+                });
+            };
 
             let character = entities::character_config::CharacterConfig {
                 id: Ulid::from_datetime(ctx.now),
@@ -553,7 +600,12 @@ impl MutationRoot {
             .is_some();
 
             if exists {
-                return Err(GraphqlUserError::from("character already exists").into());
+                return Ok(CreateCharacterConfigPayload {
+                    character_config: None,
+                    errors: Some(vec![GraphqlErrorType {
+                        message: "character already exists".to_string(),
+                    }])
+                });
             }
 
             sqlx::query!(
@@ -573,7 +625,7 @@ impl MutationRoot {
             .await
             .context("insert character_configs")?;
 
-            let result = Ok(CharacterConfig::from(character));
+            let result = Ok(CreateCharacterConfigPayload{character_config: Some(CharacterConfig::from(character)), errors: None});
             trx.commit().await?;
             result
         }).await
@@ -582,7 +634,7 @@ impl MutationRoot {
     async fn update_character_config(
         ctx: &AppCtx,
         input: UpdateCharacterConfigInput,
-    ) -> FieldResult<CharacterConfig> {
+    ) -> FieldResult<UpdateCharacterConfigPayload> {
         handler(|| async {
             let mut trx = ctx.pool.begin().await?;
             let Some(user_id) = ctx.user_id.clone() else {
@@ -615,9 +667,16 @@ impl MutationRoot {
             character_config.updated_at = ctx.now;
             match input.stroke_count {
                 Some(stroke_count) => {
-                    character_config.stroke_count = stroke_count.try_into().map_err(|_| {
-                        GraphqlUserError::from("stroke_count must be an non negative integer")
-                    })?;
+                    if let Ok(stroke_count) = stroke_count.try_into() {
+                        character_config.stroke_count = stroke_count;
+                    } else {
+                        return Ok(UpdateCharacterConfigPayload {
+                            character_config: None,
+                            errors: Some(vec![GraphqlErrorType {
+                                message: "stroke_count must be an non negative integer".to_string(),
+                            }]),
+                        });
+                    }
                 }
                 _ => {}
             };
@@ -625,17 +684,17 @@ impl MutationRoot {
             let result = sqlx::query!(
                 r#"
                 UPDATE character_configs
-                SET
-                    updated_at = $1,
-                    stroke_count = $2,
-                    version = $3
-                WHERE
-                    id = $4
-                    AND
-                    user_id = $5
-                    AND
-                    version = $6
-            "#,
+                    SET
+                        updated_at = $1,
+                        stroke_count = $2,
+                        version = $3
+                    WHERE
+                        id = $4
+                        AND
+                        user_id = $5
+                        AND
+                        version = $6
+                "#,
                 &character_config.updated_at,
                 character_config.stroke_count as i32,
                 character_config.version,
@@ -651,7 +710,10 @@ impl MutationRoot {
                 return Err(anyhow!("conflict").into());
             }
 
-            let result = Ok(CharacterConfig::from(character_config));
+            let result = Ok(UpdateCharacterConfigPayload {
+                character_config: Some(CharacterConfig::from(character_config)),
+                errors: None,
+            });
             trx.commit().await?;
             result
         })

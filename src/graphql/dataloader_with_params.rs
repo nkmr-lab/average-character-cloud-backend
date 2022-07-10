@@ -46,19 +46,18 @@ impl<F: BatchFnWithParams> DataloaderWithParams<F> {
     }
 
     pub async fn load(&self, params: F::P, key: F::K) -> io::Result<F::V> {
-        {
-            self.1
-                .lock()
-                .await
-                .entry(params.clone())
-                .or_insert_with(|| {
-                    Loader::new(DataloaderWithParamsBatchFn {
-                        params,
-                        f: self.0.clone(),
-                    })
+        let mut map = self.1.lock().await;
+        let loader = map
+            .entry(params.clone())
+            .or_insert_with(|| {
+                Loader::new(DataloaderWithParamsBatchFn {
+                    params,
+                    f: self.0.clone(),
                 })
-        }
-        .try_load(key)
-        .await
+                .with_yield_count(100)
+            })
+            .clone();
+        drop(map);
+        loader.try_load(key).await
     }
 }

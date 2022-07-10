@@ -738,6 +738,7 @@ impl QueryRoot {
         .await
     }
 
+    // TODO: 重複削除、ソート
     async fn characters(values: Vec<String>) -> FieldResult<Vec<Character>> {
         handler(|| async {
             values

@@ -1,5 +1,5 @@
-use std::collections::{HashMap, HashSet};
-use std::future::Future;
+use std::collections::HashSet;
+
 use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
@@ -7,176 +7,20 @@ use juniper::FieldResult;
 use juniper::{
     graphql_interface, EmptySubscription, GraphQLInputObject, GraphQLObject, RootNode, ID,
 };
-use sqlx::PgPool;
-use thiserror::Error;
+
 use ulid::Ulid;
 
 use crate::entities::{self};
 use anyhow::{anyhow, ensure, Context};
-use std::fmt;
+
 pub mod dataloader_with_params;
-use async_trait::async_trait;
-use dataloader_with_params::{BatchFnWithParams, DataloaderWithParams};
 
-use self::dataloader_with_params::ShareableError;
-
-pub struct AppCtx {
-    pub pool: PgPool,
-    pub user_id: Option<String>,
-    pub now: DateTime<Utc>,
-    pub loaders: Loaders,
-}
-
-impl juniper::Context for AppCtx {}
-
-pub struct Loaders {
-    pub character_config_loader: DataloaderWithParams<CharacterConfigLoader>,
-}
-
-impl Loaders {
-    pub fn new(pool: &PgPool) -> Self {
-        Self {
-            character_config_loader: DataloaderWithParams::new(CharacterConfigLoader {
-                pool: pool.clone(),
-            }),
-        }
-    }
-}
-
-#[derive(Debug, Error)]
-pub struct GraphqlUserError {
-    #[source]
-    pub source: anyhow::Error,
-}
-
-impl fmt::Display for GraphqlUserError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.source)
-    }
-}
-
-impl From<anyhow::Error> for GraphqlUserError {
-    fn from(source: anyhow::Error) -> Self {
-        Self { source }
-    }
-}
-
-impl From<&str> for GraphqlUserError {
-    fn from(source: &str) -> Self {
-        Self {
-            source: anyhow!("{}", source),
-        }
-    }
-}
-
-async fn handler<T, Fut: Future<Output = anyhow::Result<T>>>(
-    f: impl FnOnce() -> Fut,
-) -> FieldResult<T> {
-    match f().await {
-        Ok(value) => Ok(value),
-        Err(err) => Err(match err.downcast_ref::<GraphqlUserError>() {
-            Some(err) => err.source.to_string().into(),
-            None => {
-                log::error!("{:?}", err);
-                "Internal error".into()
-            }
-        }),
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum LimitKind {
-    First,
-    Last,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct Limit {
-    kind: LimitKind,
-    value: i32,
-}
-
-impl Limit {
-    fn encode(first: Option<i32>, last: Option<i32>) -> anyhow::Result<Self> {
-        let max = 100;
-
-        match (first, last) {
-            (Some(first), None) => {
-                if first < 0 {
-                    Err(GraphqlUserError::from("first must be greater than or equal to 0").into())
-                } else if first > max {
-                    Err(GraphqlUserError::from(
-                        format!("first must be less than or equal to {}", max).as_str(),
-                    )
-                    .into())
-                } else {
-                    Ok(Limit {
-                        kind: LimitKind::First,
-                        value: first,
-                    })
-                }
-            }
-            (None, Some(last)) => {
-                if last < 0 {
-                    Err(GraphqlUserError::from("last must be greater than or equal to 0").into())
-                } else if last > max {
-                    Err(GraphqlUserError::from(
-                        format!("last must be less than or equal to {}", max).as_str(),
-                    )
-                    .into())
-                } else {
-                    Ok(Limit {
-                        kind: LimitKind::Last,
-                        value: last,
-                    })
-                }
-            }
-            _ => Err(GraphqlUserError::from("Must provide either first or last, not both").into()),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-enum NodeID {
-    FigureRecord(Ulid),
-    CharacterConfig(Ulid),
-    Character(entities::character::Character),
-}
-
-impl NodeID {
-    fn to_id(&self) -> ID {
-        match self {
-            NodeID::FigureRecord(id) => ID::new(base64::encode(format!("FigureRecord:{}", id))),
-            NodeID::CharacterConfig(id) => {
-                ID::new(base64::encode(format!("CharacterConfig:{}", id)))
-            }
-            NodeID::Character(character) => ID::new(base64::encode(format!(
-                "Character:{}",
-                String::from(character.clone())
-            ))),
-        }
-    }
-
-    fn from_id(id: &ID) -> Option<NodeID> {
-        let id = id.to_string();
-        let buf = base64::decode(id).ok()?;
-        let s = String::from_utf8(buf).ok()?;
-
-        if let Some(record_id) = s.strip_prefix("FigureRecord:") {
-            let ulid = Ulid::from_str(record_id).ok()?;
-            Some(NodeID::FigureRecord(ulid))
-        } else if let Some(character_id) = s.strip_prefix("CharacterConfig:") {
-            let ulid = Ulid::from_str(character_id).ok()?;
-            Some(NodeID::CharacterConfig(ulid))
-        } else if let Some(character) = s.strip_prefix("Character:") {
-            Some(NodeID::Character(
-                entities::character::Character::try_from(character).ok()?,
-            ))
-        } else {
-            None
-        }
-    }
-}
+mod common;
+pub use common::*;
+mod app_ctx;
+pub use app_ctx::*;
+mod loaders;
+use loaders::{CharacterConfigLoaderParams, CharacterConfigModel};
 
 #[derive(Debug, Clone)]
 struct FigureRecordModel {
@@ -208,34 +52,6 @@ impl FigureRecordModel {
             character,
             figure,
             created_at: self.created_at,
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-struct CharacterConfigModel {
-    id: String,
-    user_id: String,
-    character: String,
-    stroke_count: i32,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-    version: i32,
-}
-
-impl CharacterConfigModel {
-    fn into_entity(self) -> anyhow::Result<entities::character_config::CharacterConfig> {
-        let id = Ulid::from_str(&self.id).context("ulid decode error")?;
-
-        let character = entities::character::Character::try_from(self.character.as_str())?;
-
-        Ok(entities::character_config::CharacterConfig {
-            id,
-            user_id: self.user_id,
-            character,
-            stroke_count: self.stroke_count as usize,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
         })
     }
 }
@@ -402,91 +218,6 @@ impl Node for Character {
 impl Character {
     fn from_entity(entity: entities::character::Character) -> Character {
         Character { entity }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct CharacterConfigLoader {
-    pub pool: PgPool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct CharacterConfigLoaderParams {
-    pub user_id: String,
-}
-
-#[async_trait]
-impl BatchFnWithParams for CharacterConfigLoader {
-    type K = entities::character::Character;
-    type V = Result<Option<entities::character_config::CharacterConfig>, ShareableError>;
-    type P = CharacterConfigLoaderParams;
-
-    async fn load_with_params(
-        &mut self,
-        params: &Self::P,
-        keys: &[Self::K],
-    ) -> HashMap<Self::K, Self::V> {
-        let character_values = keys
-            .iter()
-            .map(|character| String::from(character.clone()))
-            .collect::<Vec<_>>();
-
-        let result: Result<
-            HashMap<entities::character::Character, entities::character_config::CharacterConfig>,
-            ShareableError,
-        > = (|| async {
-            let models = sqlx::query_as!(
-                CharacterConfigModel,
-                r#"
-                SELECT
-                    id,
-                    user_id,
-                    character,
-                    stroke_count,
-                    created_at,
-                    updated_at,
-                    version
-                FROM
-                    character_configs
-                WHERE
-                    user_id = $1
-                    AND
-                    character = Any($2)
-            "#,
-                &params.user_id,
-                character_values.as_slice(),
-            )
-            .fetch_all(&self.pool)
-            .await
-            .context("fetch character_configs")?;
-
-            let character_configs = models
-                .into_iter()
-                .map(|model| model.into_entity())
-                .collect::<anyhow::Result<Vec<_>>>()
-                .context("convert CharacterConfig")?;
-
-            let character_config_map = character_configs
-                .into_iter()
-                .map(|character_config| (character_config.character.clone(), character_config))
-                .collect::<HashMap<_, _>>();
-
-            Ok(character_config_map)
-        })()
-        .await
-        .map_err(ShareableError);
-
-        keys.iter()
-            .map(|key| {
-                (
-                    key.clone(),
-                    result
-                        .as_ref()
-                        .map(|character_config_map| character_config_map.get(key).cloned())
-                        .map_err(|e| e.clone()),
-                )
-            })
-            .collect()
     }
 }
 

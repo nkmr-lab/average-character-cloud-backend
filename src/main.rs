@@ -6,7 +6,6 @@ use actix_session::{Session, SessionLength, SessionMiddleware};
 use actix_web::cookie::Key;
 use actix_web::{error, get, middleware, post, web, App, HttpRequest, HttpResponse, HttpServer};
 use arc_swap::ArcSwap;
-use average_character_cloud_backend::graphql::dataloader_with_params::DataloaderWithParams;
 use chrono::{DateTime, FixedOffset, Utc};
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
@@ -20,9 +19,7 @@ use time::Duration;
 
 use actix_web_extras::middleware::Condition as OptionalCondition;
 use average_character_cloud_backend::app_config::{AppConfig, AuthConfig, SessionConfig};
-use average_character_cloud_backend::graphql::{
-    create_schema, AppCtx, CharacterConfigLoader, Schema,
-};
+use average_character_cloud_backend::graphql::{create_schema, AppCtx, Loaders, Schema};
 use clap::Command;
 use jsonwebtoken::jwk::{self, JwkSet};
 use std::sync::Arc;
@@ -61,9 +58,7 @@ async fn graphql(
             })
         },
         now: Utc::now(),
-        character_config_loader: DataloaderWithParams::new(CharacterConfigLoader {
-            pool: pool.get_ref().clone(),
-        }),
+        loaders: Loaders::new(pool.get_ref()),
     };
     let res = data.execute(&st, &ctx).await;
     let json = serde_json::to_string(&res)?;

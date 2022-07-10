@@ -24,7 +24,23 @@ pub struct AppCtx {
     pub pool: PgPool,
     pub user_id: Option<String>,
     pub now: DateTime<Utc>,
+    pub loaders: Loaders,
+}
+
+impl juniper::Context for AppCtx {}
+
+pub struct Loaders {
     pub character_config_loader: DataloaderWithParams<CharacterConfigLoader>,
+}
+
+impl Loaders {
+    pub fn new(pool: &PgPool) -> Self {
+        Self {
+            character_config_loader: DataloaderWithParams::new(CharacterConfigLoader {
+                pool: pool.clone(),
+            }),
+        }
+    }
 }
 
 #[derive(Debug, Error)]
@@ -119,8 +135,6 @@ impl Limit {
         }
     }
 }
-
-impl juniper::Context for AppCtx {}
 
 #[derive(Debug, Clone)]
 enum NodeID {
@@ -489,6 +503,7 @@ impl Character {
             };
 
             let character_config = ctx
+                .loaders
                 .character_config_loader
                 .load(CharacterConfigLoaderParams { user_id }, self.entity.clone())
                 .await

@@ -21,7 +21,9 @@ pub use common::*;
 mod app_ctx;
 pub use app_ctx::*;
 mod loaders;
-use loaders::{CharacterConfigLoaderParams, CharacterConfigModel};
+use character_config_query::{CharacterConfigLoaderParams, CharacterConfigModel};
+
+mod character_config_query;
 
 #[derive(Debug, Clone)]
 struct FigureRecordModel {

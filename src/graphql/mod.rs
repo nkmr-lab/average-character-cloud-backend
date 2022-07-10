@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::str::FromStr;
 
@@ -741,18 +741,28 @@ impl QueryRoot {
         .await
     }
 
-    // TODO: 重複削除、ソート
     async fn characters(values: Vec<String>) -> FieldResult<Vec<Character>> {
         handler(|| async {
-            values
+            let entities = values
                 .into_iter()
                 .map(|value| {
-                    Ok(Character {
-                        entity: entities::character::Character::try_from(value.as_str())
-                            .map_err(|e| GraphqlUserError::from(anyhow::Error::new(e)))?,
-                    })
+                    entities::character::Character::try_from(value.as_str())
+                        .map_err(|e| GraphqlUserError::from(anyhow::Error::new(e)).into())
                 })
-                .collect::<anyhow::Result<Vec<Character>>>()
+                .collect::<anyhow::Result<Vec<_>>>()?;
+
+            let mut entities = entities
+                .into_iter()
+                .collect::<HashSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>();
+
+            entities.sort();
+
+            Ok(entities
+                .into_iter()
+                .map(Character::from_entity)
+                .collect::<Vec<_>>())
         })
         .await
     }

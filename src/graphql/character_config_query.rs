@@ -183,7 +183,7 @@ impl BatchFnWithParams for CharacterConfigByIdLoader {
 
             let character_config_map = character_configs
                 .into_iter()
-                .map(|character_config| (character_config.id.clone(), character_config))
+                .map(|character_config| (character_config.id, character_config))
                 .collect::<HashMap<_, _>>();
 
             Ok(character_config_map)
@@ -194,7 +194,7 @@ impl BatchFnWithParams for CharacterConfigByIdLoader {
         keys.iter()
             .map(|key| {
                 (
-                    key.clone(),
+                    *key,
                     result
                         .as_ref()
                         .map(|character_config_map| character_config_map.get(key).cloned())

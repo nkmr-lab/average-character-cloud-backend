@@ -103,7 +103,7 @@ impl BatchFnWithParams for FigureRecordByIdLoader {
 
             let figure_record_map = figure_records
                 .into_iter()
-                .map(|figure_record| (figure_record.id.clone(), figure_record))
+                .map(|figure_record| (figure_record.id, figure_record))
                 .collect::<HashMap<_, _>>();
 
             Ok(figure_record_map)
@@ -114,7 +114,7 @@ impl BatchFnWithParams for FigureRecordByIdLoader {
         keys.iter()
             .map(|key| {
                 (
-                    key.clone(),
+                    *key,
                     result
                         .as_ref()
                         .map(|figure_record_map| figure_record_map.get(key).cloned())
@@ -246,10 +246,8 @@ impl BatchFnWithParams for FigureRecordsByCharacterLoader {
                     result
                         .as_ref()
                         .map(|figure_records_map| {
-                            let mut figure_records = figure_records_map
-                                .get(key)
-                                .cloned()
-                                .unwrap_or_else(Vec::new);
+                            let mut figure_records =
+                                figure_records_map.get(key).cloned().unwrap_or_default();
                             let has_extra = figure_records.len() > params.limit.value as usize;
                             figure_records.truncate(params.limit.value as usize);
                             (figure_records, has_extra)

@@ -216,7 +216,7 @@ impl Character {
                 .await
                 .context("load character_config")??;
 
-            Ok(character_config.map(|entity| CharacterConfig::from(entity)))
+            Ok(character_config.map(CharacterConfig::from))
         })
         .await
     }
@@ -665,21 +665,18 @@ impl MutationRoot {
 
             character_config.version += 1;
             character_config.updated_at = ctx.now;
-            match input.stroke_count {
-                Some(stroke_count) => {
-                    if let Ok(stroke_count) = stroke_count.try_into() {
-                        character_config.stroke_count = stroke_count;
-                    } else {
-                        return Ok(UpdateCharacterConfigPayload {
-                            character_config: None,
-                            errors: Some(vec![GraphqlErrorType {
-                                message: "stroke_count must be an non negative integer".to_string(),
-                            }]),
-                        });
-                    }
+            if let Some(stroke_count) = input.stroke_count {
+                if let Ok(stroke_count) = stroke_count.try_into() {
+                    character_config.stroke_count = stroke_count;
+                } else {
+                    return Ok(UpdateCharacterConfigPayload {
+                        character_config: None,
+                        errors: Some(vec![GraphqlErrorType {
+                            message: "stroke_count must be an non negative integer".to_string(),
+                        }]),
+                    });
                 }
-                _ => {}
-            };
+            }
 
             let result = sqlx::query!(
                 r#"
@@ -707,7 +704,7 @@ impl MutationRoot {
             .context("update character_config")?;
 
             if result.rows_affected() == 0 {
-                return Err(anyhow!("conflict").into());
+                return Err(anyhow!("conflict"));
             }
 
             let result = Ok(UpdateCharacterConfigPayload {

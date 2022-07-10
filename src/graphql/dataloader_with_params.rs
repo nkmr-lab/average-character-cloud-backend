@@ -47,6 +47,7 @@ impl<F: BatchFnWithParams> BatchFn<F::K, F::V> for DataloaderWithParamsBatchFn<F
 #[derive(Clone)]
 pub struct DataloaderWithParams<F: BatchFnWithParams>(
     F,
+    #[allow(clippy::type_complexity)]
     Arc<Mutex<HashMap<F::P, Loader<F::K, F::V, DataloaderWithParamsBatchFn<F>>>>>,
 );
 

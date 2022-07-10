@@ -357,6 +357,7 @@ dependencies = [
  "chrono",
  "clap",
  "dataloader",
+ "derive_more",
  "env_logger",
  "jsonwebtoken",
  "juniper",

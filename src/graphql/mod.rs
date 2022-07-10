@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
+use derive_more::{From, Into};
 use juniper::FieldResult;
 use juniper::{
     graphql_interface, EmptySubscription, GraphQLInputObject, GraphQLObject, RootNode, ID,
@@ -75,32 +76,32 @@ struct PageInfo {
     end_cursor: Option<String>,
 }
 
-#[derive(GraphQLObject, Clone, Debug)]
-#[graphql(impl = NodeValue, context = AppCtx)]
-struct FigureRecord {
-    id: ID,
-    figure_record_id: String,
-    character: Character,
-    figure: String,
-    created_at: String,
-}
+#[derive(Clone, Debug, From, Into)]
+struct FigureRecord(entities::figure_record::FigureRecord);
 
+#[juniper::graphql_object(Context = AppCtx, impl = NodeValue)]
 impl FigureRecord {
-    fn from_entity(record: &entities::figure_record::FigureRecord) -> FigureRecord {
-        FigureRecord {
-            id: NodeID::FigureRecord(record.id).to_id(),
-            figure_record_id: record.id.to_string(),
-            character: Character::from_entity(record.character.clone()),
-            figure: record.figure.to_json(),
-            created_at: record.created_at.to_rfc3339(),
-        }
+    fn figure_record_id(&self) -> String {
+        self.0.id.to_string()
+    }
+
+    fn character(&self) -> Character {
+        Character::from_entity(self.0.character.clone())
+    }
+
+    fn figure(&self) -> String {
+        self.0.figure.to_json()
+    }
+
+    fn created_at(&self) -> String {
+        self.0.created_at.to_rfc3339()
     }
 }
 
 #[graphql_interface]
 impl Node for FigureRecord {
     fn id(&self) -> ID {
-        self.id.clone()
+        NodeID::FigureRecord(self.0.id).to_id()
     }
 }
 
@@ -372,20 +373,20 @@ impl Character {
 
             let records = records
                 .into_iter()
-                .map(|record| FigureRecord::from_entity(&record))
+                .map(|record| FigureRecord::from(record))
                 .collect::<Vec<_>>();
 
             Ok(FigureRecordConnection {
                 page_info: PageInfo {
                     has_next_page: has_extra && limit.kind == LimitKind::First,
                     has_previous_page: has_extra && limit.kind == LimitKind::Last,
-                    start_cursor: records.first().map(|record| record.id.to_string()),
-                    end_cursor: records.last().map(|record| record.id.to_string()),
+                    start_cursor: records.first().map(|record| record.id().to_string()),
+                    end_cursor: records.last().map(|record| record.id().to_string()),
                 },
                 edges: records
                     .into_iter()
                     .map(|record| FigureRecordEdge {
-                        cursor: record.id.to_string(),
+                        cursor: record.id().to_string(),
                         node: record,
                     })
                     .collect(),
@@ -441,10 +442,7 @@ impl QueryRoot {
                         .map(|row| row.into_entity())
                         .transpose()
                         .context("FigureRecordModel::into_entity")?;
-                    Ok(record
-                        .as_ref()
-                        .map(FigureRecord::from_entity)
-                        .map(NodeValue::FigureRecord))
+                    Ok(record.map(FigureRecord::from).map(NodeValue::FigureRecord))
                 }
                 NodeID::CharacterConfig(id) => {
                     let character = sqlx::query_as!(
@@ -683,7 +681,7 @@ impl MutationRoot {
             .await
             .context("fetch figure_records")?;
 
-            let result = Ok(FigureRecord::from_entity(&record));
+            let result = Ok(FigureRecord::from(record));
             trx.commit().await?;
             result
         }).await

@@ -740,40 +740,28 @@ impl MutationRoot {
                 return Err(GraphqlUserError::from("Not found").into());
             };
 
-            let model = sqlx::query_as!(
-                CharacterConfigModel,
-                r#"
-                SELECT
-                    id,
-                    user_id,
-                    character,
-                    created_at,
-                    updated_at,
-                    stroke_count,
-                    version
-                FROM
-                    character_configs
-                WHERE
-                    id = $1
-                    AND
-                    user_id = $2
-            "#,
-                id.to_string(),
-                user_id,
-            )
-            .fetch_optional(&mut trx)
-            .await
-            .context("fetch character_configs")?;
+            let character_config = ctx
+                .loaders
+                .character_config_by_id_loader
+                .load(CharacterConfigByIdLoaderParams { user_id }, id)
+                .await
+                .context("load character_config")??;
 
-            let Some(model) = model else {
+            let Some(mut character_config) = character_config else {
                 return Err(GraphqlUserError::from("Not found").into());
             };
 
-            let stroke_count = match input.stroke_count {
-                Some(stroke_count) => stroke_count.try_into().map_err(|_| {
-                    GraphqlUserError::from("stroke_count must be an non negative integer")
-                })?,
-                None => model.stroke_count as usize,
+            let prevVersion = character_config.version;
+
+            character_config.version += 1;
+            character_config.updated_at = ctx.now;
+            match input.stroke_count {
+                Some(stroke_count) => {
+                    character_config.stroke_count = stroke_count.try_into().map_err(|_| {
+                        GraphqlUserError::from("stroke_count must be an non negative integer")
+                    })?;
+                }
+                _ => {}
             };
 
             let result = sqlx::query!(
@@ -790,12 +778,12 @@ impl MutationRoot {
                     AND
                     version = $6
             "#,
-                ctx.now,
-                stroke_count as i32,
-                model.version + 1,
+                character_config.updated_at,
+                character_config.stroke_count as i32,
+                character_config.version,
                 id.to_string(),
                 user_id,
-                model.version,
+                prevVersion,
             )
             .execute(&mut trx)
             .await
@@ -805,14 +793,7 @@ impl MutationRoot {
                 return Err(anyhow!("conflict").into());
             }
 
-            let entity = model.into_entity().context("convert character model")?;
-            let entity = entities::character_config::CharacterConfig {
-                updated_at: ctx.now,
-                stroke_count,
-                ..entity
-            };
-
-            let result = Ok(CharacterConfig::from(entity));
+            let result = Ok(CharacterConfig::from(character_config));
             trx.commit().await?;
             result
         })

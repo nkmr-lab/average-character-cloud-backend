@@ -65,7 +65,8 @@ impl FigureRecordModel {
 
 #[graphql_interface(for = [FigureRecord, CharacterConfig, Character], context = AppCtx)]
 trait Node {
-    fn id(&self) -> ID;
+    #[graphql(name = "id")]
+    fn node_id(&self) -> ID;
 }
 
 #[derive(GraphQLObject, Clone, Debug)]
@@ -81,6 +82,10 @@ struct FigureRecord(entities::figure_record::FigureRecord);
 
 #[juniper::graphql_object(Context = AppCtx, impl = NodeValue)]
 impl FigureRecord {
+    fn id(&self) -> ID {
+        self.node_id()
+    }
+
     fn figure_record_id(&self) -> String {
         self.0.id.to_string()
     }
@@ -100,7 +105,7 @@ impl FigureRecord {
 
 #[graphql_interface]
 impl Node for FigureRecord {
-    fn id(&self) -> ID {
+    fn node_id(&self) -> ID {
         NodeID::FigureRecord(self.0.id).to_id()
     }
 }
@@ -150,13 +155,17 @@ impl CharacterConfig {
 
 #[graphql_interface]
 impl Node for CharacterConfig {
-    fn id(&self) -> ID {
+    fn node_id(&self) -> ID {
         self.id.clone()
     }
 }
 
 #[juniper::graphql_object(Context = AppCtx, impl = NodeValue)]
 impl CharacterConfig {
+    fn id(&self) -> ID {
+        self.node_id()
+    }
+
     fn character_config_id(&self) -> String {
         self.character_config_id.clone()
     }
@@ -211,7 +220,7 @@ struct Character {
 
 #[graphql_interface]
 impl Node for Character {
-    fn id(&self) -> ID {
+    fn node_id(&self) -> ID {
         NodeID::Character(self.entity.clone()).to_id()
     }
 }
@@ -224,6 +233,10 @@ impl Character {
 
 #[juniper::graphql_object(Context = AppCtx, impl = NodeValue)]
 impl Character {
+    fn id(&self) -> ID {
+        self.node_id()
+    }
+
     fn value(&self) -> String {
         String::from(self.entity.clone())
     }
@@ -380,13 +393,13 @@ impl Character {
                 page_info: PageInfo {
                     has_next_page: has_extra && limit.kind == LimitKind::First,
                     has_previous_page: has_extra && limit.kind == LimitKind::Last,
-                    start_cursor: records.first().map(|record| record.id().to_string()),
-                    end_cursor: records.last().map(|record| record.id().to_string()),
+                    start_cursor: records.first().map(|record| record.node_id().to_string()),
+                    end_cursor: records.last().map(|record| record.node_id().to_string()),
                 },
                 edges: records
                     .into_iter()
                     .map(|record| FigureRecordEdge {
-                        cursor: record.id().to_string(),
+                        cursor: record.node_id().to_string(),
                         node: record,
                     })
                     .collect(),

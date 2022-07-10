@@ -139,7 +139,7 @@ pub struct CharacterConfigByIdLoaderParams {
 impl BatchFnWithParams for CharacterConfigByIdLoader {
     type K = Ulid;
     type V = Result<Option<entities::character_config::CharacterConfig>, ShareableError>;
-    type P = CharacterConfigByCharacterLoaderParams;
+    type P = CharacterConfigByIdLoaderParams;
 
     async fn load_with_params(
         &mut self,

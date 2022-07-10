@@ -1099,9 +1099,9 @@ rec {
       };
       "async-trait" = rec {
         crateName = "async-trait";
-        version = "0.1.53";
+        version = "0.1.56";
         edition = "2018";
-        sha256 = "003nzwgwb2apz6nww5wmh66k8f47npifll8c33zgkz1d999a6spd";
+        sha256 = "05lpn4164icjwarh2ax8whj0fzkkxz8cahps5l5snbkxyqlqikwn";
         procMacro = true;
         authors = [
           "David Tolnay <dtolnay@gmail.com>"
@@ -1209,6 +1209,10 @@ rec {
             packageId = "arc-swap";
           }
           {
+            name = "async-trait";
+            packageId = "async-trait";
+          }
+          {
             name = "base64";
             packageId = "base64";
           }
@@ -1219,6 +1223,16 @@ rec {
           {
             name = "clap";
             packageId = "clap";
+          }
+          {
+            name = "dataloader";
+            packageId = "dataloader";
+            usesDefaultFeatures = false;
+            features = [ "runtime-tokio" ];
+          }
+          {
+            name = "derive_more";
+            packageId = "derive_more";
           }
           {
             name = "env_logger";
@@ -1270,6 +1284,11 @@ rec {
           {
             name = "time";
             packageId = "time 0.3.9";
+          }
+          {
+            name = "tokio";
+            packageId = "tokio";
+            features = [ "sync" "rt" ];
           }
           {
             name = "ulid";
@@ -2133,6 +2152,35 @@ rec {
           }
         ];
 
+      };
+      "dataloader" = rec {
+        crateName = "dataloader";
+        version = "0.15.0";
+        edition = "2018";
+        sha256 = "1xzsj4ng3ibfc6vphb67il608l0lmj07gczvmwg398x80072994s";
+        authors = [
+          "cksac <cs.cksac@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "async-trait";
+            packageId = "async-trait";
+          }
+          {
+            name = "tokio";
+            packageId = "tokio";
+            optional = true;
+            features = [ "sync" "rt" ];
+          }
+        ];
+        features = {
+          "async-std" = [ "dep:async-std" ];
+          "default" = [ "runtime-async-std" ];
+          "runtime-async-std" = [ "async-std" ];
+          "runtime-tokio" = [ "tokio" ];
+          "tokio" = [ "dep:tokio" ];
+        };
+        resolvedDefaultFeatures = [ "runtime-tokio" "tokio" ];
       };
       "derive_more" = rec {
         crateName = "derive_more";
@@ -6853,9 +6901,9 @@ rec {
       };
       "syn" = rec {
         crateName = "syn";
-        version = "1.0.95";
+        version = "1.0.98";
         edition = "2018";
-        sha256 = "0hprqgqywlv4z9piq6ygjh0shq7xfkxkc8braafz6949mcb63bzv";
+        sha256 = "1pbklw6fnwwgrkj8qz3wcjfggmn7vmyln44gg0yc5r2dj25fy2n5";
         authors = [
           "David Tolnay <dtolnay@gmail.com>"
         ];
@@ -7143,9 +7191,9 @@ rec {
       };
       "tokio" = rec {
         crateName = "tokio";
-        version = "1.18.2";
+        version = "1.19.2";
         edition = "2018";
-        sha256 = "158klcakw40y37kgbafg9z1y12vgflh35ad6bbfxss6g4w2by0s9";
+        sha256 = "0f8lrcbd28czq4sycj3s1irnzd6zx6cr5f7r431n5pc6cvnm46n5";
         authors = [
           "Tokio Contributors <team@tokio.rs>"
         ];

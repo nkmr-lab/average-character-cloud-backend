@@ -11,7 +11,9 @@ use juniper::{
 use ulid::Ulid;
 
 use crate::entities;
-use crate::graphql::figure_record_query::FigureRecordByIdLoaderParams;
+use crate::graphql::figure_record_query::{
+    FigureRecordByIdLoaderParams, FigureRecordsByCharacterLoaderParams,
+};
 use anyhow::{anyhow, Context};
 
 pub mod dataloader_with_params;
@@ -28,8 +30,6 @@ use character_config_query::{
 
 mod character_config_query;
 mod figure_record_query;
-
-use figure_record_query::FigureRecordModel;
 
 /**
  * replayの仕様に従うこと
@@ -215,8 +215,6 @@ impl Character {
                 return Err(GraphqlUserError::from("Authentication required").into());
             };
 
-            let characters = vec![self.0.clone()];
-
             let ids = ids
                 .map(|ids| -> anyhow::Result<Vec<Ulid>> {
                     ids.into_iter()
@@ -233,8 +231,8 @@ impl Character {
             let after_id = after
                 .map(|after| -> anyhow::Result<Ulid> {
                     let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(after)) else {
-                    return Err(GraphqlUserError::from("after must be a valid cursor").into())
-                };
+                        return Err(GraphqlUserError::from("after must be a valid cursor").into())
+                    };
 
                     Ok(id)
                 })
@@ -243,91 +241,31 @@ impl Character {
             let before_id = before
                 .map(|before| -> anyhow::Result<Ulid> {
                     let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(before)) else {
-                    return Err(GraphqlUserError::from("before must be a valid cursor").into());
-                };
-
+                        return Err(GraphqlUserError::from("before must be a valid cursor").into());
+                    };
                     Ok(id)
                 })
                 .transpose()?;
 
-            let characters = characters
-                .into_iter()
-                .map(|c| String::from(c))
-                .collect::<Vec<_>>();
-
-            let ids = ids.map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>());
-
-            let result = sqlx::query_as!(
-                FigureRecordModel,
-                r#"
-                SELECT
-                    id,
-                    user_id,
-                    character,
-                    figure,
-                    created_at,
-                    stroke_count
-                FROM (
-                    SELECT
-                        r.id,
-                        r.user_id,
-                        r.character,
-                        r.figure,
-                        r.created_at,
-                        r.stroke_count,
-                        rank() OVER (
-                            PARTITION BY r.character
-                            ORDER BY
-                                CASE WHEN $6 = 0 THEN r.id END DESC,
-                                CASE WHEN $6 = 1 THEN r.id END ASC
-                        ) AS rank
-                    FROM
-                        figure_records AS r
-                    JOIN
-                        character_configs AS c ON r.character = c.character AND r.user_id = c.user_id
-                    WHERE
-                        r.user_id = $1
-                        AND
-                        r.character = Any($2)
-                        AND
-                        ($3::VARCHAR(64)[] IS NULL OR r.id = Any($3))
-                        AND
-                        ($4::VARCHAR(64) IS NULL OR r.id < $4)
-                        AND
-                        ($5::VARCHAR(64) IS NULL OR r.id > $5)
-                        AND
-                        r.stroke_count = c.stroke_count
-                ) as r
-                WHERE
-                    rank <= $7
-                ORDER BY
-                    id DESC
-            "#,
-                &user_id,
-                characters.as_slice(),
-                ids.as_ref().map(|ids| ids.as_slice()),
-                after_id.map(|id| id.to_string()),
-                before_id.map(|id| id.to_string()),
-                (limit.kind == LimitKind::Last) as i32,
-                limit.value as i64 + 1,
-            )
-            .fetch_all(&ctx.pool)
-            .await
-            .context("fetch figure_records")?;
-
-            let mut records = result
-                .into_iter()
-                .map(|row| row.into_entity())
-                .collect::<anyhow::Result<Vec<_>>>()
-                .context("convert records")?;
-
-            let has_extra = records.len() > limit.value as usize;
-
-            records.truncate(limit.value as usize);
+            let (records, has_extra) = ctx
+                .loaders
+                .figure_records_by_character_loader
+                .load(
+                    FigureRecordsByCharacterLoaderParams {
+                        user_id,
+                        ids,
+                        after_id,
+                        before_id,
+                        limit: limit.clone(),
+                    },
+                    self.0.clone(),
+                )
+                .await
+                .context("load character_config")??;
 
             let records = records
                 .into_iter()
-                .map(|record| FigureRecord::from(record))
+                .map(FigureRecord::from)
                 .collect::<Vec<_>>();
 
             Ok(FigureRecordConnection {

@@ -7,7 +7,17 @@ use std::hash::Hash;
 use std::io;
 use std::marker::Send;
 use std::sync::Arc;
+use thiserror::Error;
 use tokio::sync::Mutex;
+
+#[derive(Clone, Error, Debug)]
+pub struct ShareableError(pub Arc<anyhow::Error>);
+
+impl fmt::Display for ShareableError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[ShareableError] {}", self.0.as_ref())
+    }
+}
 
 #[async_trait]
 pub trait BatchFnWithParams: Clone + Send {

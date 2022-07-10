@@ -18,6 +18,8 @@ pub mod dataloader_with_params;
 use async_trait::async_trait;
 use dataloader_with_params::{BatchFnWithParams, DataloaderWithParams};
 
+use self::dataloader_with_params::ShareableError;
+
 pub struct AppCtx {
     pub pool: PgPool,
     pub user_id: Option<String>,
@@ -402,7 +404,7 @@ pub struct CharacterConfigLoaderParams {
 #[async_trait]
 impl BatchFnWithParams for CharacterConfigLoader {
     type K = entities::character::Character;
-    type V = Result<Option<entities::character_config::CharacterConfig>, String>;
+    type V = Result<Option<entities::character_config::CharacterConfig>, ShareableError>;
     type P = CharacterConfigLoaderParams;
 
     async fn load_with_params(
@@ -415,8 +417,9 @@ impl BatchFnWithParams for CharacterConfigLoader {
             .map(|character| String::from(character.clone()))
             .collect::<Vec<_>>();
 
-        let result: anyhow::Result<
+        let result: Result<
             HashMap<entities::character::Character, entities::character_config::CharacterConfig>,
+            ShareableError,
         > = (|| async {
             let models = sqlx::query_as!(
                 CharacterConfigModel,
@@ -456,7 +459,8 @@ impl BatchFnWithParams for CharacterConfigLoader {
 
             Ok(character_config_map)
         })()
-        .await;
+        .await
+        .map_err(ShareableError);
 
         keys.iter()
             .map(|key| {
@@ -465,7 +469,7 @@ impl BatchFnWithParams for CharacterConfigLoader {
                     result
                         .as_ref()
                         .map(|character_config_map| character_config_map.get(key).cloned())
-                        .map_err(|e| format!("{:?}", e)),
+                        .map_err(|e| e.clone()),
                 )
             })
             .collect()
@@ -488,8 +492,7 @@ impl Character {
                 .character_config_loader
                 .load(CharacterConfigLoaderParams { user_id }, self.entity.clone())
                 .await
-                .context("load character_config")?
-                .map_err(|msg| anyhow!("{}", msg))?;
+                .context("load character_config")??;
 
             Ok(character_config.map(|entity| CharacterConfig::from_entity(&entity)))
         })

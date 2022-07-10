@@ -19,7 +19,7 @@ use time::Duration;
 
 use actix_web_extras::middleware::Condition as OptionalCondition;
 use average_character_cloud_backend::app_config::{AppConfig, AuthConfig, SessionConfig};
-use average_character_cloud_backend::graphql::{create_schema, AppCtx, Schema};
+use average_character_cloud_backend::graphql::{create_schema, AppCtx, Loaders, Schema};
 use clap::Command;
 use jsonwebtoken::jwk::{self, JwkSet};
 use std::sync::Arc;
@@ -58,6 +58,7 @@ async fn graphql(
             })
         },
         now: Utc::now(),
+        loaders: Loaders::new(pool.get_ref()),
     };
     let res = data.execute(&st, &ctx).await;
     let json = serde_json::to_string(&res)?;

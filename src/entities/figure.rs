@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Figure {
     pub strokes: Vec<Stroke>,
+    pub width: f64,
+    pub height: f64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

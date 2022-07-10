@@ -9,9 +9,12 @@ actix-web = "4.0.1"
 actix-web-extras = {git = "https://github.com/ctron/actix-web-extras.git", rev = "e896994e38b253e270546f186780e3d1c99d0d3b"}
 anyhow = "1.0.57"
 arc-swap = "1.5.0"
+async-trait = "0.1.56"
 base64 = "0.13.0"
 chrono = "0.4.19"
 clap = "3.2.7"
+dataloader = {version = "0.15.0", features = ["runtime-tokio"], default-features = false}
+derive_more = "0.99.17"
 env_logger = "0.9.0"
 jsonwebtoken = {version = "8.1.0", features = ["use_pem"]}
 juniper = "0.15.9"
@@ -22,5 +25,7 @@ serde = "1.0.137"
 serde_derive = "1.0.137"
 serde_json = "1.0.81"
 sqlx = {version = "0.5.13", features = ["runtime-actix-native-tls", "postgres", "json", "chrono", "offline"]}
+thiserror = "1.0"
 time = "0.3.9"
+tokio = {version = "1.19.2", features = ["sync", "rt"]}
 ulid = "0.5.0"

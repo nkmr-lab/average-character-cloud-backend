@@ -21,7 +21,9 @@ pub use common::*;
 mod app_ctx;
 pub use app_ctx::*;
 mod loaders;
-use character_config_query::{CharacterConfigLoaderParams, CharacterConfigModel};
+use character_config_query::{
+    CharacterConfigByCharacterLoaderParams, CharacterConfigByIdLoaderParams, CharacterConfigModel,
+};
 
 mod character_config_query;
 
@@ -215,8 +217,11 @@ impl Character {
 
             let character_config = ctx
                 .loaders
-                .character_config_loader
-                .load(CharacterConfigLoaderParams { user_id }, self.0.clone())
+                .character_config_by_character_loader
+                .load(
+                    CharacterConfigByCharacterLoaderParams { user_id },
+                    self.0.clone(),
+                )
                 .await
                 .context("load character_config")??;
 
@@ -424,34 +429,14 @@ impl QueryRoot {
                     Ok(record.map(FigureRecord::from).map(NodeValue::FigureRecord))
                 }
                 NodeID::CharacterConfig(id) => {
-                    let character = sqlx::query_as!(
-                        CharacterConfigModel,
-                        r#"
-                        SELECT
-                            id,
-                            user_id,
-                            character,
-                            stroke_count,
-                            created_at,
-                            updated_at,
-                            version
-                        FROM
-                            character_configs
-                        WHERE
-                            id = $1
-                            AND user_id = $2
-                    "#,
-                        id.to_string(),
-                        user_id,
-                    )
-                    .fetch_optional(&ctx.pool)
-                    .await
-                    .context("fetch character_configs")?;
-                    let character = character
-                        .map(|row| row.into_entity())
-                        .transpose()
-                        .context("fetch character_configs")?;
-                    Ok(character
+                    let character_config = ctx
+                        .loaders
+                        .character_config_by_id_loader
+                        .load(CharacterConfigByIdLoaderParams { user_id }, id)
+                        .await
+                        .context("load character_config")??;
+
+                    Ok(character_config
                         .map(CharacterConfig::from)
                         .map(NodeValue::CharacterConfig))
                 }

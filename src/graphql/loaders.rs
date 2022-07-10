@@ -1,17 +1,23 @@
 use sqlx::PgPool;
 
 use super::{
-    character_config_query::CharacterConfigLoader, dataloader_with_params::DataloaderWithParams,
+    character_config_query::{CharacterConfigByCharacterLoader, CharacterConfigByIdLoader},
+    dataloader_with_params::DataloaderWithParams,
 };
 
 pub struct Loaders {
-    pub character_config_loader: DataloaderWithParams<CharacterConfigLoader>,
+    pub character_config_by_character_loader:
+        DataloaderWithParams<CharacterConfigByCharacterLoader>,
+    pub character_config_by_id_loader: DataloaderWithParams<CharacterConfigByIdLoader>,
 }
 
 impl Loaders {
     pub fn new(pool: &PgPool) -> Self {
         Self {
-            character_config_loader: DataloaderWithParams::new(CharacterConfigLoader {
+            character_config_by_character_loader: DataloaderWithParams::new(
+                CharacterConfigByCharacterLoader { pool: pool.clone() },
+            ),
+            character_config_by_id_loader: DataloaderWithParams::new(CharacterConfigByIdLoader {
                 pool: pool.clone(),
             }),
         }

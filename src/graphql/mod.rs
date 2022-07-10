@@ -22,7 +22,8 @@ mod app_ctx;
 pub use app_ctx::*;
 mod loaders;
 use character_config_query::{
-    CharacterConfigByCharacterLoaderParams, CharacterConfigByIdLoaderParams, CharacterConfigModel,
+    CharacterConfigByCharacterLoaderParams, CharacterConfigByIdLoaderParams,
+    CharacterConfigsLoaderParams,
 };
 
 mod character_config_query;
@@ -520,62 +521,25 @@ impl QueryRoot {
                 })
                 .transpose()?;
 
-            let ids = ids.map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>());
+            let (character_configs, has_extra) = ctx
+                .loaders
+                .character_configs_loader
+                .load(
+                    CharacterConfigsLoaderParams {
+                        user_id,
+                        ids,
+                        after_id,
+                        before_id,
+                        limit: limit.clone(),
+                    },
+                    (),
+                )
+                .await
+                .context("load character_config")??;
 
-            let result = sqlx::query_as!(
-                CharacterConfigModel,
-                r#"
-                SELECT
-                    id,
-                    user_id,
-                    character,
-                    stroke_count,
-                    created_at,
-                    updated_at,
-                    version
-                FROM
-                    character_configs
-                WHERE
-                    user_id = $1
-                    AND
-                    ($2::VARCHAR(64)[] IS NULL OR id = Any($2))
-                    AND
-                    ($3::VARCHAR(64) IS NULL OR id < $3)
-                    AND
-                    ($4::VARCHAR(64) IS NULL OR id > $4)
-                ORDER BY
-                    CASE WHEN $5 = 0 THEN id END DESC,
-                    CASE WHEN $5 = 1 THEN id END ASC
-                LIMIT $6
-            "#,
-                &user_id,
-                ids.as_ref().map(|ids| ids.as_slice()),
-                after_id.map(|id| id.to_string()),
-                before_id.map(|id| id.to_string()),
-                (limit.kind == LimitKind::Last) as i32,
-                limit.value as i64 + 1,
-            )
-            .fetch_all(&ctx.pool)
-            .await
-            .context("fetch character_configs")?;
-
-            let mut characters = result
+            let records = character_configs
                 .into_iter()
-                .map(|row| row.into_entity())
-                .collect::<anyhow::Result<Vec<_>>>()
-                .context("convert CharacterConfig")?;
-
-            let has_extra = characters.len() > limit.value as usize;
-
-            characters.truncate(limit.value as usize);
-
-            if limit.kind == LimitKind::Last {
-                characters.reverse();
-            }
-
-            let records = characters
-                .into_iter()
-                .map(|character| CharacterConfig::from(character))
+                .map(CharacterConfig::from)
                 .collect::<Vec<_>>();
 
             Ok(CharacterConfigConnection {
@@ -743,7 +707,12 @@ impl MutationRoot {
             let character_config = ctx
                 .loaders
                 .character_config_by_id_loader
-                .load(CharacterConfigByIdLoaderParams { user_id }, id)
+                .load(
+                    CharacterConfigByIdLoaderParams {
+                        user_id: user_id.clone(),
+                    },
+                    id,
+                )
                 .await
                 .context("load character_config")??;
 
@@ -751,7 +720,7 @@ impl MutationRoot {
                 return Err(GraphqlUserError::from("Not found").into());
             };
 
-            let prevVersion = character_config.version;
+            let prev_version = character_config.version;
 
             character_config.version += 1;
             character_config.updated_at = ctx.now;
@@ -778,12 +747,12 @@ impl MutationRoot {
                     AND
                     version = $6
             "#,
-                character_config.updated_at,
+                &character_config.updated_at,
                 character_config.stroke_count as i32,
                 character_config.version,
                 id.to_string(),
-                user_id,
-                prevVersion,
+                &user_id,
+                prev_version,
             )
             .execute(&mut trx)
             .await

@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 
 use ulid::Ulid;
 
-use super::dataloader_with_params::BatchFnWithParams;
+use super::{dataloader_with_params::BatchFnWithParams, Limit, LimitKind};
 use crate::entities;
 use anyhow::Context;
 use async_trait::async_trait;
@@ -202,5 +202,95 @@ impl BatchFnWithParams for CharacterConfigByIdLoader {
                 )
             })
             .collect()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct CharacterConfigsLoader {
+    pub pool: PgPool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct CharacterConfigsLoaderParams {
+    pub user_id: String,
+    pub ids: Option<Vec<Ulid>>,
+    pub after_id: Option<Ulid>,
+    pub before_id: Option<Ulid>,
+    pub limit: Limit,
+}
+
+#[async_trait]
+impl BatchFnWithParams for CharacterConfigsLoader {
+    type K = ();
+    type V = Result<(Vec<entities::character_config::CharacterConfig>, bool), ShareableError>;
+    type P = CharacterConfigsLoaderParams;
+
+    async fn load_with_params(
+        &mut self,
+        params: &Self::P,
+        _: &[Self::K],
+    ) -> HashMap<Self::K, Self::V> {
+        let ids = params
+            .ids
+            .as_ref()
+            .map(|ids| ids.iter().map(|id| id.to_string()).collect::<Vec<_>>());
+        let result: Result<_, ShareableError> = (|| async {
+            let models = sqlx::query_as!(
+                CharacterConfigModel,
+                r#"
+            SELECT
+                id,
+                user_id,
+                character,
+                stroke_count,
+                created_at,
+                updated_at,
+                version
+            FROM
+                character_configs
+            WHERE
+                user_id = $1
+                AND
+                ($2::VARCHAR(64)[] IS NULL OR id = Any($2))
+                AND
+                ($3::VARCHAR(64) IS NULL OR id < $3)
+                AND
+                ($4::VARCHAR(64) IS NULL OR id > $4)
+            ORDER BY
+                CASE WHEN $5 = 0 THEN id END DESC,
+                CASE WHEN $5 = 1 THEN id END ASC
+            LIMIT $6
+        "#,
+                &params.user_id,
+                ids.as_ref().map(|ids| ids.as_slice()),
+                params.after_id.map(|id| id.to_string()),
+                params.before_id.map(|id| id.to_string()),
+                (params.limit.kind == LimitKind::Last) as i32,
+                params.limit.value as i64 + 1,
+            )
+            .fetch_all(&self.pool)
+            .await
+            .context("fetch character_configs")?;
+
+            let mut character_configs = models
+                .into_iter()
+                .map(|row| row.into_entity())
+                .collect::<anyhow::Result<Vec<_>>>()
+                .context("convert CharacterConfig")?;
+
+            let has_extra = character_configs.len() > params.limit.value as usize;
+
+            character_configs.truncate(params.limit.value as usize);
+
+            if params.limit.kind == LimitKind::Last {
+                character_configs.reverse();
+            }
+
+            Ok((character_configs, has_extra))
+        })()
+        .await
+        .map_err(ShareableError);
+
+        vec![((), result)].into_iter().collect()
     }
 }

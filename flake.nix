@@ -70,6 +70,7 @@
           ] ++ lib.optionals stdenv.isLinux [
             openssl
             pkg-config
+            glibc
           ];
         };
       }

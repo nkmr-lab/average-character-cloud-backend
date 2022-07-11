@@ -91,7 +91,7 @@ impl BatchFnWithParams for FigureRecordByIdLoader {
                 ids.as_slice(),
                 &params.user_id,
             )
-            .fetch_optional(&self.pool)
+            .fetch_all(&self.pool)
             .await
             .context("fetch figure_records")?;
 
@@ -215,7 +215,7 @@ impl BatchFnWithParams for FigureRecordsByCharacterLoader {
                 (params.limit.kind == LimitKind::Last) as i32,
                 params.limit.value as i64 + 1,
             )
-            .fetch_optional(&self.pool)
+            .fetch_all(&self.pool)
             .await
             .context("fetch figure_records")?;
 
@@ -233,6 +233,7 @@ impl BatchFnWithParams for FigureRecordsByCharacterLoader {
                         .push(figure_record);
                     map
                 });
+
 
             Ok(figure_records_map)
         })()

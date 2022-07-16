@@ -13,6 +13,7 @@ pub enum AuthConfig {
     Google {
         client_id: String,
         enable_front: bool,
+        redirect_url: String,
     },
 }
 
@@ -42,11 +43,13 @@ impl AppConfig {
             "DISABLE" => AuthConfig::Disable,
             "GOOGLE" => {
                 let client_id = env::var("AUTH_GOOGLE_CLIENT_ID")?;
+                let redirect_url = env::var("AUTH_GOOGLE_REDIRECT_URL")?;
                 AuthConfig::Google {
                     client_id,
                     enable_front: env::var("AUTH_GOOGLE_ENABLE_FRONT")
                         .map(|v| v == "TRUE")
                         .unwrap_or(false),
+                    redirect_url,
                 }
             }
             _ => Err(std::io::Error::new(

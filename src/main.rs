@@ -97,7 +97,7 @@ async fn fetch_google_public_key(
 
 #[get("/google_login")]
 async fn google_login_front(config: web::Data<AppConfig>) -> HttpResponse {
-    let AuthConfig::Google { client_id, enable_front } = &config.auth else {
+    let AuthConfig::Google { client_id, enable_front,.. } = &config.auth else {
         return HttpResponse::NotFound().body("Not found");
     };
 
@@ -188,7 +188,7 @@ async fn google_callback(
     public_key_cache: web::Data<ArcSwap<Option<GooglePublicKey>>>,
     session: Session,
 ) -> Result<HttpResponse, error::Error> {
-    let AuthConfig::Google { client_id,.. }= &config.auth else {
+    let AuthConfig::Google { client_id, redirect_url,.. }= &config.auth else {
         return Err(error::ErrorBadRequest("Invalid auth kind"));
     };
 
@@ -226,7 +226,9 @@ async fn google_callback(
         error::ErrorBadRequest(format!("Failed to verify token: {}", e))
     })?;
     session.insert("user_id", token)?;
-    Ok(HttpResponse::Ok().finish())
+    Ok(HttpResponse::TemporaryRedirect()
+        .append_header((actix_web::http::header::LOCATION, redirect_url.to_string()))
+        .finish())
 }
 
 #[actix_web::main]

@@ -423,7 +423,7 @@ impl QueryRoot {
 
             let after_id = after
                 .map(|after| -> anyhow::Result<Ulid> {
-                    let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(after)) else {
+                    let Some(NodeID::CharacterConfig(id)) = NodeID::from_id(&ID::new(after)) else {
                     return Err(GraphqlUserError::from("after must be a valid cursor").into())
                 };
 
@@ -433,7 +433,7 @@ impl QueryRoot {
 
             let before_id = before
                 .map(|before| -> anyhow::Result<Ulid> {
-                    let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(before)) else {
+                    let Some(NodeID::CharacterConfig(id)) = NodeID::from_id(&ID::new(before)) else {
                     return Err(GraphqlUserError::from("before must be a valid cursor").into());
                 };
 

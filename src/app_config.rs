@@ -26,11 +26,13 @@ pub struct AppConfig {
     pub auth: AuthConfig,
     pub session: SessionConfig,
     pub origin: String,
+    pub logout_redirect_url: String,
 }
 
 impl AppConfig {
     pub fn from_env() -> Result<AppConfig, Box<dyn Error + Send + Sync>> {
         let origin = env::var("ORIGIN")?;
+        let logout_redirect_url = env::var("LOGOUT_REDIRECT_URL")?;
         let mount_base = env::var("MOUNT_BASE")
             .map(|s| s.split_terminator('/').map(|s| s.to_string()).collect())
             .unwrap_or_else(|_| Vec::new());
@@ -83,6 +85,7 @@ impl AppConfig {
             auth,
             session,
             origin,
+            logout_redirect_url,
         })
     }
 }

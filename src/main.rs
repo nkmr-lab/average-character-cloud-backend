@@ -180,6 +180,20 @@ fn verify_google_token(
     }
 }
 
+#[post("/logout")]
+async fn logout(
+    config: web::Data<AppConfig>,
+    session: Session,
+) -> Result<HttpResponse, error::Error> {
+    session.clear();
+    Ok(HttpResponse::TemporaryRedirect()
+        .append_header((
+            actix_web::http::header::LOCATION,
+            config.logout_redirect_url.to_string(),
+        ))
+        .finish())
+}
+
 #[post("/google_login_callback")]
 async fn google_callback(
     config: web::Data<AppConfig>,
@@ -271,7 +285,8 @@ async fn main() -> io::Result<()> {
                     .app_data(web::Data::new(config.clone()))
                     .app_data(web::Data::new(pool.clone()))
                     .service(graphql)
-                    .service(graphiql);
+                    .service(graphiql)
+                    .service(logout);
                 if let AuthConfig::Google { enable_front, .. } = &config.auth {
                     let google_public_key: web::Data<ArcSwap<Option<GooglePublicKey>>> =
                         web::Data::new(ArcSwap::from(Arc::new(None)));

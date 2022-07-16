@@ -186,7 +186,7 @@ async fn logout(
     session: Session,
 ) -> Result<HttpResponse, error::Error> {
     session.clear();
-    Ok(HttpResponse::TemporaryRedirect()
+    Ok(HttpResponse::SeeOther()
         .append_header((
             actix_web::http::header::LOCATION,
             config.logout_redirect_url.to_string(),
@@ -240,7 +240,7 @@ async fn google_callback(
         error::ErrorBadRequest(format!("Failed to verify token: {}", e))
     })?;
     session.insert("user_id", token)?;
-    Ok(HttpResponse::TemporaryRedirect()
+    Ok(HttpResponse::SeeOther()
         .append_header((actix_web::http::header::LOCATION, redirect_url.to_string()))
         .finish())
 }

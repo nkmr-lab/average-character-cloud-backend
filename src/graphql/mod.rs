@@ -309,12 +309,26 @@ impl Character {
     }
 }
 
+#[derive(GraphQLObject, Clone, Debug)]
+#[graphql(context = AppCtx)]
+struct LoginUser {
+    user_id: String,
+}
+
 #[derive(Clone, Debug)]
 pub struct QueryRoot;
 #[juniper::graphql_object(Context = AppCtx, name = "Query")]
 impl QueryRoot {
     fn query() -> QueryRoot {
         QueryRoot
+    }
+
+    fn login_user(ctx: &AppCtx) -> Option<LoginUser> {
+        if let Some(user_id) = ctx.user_id.clone() {
+            Some(LoginUser { user_id })
+        } else {
+            None
+        }
     }
 
     async fn node(ctx: &AppCtx, id: ID) -> FieldResult<Option<NodeValue>> {

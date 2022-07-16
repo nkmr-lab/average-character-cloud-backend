@@ -324,11 +324,7 @@ impl QueryRoot {
     }
 
     fn login_user(ctx: &AppCtx) -> Option<LoginUser> {
-        if let Some(user_id) = ctx.user_id.clone() {
-            Some(LoginUser { user_id })
-        } else {
-            None
-        }
+        ctx.user_id.clone().map(|user_id| LoginUser { user_id })
     }
 
     async fn node(ctx: &AppCtx, id: ID) -> FieldResult<Option<NodeValue>> {

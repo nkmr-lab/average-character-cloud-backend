@@ -102,7 +102,8 @@ fn host_default() -> String {
 impl AppConfig {
     pub fn from_env() -> Result<AppConfig, Box<dyn Error + Send + Sync>> {
         let config = config::Config::builder()
-            .add_source(config::Environment::default())
+            // try_parsing, 1という文字列を指定できなくなるのであまり使いたくないが他にいい方法がなさそう
+            .add_source(config::Environment::default().try_parsing(true))
             .build()?;
 
         Ok(config.try_deserialize()?)

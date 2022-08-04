@@ -1,91 +1,110 @@
-use std::env;
+use serde::{Deserialize, Deserializer};
+use serde_with::with_prefix;
 use std::error::Error;
 
-#[derive(Debug, Clone)]
+// 以下の問題が解決されるまでは全てflattenする
+// https://github.com/mehcode/config-rs/issues/312
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(tag = "kind", rename_all = "UPPERCASE")]
 pub enum SessionConfig {
-    Redis { url: String, crypto_key: [u8; 64] },
-    Dummy { user_id: String },
+    Redis {
+        // enumのバリアントにはwith_prefixは使えないのでとりあえず
+        // https://github.com/jonasbb/serde_with/issues/483
+        #[serde(rename = "redis_url")]
+        url: String,
+        #[serde(rename = "redis_crypto_key")]
+        crypto_key: CryptoKeyConfig,
+    },
+    Dummy {
+        #[serde(rename = "dummy_user_id")]
+        user_id: String,
+    },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
+#[serde(tag = "kind", rename_all = "UPPERCASE")]
 pub enum AuthConfig {
     Disable,
     Google {
+        #[serde(rename = "google_client_id")]
         client_id: String,
+        #[serde(rename = "google_enable_front")]
         enable_front: bool,
+        #[serde(rename = "google_redirect_url")]
         redirect_url: String,
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct AppConfig {
-    pub mount_base: Vec<String>,
+    #[serde(default)]
+    pub mount_base: PathConfig,
+    #[serde(default = "port_default")]
     pub port: u16,
+    #[serde(default = "host_default")]
     pub host: String,
     pub database_url: String,
+    #[serde(flatten, with = "prefix_auth")]
     pub auth: AuthConfig,
+    #[serde(flatten, with = "prefix_session")]
     pub session: SessionConfig,
     pub origin: String,
     pub logout_redirect_url: String,
 }
 
+with_prefix!(prefix_auth "auth_");
+with_prefix!(prefix_session "session_");
+
+// with_prefix と deserialize_withを一緒に使うことができないのでnewtypeを定義
+#[derive(Debug, Clone, Default)]
+pub struct PathConfig(pub Vec<String>);
+impl<'de> Deserialize<'de> for PathConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        String::deserialize(deserializer)
+            .map(|s| PathConfig(s.split_terminator('/').map(|s| s.to_string()).collect()))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CryptoKeyConfig(pub [u8; 64]);
+impl<'de> Deserialize<'de> for CryptoKeyConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::Error;
+        String::deserialize(deserializer)
+            .and_then(|string| {
+                base64::decode(&string).map_err(|err| Error::custom(err.to_string()))
+            })
+            .and_then(|bytes| {
+                bytes
+                    .as_slice()
+                    .try_into()
+                    .map(CryptoKeyConfig)
+                    .map_err(|_| Error::custom("not 64 bytes"))
+            })
+    }
+}
+
+fn port_default() -> u16 {
+    8080
+}
+
+fn host_default() -> String {
+    "localhost".to_string()
+}
+
 impl AppConfig {
     pub fn from_env() -> Result<AppConfig, Box<dyn Error + Send + Sync>> {
-        let origin = env::var("ORIGIN")?;
-        let logout_redirect_url = env::var("LOGOUT_REDIRECT_URL")?;
-        let mount_base = env::var("MOUNT_BASE")
-            .map(|s| s.split_terminator('/').map(|s| s.to_string()).collect())
-            .unwrap_or_else(|_| Vec::new());
-        let port = env::var("PORT")
-            .unwrap_or_else(|_| "8080".to_owned())
-            .parse::<u16>()?;
-        let host = env::var("HOST").unwrap_or_else(|_| "localhost".to_owned());
-        let database_url = env::var("DATABASE_URL")?;
-        let auth = match env::var("AUTH_KIND")?.as_str() {
-            "DISABLE" => AuthConfig::Disable,
-            "GOOGLE" => {
-                let client_id = env::var("AUTH_GOOGLE_CLIENT_ID")?;
-                let redirect_url = env::var("AUTH_GOOGLE_REDIRECT_URL")?;
-                AuthConfig::Google {
-                    client_id,
-                    enable_front: env::var("AUTH_GOOGLE_ENABLE_FRONT")
-                        .map(|v| v == "TRUE")
-                        .unwrap_or(false),
-                    redirect_url,
-                }
-            }
-            _ => Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid auth kind",
-            ))?,
-        };
-        let session = match env::var("SESSION_KIND")?.as_str() {
-            "REDIS" => {
-                let url = env::var("SESSION_REDIS_URL")?;
-                let crypto_key = base64::decode(env::var("SESSION_REDIS_CRYPTO_KEY")?)?
-                    .as_slice()
-                    .try_into()?;
-                SessionConfig::Redis { url, crypto_key }
-            }
-            "DUMMY" => {
-                let user_id = env::var("SESSION_DUMMY_USER_ID")?;
-                SessionConfig::Dummy { user_id }
-            }
-            _ => Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid session kind",
-            ))?,
-        };
+        let config = config::Config::builder()
+            .add_source(config::Environment::default())
+            .build()?;
 
-        Ok(AppConfig {
-            mount_base,
-            port,
-            host,
-            database_url,
-            auth,
-            session,
-            origin,
-            logout_redirect_url,
-        })
+        Ok(config.try_deserialize()?)
     }
 }

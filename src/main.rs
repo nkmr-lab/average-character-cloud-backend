@@ -257,7 +257,7 @@ async fn google_callback(
         .finish())
 }
 
-#[actix_web::main]
+#[tokio::main]
 async fn main() -> io::Result<()> {
     env_logger::init();
     let cli = Cli::parse();

@@ -1253,11 +1253,6 @@ rec {
             packageId = "log";
           }
           {
-            name = "redis";
-            packageId = "redis";
-            features = [ "aio" "connection-manager" "tokio-comp" ];
-          }
-          {
             name = "reqwest";
             packageId = "reqwest";
           }
@@ -1270,17 +1265,13 @@ rec {
             packageId = "serde-env";
           }
           {
-            name = "serde_derive";
-            packageId = "serde_derive";
-          }
-          {
             name = "serde_json";
             packageId = "serde_json";
           }
           {
             name = "sqlx";
             packageId = "sqlx";
-            features = [ "runtime-actix-native-tls" "postgres" "json" "chrono" "offline" ];
+            features = [ "runtime-tokio-native-tls" "postgres" "json" "chrono" "offline" ];
           }
           {
             name = "thiserror";
@@ -1293,7 +1284,7 @@ rec {
           {
             name = "tokio";
             packageId = "tokio";
-            features = [ "sync" "rt" ];
+            features = [ "sync" "rt" "macros" ];
           }
           {
             name = "ulid";
@@ -5327,11 +5318,6 @@ rec {
             optional = true;
           }
           {
-            name = "sha1";
-            packageId = "sha1";
-            optional = true;
-          }
-          {
             name = "tokio";
             packageId = "tokio";
             optional = true;
@@ -5385,7 +5371,7 @@ rec {
           "tokio-native-tls-comp" = [ "tls" "tokio-native-tls" ];
           "tokio-util" = [ "dep:tokio-util" ];
         };
-        resolvedDefaultFeatures = [ "acl" "aio" "arc-swap" "bytes" "connection-manager" "default" "futures" "futures-util" "geospatial" "pin-project-lite" "script" "sha1" "streams" "tokio" "tokio-comp" "tokio-util" ];
+        resolvedDefaultFeatures = [ "aio" "arc-swap" "bytes" "connection-manager" "futures" "futures-util" "pin-project-lite" "tokio" "tokio-comp" "tokio-util" ];
       };
       "redox_syscall" = rec {
         crateName = "redox_syscall";
@@ -6180,37 +6166,6 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "std" ];
       };
-      "sha1" = rec {
-        crateName = "sha1";
-        version = "0.6.1";
-        edition = "2018";
-        sha256 = "0w1p0s9060cv1vlgfa5c93kjksmvzjjc8j780lns3jj5fk4hbnn1";
-        authors = [
-          "Armin Ronacher <armin.ronacher@active-4.com>"
-        ];
-        dependencies = [
-          {
-            name = "sha1_smol";
-            packageId = "sha1_smol";
-          }
-        ];
-        features = {
-          "serde" = [ "sha1_smol/serde" ];
-          "std" = [ "sha1_smol/std" ];
-        };
-      };
-      "sha1_smol" = rec {
-        crateName = "sha1_smol";
-        version = "1.0.0";
-        edition = "2018";
-        sha256 = "04nhbhvsk5ms1zbshs80iq5r1vjszp2xnm9f0ivj38q3dhc4f6mf";
-        authors = [
-          "Armin Ronacher <armin.ronacher@active-4.com>"
-        ];
-        features = {
-          "serde" = [ "dep:serde" ];
-        };
-      };
       "sha2" = rec {
         crateName = "sha2";
         version = "0.10.2";
@@ -6468,7 +6423,7 @@ rec {
           "time" = [ "sqlx-core/time" "sqlx-macros/time" ];
           "uuid" = [ "sqlx-core/uuid" "sqlx-macros/uuid" ];
         };
-        resolvedDefaultFeatures = [ "_rt-actix" "chrono" "default" "json" "macros" "migrate" "offline" "postgres" "runtime-actix-native-tls" "sqlx-macros" ];
+        resolvedDefaultFeatures = [ "_rt-tokio" "chrono" "default" "json" "macros" "migrate" "offline" "postgres" "runtime-tokio-native-tls" "sqlx-macros" ];
       };
       "sqlx-core" = rec {
         crateName = "sqlx-core";
@@ -6747,7 +6702,7 @@ rec {
           "webpki-roots" = [ "dep:webpki-roots" ];
           "whoami" = [ "dep:whoami" ];
         };
-        resolvedDefaultFeatures = [ "_rt-actix" "_tls-native-tls" "base64" "chrono" "crc" "dirs" "hkdf" "hmac" "json" "md-5" "migrate" "offline" "postgres" "rand" "runtime-actix-native-tls" "serde" "serde_json" "sha-1" "sha2" "tokio-stream" "whoami" ];
+        resolvedDefaultFeatures = [ "_rt-tokio" "_tls-native-tls" "base64" "chrono" "crc" "dirs" "hkdf" "hmac" "json" "md-5" "migrate" "offline" "postgres" "rand" "runtime-tokio-native-tls" "serde" "serde_json" "sha-1" "sha2" "tokio-stream" "whoami" ];
       };
       "sqlx-macros" = rec {
         crateName = "sqlx-macros";
@@ -6861,7 +6816,7 @@ rec {
           "time" = [ "sqlx-core/time" ];
           "uuid" = [ "sqlx-core/uuid" ];
         };
-        resolvedDefaultFeatures = [ "_rt-actix" "chrono" "hex" "json" "migrate" "offline" "postgres" "runtime-actix-native-tls" "serde" "serde_json" "sha2" ];
+        resolvedDefaultFeatures = [ "_rt-tokio" "chrono" "hex" "json" "migrate" "offline" "postgres" "runtime-tokio-native-tls" "serde" "serde_json" "sha2" ];
       };
       "sqlx-rt" = rec {
         crateName = "sqlx-rt";
@@ -6873,12 +6828,6 @@ rec {
           "Austin Bonander <austin.bonander@gmail.com>"
         ];
         dependencies = [
-          {
-            name = "actix-rt";
-            packageId = "actix-rt";
-            optional = true;
-            usesDefaultFeatures = false;
-          }
           {
             name = "native-tls";
             packageId = "native-tls";
@@ -6923,7 +6872,7 @@ rec {
           "tokio-native-tls" = [ "dep:tokio-native-tls" ];
           "tokio-rustls" = [ "dep:tokio-rustls" ];
         };
-        resolvedDefaultFeatures = [ "_rt-actix" "_tls-native-tls" "actix-rt" "native-tls" "once_cell" "runtime-actix-native-tls" "tokio" "tokio-native-tls" ];
+        resolvedDefaultFeatures = [ "_rt-tokio" "_tls-native-tls" "native-tls" "once_cell" "runtime-tokio-native-tls" "tokio" "tokio-native-tls" ];
       };
       "static_assertions" = rec {
         crateName = "static_assertions";
@@ -7332,6 +7281,11 @@ rec {
             features = [ "all" ];
           }
           {
+            name = "tokio-macros";
+            packageId = "tokio-macros";
+            optional = true;
+          }
+          {
             name = "winapi";
             packageId = "winapi";
             optional = true;
@@ -7375,7 +7329,33 @@ rec {
           "tracing" = [ "dep:tracing" ];
           "winapi" = [ "dep:winapi" ];
         };
-        resolvedDefaultFeatures = [ "bytes" "default" "fs" "io-util" "libc" "memchr" "mio" "net" "num_cpus" "once_cell" "parking_lot" "rt" "rt-multi-thread" "signal" "signal-hook-registry" "socket2" "sync" "time" "winapi" ];
+        resolvedDefaultFeatures = [ "bytes" "default" "fs" "io-util" "libc" "macros" "memchr" "mio" "net" "num_cpus" "once_cell" "parking_lot" "rt" "rt-multi-thread" "signal" "signal-hook-registry" "socket2" "sync" "time" "tokio-macros" "winapi" ];
+      };
+      "tokio-macros" = rec {
+        crateName = "tokio-macros";
+        version = "1.8.0";
+        edition = "2018";
+        sha256 = "11140lnx88qycdx8ynxgk0317gnw1qsy16ydlgvpx67vfnlzj94p";
+        procMacro = true;
+        authors = [
+          "Tokio Contributors <team@tokio.rs>"
+        ];
+        dependencies = [
+          {
+            name = "proc-macro2";
+            packageId = "proc-macro2";
+          }
+          {
+            name = "quote";
+            packageId = "quote";
+          }
+          {
+            name = "syn";
+            packageId = "syn";
+            features = [ "full" ];
+          }
+        ];
+
       };
       "tokio-native-tls" = rec {
         crateName = "tokio-native-tls";

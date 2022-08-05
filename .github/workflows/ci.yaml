@@ -5,7 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SQLX_OFFLINE: "true"
-      AVCC_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
     services:
       redis:
         image: postgres:10.5

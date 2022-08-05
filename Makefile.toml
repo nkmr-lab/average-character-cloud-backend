@@ -15,10 +15,6 @@ rm $current_schema
 sqlx migrate run
 """
 
-[tasks.build-watch]
-args = ["watch", "-x", "build"]
-command = "cargo"
-
 [tasks.sqlx-prepare]
 args = ["sqlx", "prepare", "--", "--lib"]
 command = "cargo"

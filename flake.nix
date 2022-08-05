@@ -59,7 +59,6 @@
             (rust-toolchain pkgs)
             sqlx-cli
             cargo-make
-            cargo-watch
             packages.sqldef
             crate2nix
           ] ++ lib.optionals stdenv.isDarwin [

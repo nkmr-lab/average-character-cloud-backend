@@ -28,7 +28,7 @@ use std::sync::Arc;
 async fn graphiql(config: web::Data<AppConfig>) -> HttpResponse {
     let html = graphiql_source(
         &format!("/{}", {
-            let mut path = config.mount_base.0.clone();
+            let mut path = config.mount_base.clone();
             path.push("graphql".to_string());
             path.join("/")
         }),
@@ -131,7 +131,7 @@ async fn google_login_front(config: web::Data<AppConfig>) -> HttpResponse {
         client_id,
         config.origin,
         {
-            let mut path = config.mount_base.0.clone();
+            let mut path = config.mount_base.clone();
             path.push("google_login_callback".to_string());
             path.join("/")
         }
@@ -267,17 +267,20 @@ async fn main() -> io::Result<()> {
             let port = config.port;
             let schema = Arc::new(create_schema());
 
-            let redis_session_config =
-                if let SessionConfig::Redis { url, crypto_key } = &config.session {
-                    let secret_key = Key::from(crypto_key.0.as_slice());
-                    let store = RedisSessionStore::new(url.clone())
-                        .await
-                        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+            let redis_session_config = if let SessionConfig::Redis {
+                redis_url,
+                crypto_key,
+            } = &config.session
+            {
+                let secret_key = Key::from(crypto_key.as_slice());
+                let store = RedisSessionStore::new(redis_url.clone())
+                    .await
+                    .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
 
-                    Some((secret_key, store))
-                } else {
-                    None
-                };
+                Some((secret_key, store))
+            } else {
+                None
+            };
 
             HttpServer::new(move || {
                 let mut app = App::new()
@@ -301,7 +304,7 @@ async fn main() -> io::Result<()> {
                     .wrap(OptionalCondition::from_option(
                         redis_session_config.clone().map(|(secret_key, store)| {
                             SessionMiddleware::builder(store, secret_key)
-                                .cookie_path(format!("/{}", config.mount_base.0.join("/")))
+                                .cookie_path(format!("/{}", config.mount_base.join("/")))
                                 .session_length(SessionLength::Predetermined {
                                     max_session_length: Some(Duration::days(1)),
                                 })

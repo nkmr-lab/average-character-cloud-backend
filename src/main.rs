@@ -20,9 +20,21 @@ use time::Duration;
 use actix_web_extras::middleware::Condition as OptionalCondition;
 use average_character_cloud_backend::app_config::{AppConfig, AuthConfig, SessionConfig};
 use average_character_cloud_backend::graphql::{create_schema, AppCtx, Loaders, Schema};
-use clap::Command;
+use clap::{Parser, Subcommand};
 use jsonwebtoken::jwk::{self, JwkSet};
 use std::sync::Arc;
+
+#[derive(Parser)]
+#[clap(name = "average-character-cloud-backend")]
+struct Cli {
+    #[clap(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    Migrate,
+}
 
 #[get("/graphiql")]
 async fn graphiql(config: web::Data<AppConfig>) -> HttpResponse {
@@ -248,17 +260,16 @@ async fn google_callback(
 #[actix_web::main]
 async fn main() -> io::Result<()> {
     env_logger::init();
+    let cli = Cli::parse();
+
     let config = AppConfig::from_env().map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
     let pool = PgPoolOptions::new()
         .connect(&config.database_url)
         .await
         .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
 
-    let cli = Command::new("average-character-cloud-backend").subcommand(Command::new("migrate"));
-
-    let matches = cli.get_matches();
-    match matches.subcommand() {
-        Some(("migrate", _)) => sqlx::migrate!("./migrations")
+    match cli.command {
+        Some(Commands::Migrate) => sqlx::migrate!("./migrations")
             .run(&pool)
             .await
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err)),
@@ -317,6 +328,5 @@ async fn main() -> io::Result<()> {
             .run()
             .await
         }
-        _ => unreachable!("unreachable clip"),
     }
 }

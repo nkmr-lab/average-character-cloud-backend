@@ -12,7 +12,7 @@ arc-swap = "1.5.0"
 async-trait = "0.1.56"
 base64 = "0.13.0"
 chrono = "0.4.19"
-clap = "3.2.7"
+clap = {version = "3.2.16", features = ["derive"]}
 dataloader = {version = "0.15.0", features = ["runtime-tokio"], default-features = false}
 derive_more = "0.99.17"
 env_logger = "0.9.0"

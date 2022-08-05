@@ -1223,6 +1223,7 @@ rec {
           {
             name = "clap";
             packageId = "clap";
+            features = [ "derive" ];
           }
           {
             name = "dataloader";
@@ -1656,10 +1657,10 @@ rec {
       };
       "clap" = rec {
         crateName = "clap";
-        version = "3.2.7";
+        version = "3.2.16";
         edition = "2021";
         crateBin = [];
-        sha256 = "056gdrypgcs1dv8aj50sccdij4lv4013516vfx8v8ixj9ckicysv";
+        sha256 = "1af06z8z7m3327yz1xvzxfjanclgpvvy3lssb745rig7adkbpnx3";
         dependencies = [
           {
             name = "atty";
@@ -1671,12 +1672,22 @@ rec {
             packageId = "bitflags";
           }
           {
+            name = "clap_derive";
+            packageId = "clap_derive";
+            optional = true;
+          }
+          {
             name = "clap_lex";
             packageId = "clap_lex";
           }
           {
             name = "indexmap";
             packageId = "indexmap";
+          }
+          {
+            name = "once_cell";
+            packageId = "once_cell";
+            optional = true;
           }
           {
             name = "strsim";
@@ -1719,7 +1730,42 @@ rec {
           "yaml" = [ "yaml-rust" ];
           "yaml-rust" = [ "dep:yaml-rust" ];
         };
-        resolvedDefaultFeatures = [ "atty" "color" "default" "std" "strsim" "suggestions" "termcolor" ];
+        resolvedDefaultFeatures = [ "atty" "clap_derive" "color" "default" "derive" "once_cell" "std" "strsim" "suggestions" "termcolor" ];
+      };
+      "clap_derive" = rec {
+        crateName = "clap_derive";
+        version = "3.2.15";
+        edition = "2021";
+        sha256 = "1d2c4vs345fwihkd8cc7m6acbiydcwramkd5mnp36p0a7g6jm9cv";
+        procMacro = true;
+        dependencies = [
+          {
+            name = "heck";
+            packageId = "heck";
+          }
+          {
+            name = "proc-macro-error";
+            packageId = "proc-macro-error";
+          }
+          {
+            name = "proc-macro2";
+            packageId = "proc-macro2";
+          }
+          {
+            name = "quote";
+            packageId = "quote";
+          }
+          {
+            name = "syn";
+            packageId = "syn";
+            features = [ "full" ];
+          }
+        ];
+        features = {
+          "raw-deprecated" = [ "deprecated" ];
+          "unstable-v4" = [ "deprecated" ];
+        };
+        resolvedDefaultFeatures = [ "default" ];
       };
       "clap_lex" = rec {
         crateName = "clap_lex";

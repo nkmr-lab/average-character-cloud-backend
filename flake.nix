@@ -50,7 +50,8 @@
               defaultPackage
             ];
             config = {
-              Cmd = [ "average-character-cloud-backend" ];
+              Env = [ "AVCC_HOST=0.0.0.0" ];
+              Entrypoint = [ "average-character-cloud-backend" ];
             };
           };
         };

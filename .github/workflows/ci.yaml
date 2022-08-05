@@ -38,6 +38,9 @@ jobs:
           nix build .#devShell.$(nix eval --expr 'builtins.currentSystem' --impure --raw) --out-link result-devShell
           nix print-dev-env > result-devShell.sh
           echo "BASH_ENV=$PWD/result-devShell.sh" >> $GITHUB_ENV
+      - name: Install dependencies
+        run: |
+          nix profile install --inputs-from . nixpkgs#skopeo
       - name: Cache cargo target
         uses: actions/cache@v3
         with:
@@ -90,12 +93,12 @@ jobs:
           nix-collect-garbage
           nix-store --export $(nix path-info --all) > ./nix-store-cache
       -
-        name: Login to Docker
-        uses: docker/login-action@v1
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+        name: Docker login
+        run: |
+          skopeo login ghcr.io -u "$DOCKER_USER" -p "$DOCKER_PASS"
+        env:
+          DOCKER_USER: ${{ github.repository_owner }}
+          DOCKER_PASS: ${{ secrets.GITHUB_TOKEN }}
       -
         name: Generate tags
         uses: kgtkr/docker-tags-gen-action@master
@@ -108,6 +111,5 @@ jobs:
           IMAGE=$(docker load -q < result-docker | awk '{print $3}')
           TAGS=${{ steps.tags.outputs.tags }}
           for TAG in ${TAGS//,/ }; do
-            docker tag $IMAGE $TAG
-            docker push $TAG
+            skopeo copy docker-archive:result-docker "$TAG"
           done

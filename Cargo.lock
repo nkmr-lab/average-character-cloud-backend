@@ -360,7 +360,6 @@ dependencies = [
  "actix-web",
  "actix-web-extras",
  "anyhow",
- "arc-swap",
  "async-trait",
  "base64",
  "chrono",

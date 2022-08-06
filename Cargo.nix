@@ -1228,10 +1228,6 @@ rec {
             packageId = "anyhow";
           }
           {
-            name = "arc-swap";
-            packageId = "arc-swap";
-          }
-          {
             name = "async-trait";
             packageId = "async-trait";
           }

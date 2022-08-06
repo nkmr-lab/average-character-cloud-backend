@@ -8,7 +8,6 @@ actix-session = {version = "0.6.2", features = ["redis-rs-session"]}
 actix-web = "4.0.1"
 actix-web-extras = {git = "https://github.com/ctron/actix-web-extras.git", rev = "e896994e38b253e270546f186780e3d1c99d0d3b"}
 anyhow = "1.0.57"
-arc-swap = "1.5.0"
 async-trait = "0.1.56"
 base64 = "0.13.0"
 chrono = "0.4.19"

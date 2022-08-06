@@ -1,15 +1,16 @@
-#![feature(let_else, try_blocks, let_chains, try_trait_v2)]
+#![feature(let_else, try_blocks, let_chains, try_trait_v2, result_flattening)]
 #![deny(warnings)]
 
 use actix_session::storage::RedisSessionStore;
 use actix_session::{Session, SessionLength, SessionMiddleware};
 use actix_web::cookie::Key;
 use actix_web::{error, get, middleware, post, web, App, HttpRequest, HttpResponse, HttpServer};
-use arc_swap::ArcSwap;
-use chrono::{DateTime, FixedOffset, Utc};
+use average_character_cloud_backend::google_public_key_provider::{
+    GooglePublicKeyProvider, GooglePublicKeyProviderCommand,
+};
+use chrono::Utc;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
-use reqwest::header::EXPIRES;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
@@ -24,6 +25,7 @@ use average_character_cloud_backend::graphql::{create_schema, AppCtx, Loaders, S
 use clap::{Parser, Subcommand};
 use jsonwebtoken::jwk::{self, JwkSet};
 use std::sync::Arc;
+use tokio::sync::{mpsc, oneshot};
 
 #[derive(Parser)]
 #[clap(name = "average-character-cloud-backend")]
@@ -84,28 +86,6 @@ async fn graphql(
 struct GoogleCallbackParams {
     g_csrf_token: String,
     credential: String,
-}
-
-#[derive(Debug, Clone)]
-struct GooglePublicKey {
-    jwks: JwkSet,
-    expires: DateTime<FixedOffset>,
-}
-
-async fn fetch_google_public_key(
-) -> Result<GooglePublicKey, Box<dyn std::error::Error + Send + Sync>> {
-    let res = reqwest::get("https://www.googleapis.com/oauth2/v3/certs").await?;
-    let expires = DateTime::parse_from_rfc2822(
-        res.headers()
-            .get(EXPIRES)
-            .ok_or_else(|| {
-                std::io::Error::new(std::io::ErrorKind::InvalidInput, "no expires header")
-            })?
-            .to_str()?,
-    )?;
-    let jwks = serde_json::from_str::<JwkSet>(res.text().await?.as_str())?;
-
-    Ok(GooglePublicKey { jwks, expires })
 }
 
 #[get("/google_login")]
@@ -212,27 +192,23 @@ async fn google_callback(
     config: web::Data<AppConfig>,
     req: HttpRequest,
     params: web::Form<GoogleCallbackParams>,
-    public_key_cache: web::Data<ArcSwap<Option<GooglePublicKey>>>,
+    google_public_key_provider: web::Data<mpsc::Sender<GooglePublicKeyProviderCommand>>,
     session: Session,
 ) -> Result<HttpResponse, error::Error> {
     let AuthConfig::Google { client_id, redirect_url,.. }= &config.auth else {
         return Err(error::ErrorBadRequest("Invalid auth kind"));
     };
 
-    let jwks = if let Some(cache) = public_key_cache.load().as_ref() && cache.expires > Utc::now() {
-        cache.jwks.clone()
-    } else {
-        tracing::info!("fetch google public key");
-        let pubkey = fetch_google_public_key().await;
-        match pubkey {
-            Ok(pubkey) => {
-                public_key_cache.store(Arc::new(Some(pubkey.clone())));
-                pubkey.jwks
-            }
-            Err(e) => {
-                tracing::error!("fetch google public key error: {}", e);
-                return Ok(HttpResponse::InternalServerError().finish());
-            }
+    let (jwks_tx, jwks_rx) = oneshot::channel();
+    google_public_key_provider
+        .send(GooglePublicKeyProviderCommand::Get { resp: jwks_tx })
+        .await
+        .unwrap();
+    let jwks = match jwks_rx.await.unwrap() {
+        Ok(jwks) => jwks,
+        Err(e) => {
+            tracing::error!("get google public key error: {}", e);
+            return Ok(HttpResponse::InternalServerError().finish());
         }
     };
 
@@ -294,6 +270,10 @@ async fn main() -> io::Result<()> {
                 None
             };
 
+            let (google_public_key_provider_tx, google_public_key_provider_rx) = mpsc::channel(100);
+            tokio::spawn(async move {
+                GooglePublicKeyProvider::run(google_public_key_provider_rx).await;
+            });
             HttpServer::new(move || {
                 let mut app = App::new()
                     .wrap(TracingLogger::default())
@@ -304,9 +284,9 @@ async fn main() -> io::Result<()> {
                     .service(graphiql)
                     .service(logout);
                 if let AuthConfig::Google { enable_front, .. } = &config.auth {
-                    let google_public_key: web::Data<ArcSwap<Option<GooglePublicKey>>> =
-                        web::Data::new(ArcSwap::from(Arc::new(None)));
-                    app = app.app_data(google_public_key).service(google_callback);
+                    app = app
+                        .app_data(web::Data::new(google_public_key_provider_tx.clone()))
+                        .service(google_callback);
 
                     if *enable_front {
                         app = app.service(google_login_front);

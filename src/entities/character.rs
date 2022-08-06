@@ -25,22 +25,22 @@ impl From<Character> for String {
 }
 
 #[derive(Error, Debug, Clone)]
-pub struct StringToCharacterError;
+pub struct CharacterTryFromError(());
 
-impl fmt::Display for StringToCharacterError {
+impl fmt::Display for CharacterTryFromError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Character must be single character")
     }
 }
 
 impl TryFrom<&str> for Character {
-    type Error = StringToCharacterError;
+    type Error = CharacterTryFromError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         if let &[character] = value.chars().collect::<Vec<_>>().as_slice() {
             Ok(Self { value: character })
         } else {
-            Err(StringToCharacterError)
+            Err(CharacterTryFromError(()))
         }
     }
 }

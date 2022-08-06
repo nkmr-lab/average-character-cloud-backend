@@ -47,7 +47,7 @@ pub async fn handler<T, Fut: Future<Output = anyhow::Result<T>>>(
         Err(err) => Err(match err.downcast_ref::<GraphqlUserError>() {
             Some(err) => err.source.to_string().into(),
             None => {
-                log::error!("{:?}", err);
+                tracing::error!("{:?}", err);
                 "Internal error".into()
             }
         }),

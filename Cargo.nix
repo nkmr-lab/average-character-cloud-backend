@@ -1053,6 +1053,29 @@ rec {
         features = {
         };
       };
+      "ansi_term" = rec {
+        crateName = "ansi_term";
+        version = "0.12.1";
+        edition = "2015";
+        sha256 = "1ljmkbilxgmhavxvxqa7qvm6f3fjggi7q2l3a72q9x0cxjvrnanm";
+        authors = [
+          "ogham@bsago.me"
+          "Ryan Scheel (Havvy) <ryan.havvy@gmail.com>"
+          "Josh Triplett <josh@joshtriplett.org>"
+        ];
+        dependencies = [
+          {
+            name = "winapi";
+            packageId = "winapi";
+            target = { target, features }: (target."os" == "windows");
+            features = [ "consoleapi" "errhandlingapi" "fileapi" "handleapi" "processenv" ];
+          }
+        ];
+        features = {
+          "derive_serde_style" = [ "serde" ];
+          "serde" = [ "dep:serde" ];
+        };
+      };
       "anyhow" = rec {
         crateName = "anyhow";
         version = "1.0.57";
@@ -1236,10 +1259,6 @@ rec {
             packageId = "derive_more";
           }
           {
-            name = "env_logger";
-            packageId = "env_logger";
-          }
-          {
             name = "jsonwebtoken";
             packageId = "jsonwebtoken";
             features = [ "use_pem" ];
@@ -1247,10 +1266,6 @@ rec {
           {
             name = "juniper";
             packageId = "juniper";
-          }
-          {
-            name = "log";
-            packageId = "log";
           }
           {
             name = "reqwest";
@@ -1285,6 +1300,18 @@ rec {
             name = "tokio";
             packageId = "tokio";
             features = [ "sync" "rt" "macros" ];
+          }
+          {
+            name = "tracing";
+            packageId = "tracing";
+          }
+          {
+            name = "tracing-actix-web";
+            packageId = "tracing-actix-web";
+          }
+          {
+            name = "tracing-subscriber";
+            packageId = "tracing-subscriber";
           }
           {
             name = "ulid";
@@ -1456,7 +1483,7 @@ rec {
           }
           {
             name = "uuid";
-            packageId = "uuid";
+            packageId = "uuid 0.8.2";
           }
         ];
         features = {
@@ -2461,52 +2488,6 @@ rec {
         };
         resolvedDefaultFeatures = [ "alloc" "default" ];
       };
-      "env_logger" = rec {
-        crateName = "env_logger";
-        version = "0.9.0";
-        edition = "2018";
-        sha256 = "1hzr53r0wga51j0w5zid69ylbfizg4qdbq0vqdj6rvki94sg0b0b";
-        authors = [
-          "The Rust Project Developers"
-        ];
-        dependencies = [
-          {
-            name = "atty";
-            packageId = "atty";
-            optional = true;
-          }
-          {
-            name = "humantime";
-            packageId = "humantime";
-            optional = true;
-          }
-          {
-            name = "log";
-            packageId = "log";
-            features = [ "std" ];
-          }
-          {
-            name = "regex";
-            packageId = "regex";
-            optional = true;
-            usesDefaultFeatures = false;
-            features = [ "std" "perf" ];
-          }
-          {
-            name = "termcolor";
-            packageId = "termcolor";
-            optional = true;
-          }
-        ];
-        features = {
-          "atty" = [ "dep:atty" ];
-          "default" = [ "termcolor" "atty" "humantime" "regex" ];
-          "humantime" = [ "dep:humantime" ];
-          "regex" = [ "dep:regex" ];
-          "termcolor" = [ "dep:termcolor" ];
-        };
-        resolvedDefaultFeatures = [ "atty" "default" "humantime" "regex" "termcolor" ];
-      };
       "event-listener" = rec {
         crateName = "event-listener";
         version = "2.5.2";
@@ -3438,16 +3419,6 @@ rec {
         ];
 
       };
-      "humantime" = rec {
-        crateName = "humantime";
-        version = "2.1.0";
-        edition = "2018";
-        sha256 = "1r55pfkkf5v0ji1x6izrjwdq9v6sc7bv99xj6srywcar37xmnfls";
-        authors = [
-          "Paul Colomiets <paul@colomiets.name>"
-        ];
-
-      };
       "hyper" = rec {
         crateName = "hyper";
         version = "0.14.19";
@@ -3900,7 +3871,7 @@ rec {
           }
           {
             name = "uuid";
-            packageId = "uuid";
+            packageId = "uuid 0.8.2";
             optional = true;
             usesDefaultFeatures = false;
           }
@@ -4106,6 +4077,22 @@ rec {
           "value-bag" = [ "dep:value-bag" ];
         };
         resolvedDefaultFeatures = [ "std" ];
+      };
+      "matchers" = rec {
+        crateName = "matchers";
+        version = "0.0.1";
+        edition = "2018";
+        sha256 = "1q8ckqmkjqkznvdi9x0z769yz2bmvlqcwx51ad2lpk4mfmgpi6gh";
+        authors = [
+          "Eliza Weisman <eliza@buoyant.io>"
+        ];
+        dependencies = [
+          {
+            name = "regex-automata";
+            packageId = "regex-automata";
+          }
+        ];
+
       };
       "matches" = rec {
         crateName = "matches";
@@ -4824,6 +4811,42 @@ rec {
         ];
 
       };
+      "pin-project" = rec {
+        crateName = "pin-project";
+        version = "1.0.11";
+        edition = "2018";
+        sha256 = "0q522b4byy73cky74lx8g5fl9pm4dib5vlx2wh0vxzwcqj1kw83q";
+        dependencies = [
+          {
+            name = "pin-project-internal";
+            packageId = "pin-project-internal";
+          }
+        ];
+
+      };
+      "pin-project-internal" = rec {
+        crateName = "pin-project-internal";
+        version = "1.0.11";
+        edition = "2018";
+        sha256 = "0x2c20v0hw44sdz026hm164yvhcax426vlq128v4acxkw5ssy3vi";
+        procMacro = true;
+        dependencies = [
+          {
+            name = "proc-macro2";
+            packageId = "proc-macro2";
+          }
+          {
+            name = "quote";
+            packageId = "quote";
+          }
+          {
+            name = "syn";
+            packageId = "syn";
+            features = [ "full" "visit-mut" ];
+          }
+        ];
+
+      };
       "pin-project-lite" = rec {
         crateName = "pin-project-lite";
         version = "0.2.9";
@@ -5464,6 +5487,30 @@ rec {
           "use_std" = [ "std" ];
         };
         resolvedDefaultFeatures = [ "aho-corasick" "default" "memchr" "perf" "perf-cache" "perf-dfa" "perf-inline" "perf-literal" "std" "unicode" "unicode-age" "unicode-bool" "unicode-case" "unicode-gencat" "unicode-perl" "unicode-script" "unicode-segment" ];
+      };
+      "regex-automata" = rec {
+        crateName = "regex-automata";
+        version = "0.1.10";
+        edition = "2015";
+        sha256 = "0ci1hvbzhrfby5fdpf4ganhf7kla58acad9i1ff1p34dzdrhs8vc";
+        authors = [
+          "Andrew Gallant <jamslam@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "regex-syntax";
+            packageId = "regex-syntax";
+            optional = true;
+          }
+        ];
+        features = {
+          "default" = [ "std" ];
+          "fst" = [ "dep:fst" ];
+          "regex-syntax" = [ "dep:regex-syntax" ];
+          "std" = [ "regex-syntax" ];
+          "transducer" = [ "std" "fst" ];
+        };
+        resolvedDefaultFeatures = [ "default" "regex-syntax" "std" ];
       };
       "regex-syntax" = rec {
         crateName = "regex-syntax";
@@ -6204,6 +6251,24 @@ rec {
           "std" = [ "digest/std" ];
         };
         resolvedDefaultFeatures = [ "default" "std" ];
+      };
+      "sharded-slab" = rec {
+        crateName = "sharded-slab";
+        version = "0.1.4";
+        edition = "2018";
+        sha256 = "0cbb8kgwsyr3zzhsv8jrs3y1j3vsw4jxil42lfq31ikhdy0bl3wh";
+        authors = [
+          "Eliza Weisman <eliza@buoyant.io>"
+        ];
+        dependencies = [
+          {
+            name = "lazy_static";
+            packageId = "lazy_static";
+          }
+        ];
+        features = {
+          "loom" = [ "dep:loom" ];
+        };
       };
       "signal-hook-registry" = rec {
         crateName = "signal-hook-registry";
@@ -7082,6 +7147,24 @@ rec {
         ];
 
       };
+      "thread_local" = rec {
+        crateName = "thread_local";
+        version = "1.1.4";
+        edition = "2018";
+        sha256 = "1001bvz6a688wf3izcrh3jqrkiqaarf44wf08azm071ig1xw45jm";
+        authors = [
+          "Amanieu d'Antras <amanieu@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "once_cell";
+            packageId = "once_cell";
+          }
+        ];
+        features = {
+          "criterion" = [ "dep:criterion" ];
+        };
+      };
       "time 0.1.43" = rec {
         crateName = "time";
         version = "0.1.43";
@@ -7602,6 +7685,66 @@ rec {
         };
         resolvedDefaultFeatures = [ "attributes" "default" "log" "std" "tracing-attributes" ];
       };
+      "tracing-actix-web" = rec {
+        crateName = "tracing-actix-web";
+        version = "0.6.0";
+        edition = "2018";
+        sha256 = "0ci02pzsb2llbllwv9qbj4lqvrrv6g38pxhgk9kngzvla1pcvcph";
+        authors = [
+          "Luca Palmieri <rust@lpalmieri.com>"
+        ];
+        dependencies = [
+          {
+            name = "actix-web";
+            packageId = "actix-web";
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "pin-project";
+            packageId = "pin-project";
+          }
+          {
+            name = "tracing";
+            packageId = "tracing";
+          }
+          {
+            name = "tracing-futures";
+            packageId = "tracing-futures";
+          }
+          {
+            name = "uuid";
+            packageId = "uuid 1.1.2";
+            features = [ "v4" ];
+          }
+        ];
+        devDependencies = [
+          {
+            name = "actix-web";
+            packageId = "actix-web";
+            usesDefaultFeatures = false;
+            features = [ "macros" ];
+          }
+        ];
+        features = {
+          "default" = [ "emit_event_on_error" ];
+          "opentelemetry_0_13" = [ "opentelemetry_0_13_pkg" "tracing-opentelemetry_0_12_pkg" ];
+          "opentelemetry_0_13_pkg" = [ "dep:opentelemetry_0_13_pkg" ];
+          "opentelemetry_0_14" = [ "opentelemetry_0_14_pkg" "tracing-opentelemetry_0_13_pkg" ];
+          "opentelemetry_0_14_pkg" = [ "dep:opentelemetry_0_14_pkg" ];
+          "opentelemetry_0_15" = [ "opentelemetry_0_15_pkg" "tracing-opentelemetry_0_14_pkg" ];
+          "opentelemetry_0_15_pkg" = [ "dep:opentelemetry_0_15_pkg" ];
+          "opentelemetry_0_16" = [ "opentelemetry_0_16_pkg" "tracing-opentelemetry_0_16_pkg" ];
+          "opentelemetry_0_16_pkg" = [ "dep:opentelemetry_0_16_pkg" ];
+          "opentelemetry_0_17" = [ "opentelemetry_0_17_pkg" "tracing-opentelemetry_0_17_pkg" ];
+          "opentelemetry_0_17_pkg" = [ "dep:opentelemetry_0_17_pkg" ];
+          "tracing-opentelemetry_0_12_pkg" = [ "dep:tracing-opentelemetry_0_12_pkg" ];
+          "tracing-opentelemetry_0_13_pkg" = [ "dep:tracing-opentelemetry_0_13_pkg" ];
+          "tracing-opentelemetry_0_14_pkg" = [ "dep:tracing-opentelemetry_0_14_pkg" ];
+          "tracing-opentelemetry_0_16_pkg" = [ "dep:tracing-opentelemetry_0_16_pkg" ];
+          "tracing-opentelemetry_0_17_pkg" = [ "dep:tracing-opentelemetry_0_17_pkg" ];
+        };
+        resolvedDefaultFeatures = [ "default" "emit_event_on_error" ];
+      };
       "tracing-attributes" = rec {
         crateName = "tracing-attributes";
         version = "0.1.21";
@@ -7646,6 +7789,13 @@ rec {
             packageId = "lazy_static";
             optional = true;
           }
+          {
+            name = "valuable";
+            packageId = "valuable";
+            optional = true;
+            usesDefaultFeatures = false;
+            target = { target, features }: (target."tracing_unstable" or false);
+          }
         ];
         features = {
           "default" = [ "std" "valuable/std" ];
@@ -7653,7 +7803,228 @@ rec {
           "std" = [ "lazy_static" ];
           "valuable" = [ "dep:valuable" ];
         };
-        resolvedDefaultFeatures = [ "lazy_static" "std" ];
+        resolvedDefaultFeatures = [ "default" "lazy_static" "std" "valuable" ];
+      };
+      "tracing-futures" = rec {
+        crateName = "tracing-futures";
+        version = "0.2.5";
+        edition = "2018";
+        sha256 = "1wimg0iwa2ldq7xv98lvivvf3q9ykfminig8r1bs0ig22np9bl4p";
+        authors = [
+          "Eliza Weisman <eliza@buoyant.io>"
+          "Tokio Contributors <team@tokio.rs>"
+        ];
+        dependencies = [
+          {
+            name = "pin-project";
+            packageId = "pin-project";
+            optional = true;
+          }
+          {
+            name = "tracing";
+            packageId = "tracing";
+            usesDefaultFeatures = false;
+          }
+        ];
+        features = {
+          "default" = [ "std-future" "std" ];
+          "futures" = [ "dep:futures" ];
+          "futures-01" = [ "futures_01" "std" ];
+          "futures-03" = [ "std-future" "futures" "futures-task" "std" ];
+          "futures-task" = [ "dep:futures-task" ];
+          "futures_01" = [ "dep:futures_01" ];
+          "pin-project" = [ "dep:pin-project" ];
+          "std" = [ "tracing/std" ];
+          "std-future" = [ "pin-project" ];
+          "tokio" = [ "dep:tokio" ];
+          "tokio-executor" = [ "dep:tokio-executor" ];
+        };
+        resolvedDefaultFeatures = [ "default" "pin-project" "std" "std-future" ];
+      };
+      "tracing-log" = rec {
+        crateName = "tracing-log";
+        version = "0.1.3";
+        edition = "2018";
+        sha256 = "08prnkxq8yas6jvvjnvyx5v3hwblas5527wxxgbiw2yis8rsvpbq";
+        authors = [
+          "Tokio Contributors <team@tokio.rs>"
+        ];
+        dependencies = [
+          {
+            name = "lazy_static";
+            packageId = "lazy_static";
+          }
+          {
+            name = "log";
+            packageId = "log";
+          }
+          {
+            name = "tracing-core";
+            packageId = "tracing-core";
+          }
+        ];
+        features = {
+          "ahash" = [ "dep:ahash" ];
+          "default" = [ "log-tracer" "trace-logger" "std" ];
+          "env_logger" = [ "dep:env_logger" ];
+          "interest-cache" = [ "lru" "ahash" ];
+          "lru" = [ "dep:lru" ];
+          "std" = [ "log/std" ];
+        };
+        resolvedDefaultFeatures = [ "log-tracer" "std" ];
+      };
+      "tracing-serde" = rec {
+        crateName = "tracing-serde";
+        version = "0.1.3";
+        edition = "2018";
+        sha256 = "1qfr0va69djvxqvjrx4vqq7p6myy414lx4w1f6amcn0hfwqj2sxw";
+        authors = [
+          "Tokio Contributors <team@tokio.rs>"
+        ];
+        dependencies = [
+          {
+            name = "serde";
+            packageId = "serde";
+          }
+          {
+            name = "tracing-core";
+            packageId = "tracing-core";
+          }
+        ];
+        features = {
+          "valuable" = [ "valuable_crate" "valuable-serde" "tracing-core/valuable" ];
+          "valuable-serde" = [ "dep:valuable-serde" ];
+          "valuable_crate" = [ "dep:valuable_crate" ];
+        };
+      };
+      "tracing-subscriber" = rec {
+        crateName = "tracing-subscriber";
+        version = "0.2.25";
+        edition = "2018";
+        sha256 = "0wcc3sqckjsxaahd9jnc4cwa13m623lhk8fg8way9hn3k6m2w38f";
+        authors = [
+          "Eliza Weisman <eliza@buoyant.io>"
+          "David Barsky <me@davidbarsky.com>"
+          "Tokio Contributors <team@tokio.rs>"
+        ];
+        dependencies = [
+          {
+            name = "ansi_term";
+            packageId = "ansi_term";
+            optional = true;
+          }
+          {
+            name = "chrono";
+            packageId = "chrono";
+            optional = true;
+            usesDefaultFeatures = false;
+            features = [ "clock" "std" ];
+          }
+          {
+            name = "lazy_static";
+            packageId = "lazy_static";
+            optional = true;
+          }
+          {
+            name = "matchers";
+            packageId = "matchers";
+            optional = true;
+          }
+          {
+            name = "regex";
+            packageId = "regex";
+            optional = true;
+            usesDefaultFeatures = false;
+            features = [ "std" ];
+          }
+          {
+            name = "serde";
+            packageId = "serde";
+            optional = true;
+          }
+          {
+            name = "serde_json";
+            packageId = "serde_json";
+            optional = true;
+          }
+          {
+            name = "sharded-slab";
+            packageId = "sharded-slab";
+            optional = true;
+          }
+          {
+            name = "smallvec";
+            packageId = "smallvec";
+            optional = true;
+          }
+          {
+            name = "thread_local";
+            packageId = "thread_local";
+            optional = true;
+          }
+          {
+            name = "tracing";
+            packageId = "tracing";
+            optional = true;
+            usesDefaultFeatures = false;
+            features = [ "std" ];
+          }
+          {
+            name = "tracing-core";
+            packageId = "tracing-core";
+          }
+          {
+            name = "tracing-log";
+            packageId = "tracing-log";
+            optional = true;
+            usesDefaultFeatures = false;
+            features = [ "log-tracer" "std" ];
+          }
+          {
+            name = "tracing-serde";
+            packageId = "tracing-serde";
+            optional = true;
+          }
+        ];
+        devDependencies = [
+          {
+            name = "regex";
+            packageId = "regex";
+            usesDefaultFeatures = false;
+            features = [ "std" ];
+          }
+          {
+            name = "tracing";
+            packageId = "tracing";
+          }
+          {
+            name = "tracing-log";
+            packageId = "tracing-log";
+          }
+        ];
+        features = {
+          "ansi" = [ "fmt" "ansi_term" ];
+          "ansi_term" = [ "dep:ansi_term" ];
+          "chrono" = [ "dep:chrono" ];
+          "default" = [ "env-filter" "smallvec" "fmt" "ansi" "chrono" "tracing-log" "json" ];
+          "env-filter" = [ "matchers" "regex" "lazy_static" "tracing" ];
+          "fmt" = [ "registry" ];
+          "json" = [ "tracing-serde" "serde" "serde_json" ];
+          "lazy_static" = [ "dep:lazy_static" ];
+          "matchers" = [ "dep:matchers" ];
+          "parking_lot" = [ "dep:parking_lot" ];
+          "regex" = [ "dep:regex" ];
+          "registry" = [ "sharded-slab" "thread_local" ];
+          "serde" = [ "dep:serde" ];
+          "serde_json" = [ "dep:serde_json" ];
+          "sharded-slab" = [ "dep:sharded-slab" ];
+          "smallvec" = [ "dep:smallvec" ];
+          "thread_local" = [ "dep:thread_local" ];
+          "tracing" = [ "dep:tracing" ];
+          "tracing-log" = [ "dep:tracing-log" ];
+          "tracing-serde" = [ "dep:tracing-serde" ];
+        };
+        resolvedDefaultFeatures = [ "ansi" "ansi_term" "chrono" "default" "env-filter" "fmt" "json" "lazy_static" "matchers" "regex" "registry" "serde" "serde_json" "sharded-slab" "smallvec" "thread_local" "tracing" "tracing-log" "tracing-serde" ];
       };
       "try-lock" = rec {
         crateName = "try-lock";
@@ -7869,7 +8240,7 @@ rec {
           "serde" = [ "dep:serde" ];
         };
       };
-      "uuid" = rec {
+      "uuid 0.8.2" = rec {
         crateName = "uuid";
         version = "0.8.2";
         edition = "2018";
@@ -7896,6 +8267,63 @@ rec {
           "winapi" = [ "dep:winapi" ];
         };
         resolvedDefaultFeatures = [ "default" "std" ];
+      };
+      "uuid 1.1.2" = rec {
+        crateName = "uuid";
+        version = "1.1.2";
+        edition = "2018";
+        sha256 = "0bwdz7bgigbh4625ga564xxbqy4srhbmzq3nqkz1ypsd67s6jr6x";
+        authors = [
+          "Ashley Mannix<ashleymannix@live.com.au>"
+          "Christopher Armstrong"
+          "Dylan DPC<dylan.dpc@gmail.com>"
+          "Hunar Roop Kahlon<hunar.roop@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "getrandom";
+            packageId = "getrandom 0.2.6";
+            rename = "private_getrandom";
+            optional = true;
+          }
+        ];
+        features = {
+          "arbitrary" = [ "dep:arbitrary" ];
+          "default" = [ "std" ];
+          "fast-rng" = [ "rng" "private_rand" ];
+          "js" = [ "private_getrandom" "private_getrandom/js" ];
+          "macro-diagnostics" = [ "private_uuid-macro-internal" ];
+          "md5" = [ "private_md-5" ];
+          "private_atomic" = [ "dep:private_atomic" ];
+          "private_getrandom" = [ "dep:private_getrandom" ];
+          "private_md-5" = [ "dep:private_md-5" ];
+          "private_rand" = [ "dep:private_rand" ];
+          "private_sha1_smol" = [ "dep:private_sha1_smol" ];
+          "private_uuid-macro-internal" = [ "dep:private_uuid-macro-internal" ];
+          "rng" = [ "private_getrandom" ];
+          "serde" = [ "dep:serde" ];
+          "sha1" = [ "private_sha1_smol" ];
+          "slog" = [ "dep:slog" ];
+          "v1" = [ "private_atomic" ];
+          "v3" = [ "md5" ];
+          "v4" = [ "rng" ];
+          "v5" = [ "sha1" ];
+          "zerocopy" = [ "dep:zerocopy" ];
+        };
+        resolvedDefaultFeatures = [ "default" "private_getrandom" "rng" "std" "v4" ];
+      };
+      "valuable" = rec {
+        crateName = "valuable";
+        version = "0.1.0";
+        edition = "2018";
+        sha256 = "0v9gp3nkjbl30z0fd56d8mx7w1csk86wwjhfjhr400wh9mfpw2w3";
+        features = {
+          "default" = [ "std" ];
+          "derive" = [ "valuable-derive" ];
+          "std" = [ "alloc" ];
+          "valuable-derive" = [ "dep:valuable-derive" ];
+        };
+        resolvedDefaultFeatures = [ "alloc" "std" ];
       };
       "vcpkg" = rec {
         crateName = "vcpkg";

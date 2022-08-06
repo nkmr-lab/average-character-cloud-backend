@@ -16,6 +16,7 @@ use sqlx::PgPool;
 use std::collections::HashMap;
 use std::io;
 use time::Duration;
+use tracing_actix_web::TracingLogger;
 
 use actix_web_extras::middleware::Condition as OptionalCondition;
 use average_character_cloud_backend::app_config::{AppConfig, AuthConfig, SessionConfig};
@@ -65,7 +66,7 @@ async fn graphql(
             Some(user_id.clone())
         } else {
             session.get::<String>("user_id").unwrap_or_else(|e| {
-                log::warn!("session decode error: : {}", e);
+                tracing::warn!("session decode error: : {}", e);
                 None
             })
         },
@@ -221,7 +222,7 @@ async fn google_callback(
     let jwks = if let Some(cache) = public_key_cache.load().as_ref() && cache.expires > Utc::now() {
         cache.jwks.clone()
     } else {
-        log::info!("fetch google public key");
+        tracing::info!("fetch google public key");
         let pubkey = fetch_google_public_key().await;
         match pubkey {
             Ok(pubkey) => {
@@ -229,7 +230,7 @@ async fn google_callback(
                 pubkey.jwks
             }
             Err(e) => {
-                log::error!("fetch google public key error: {}", e);
+                tracing::error!("fetch google public key error: {}", e);
                 return Ok(HttpResponse::InternalServerError().finish());
             }
         }
@@ -248,7 +249,7 @@ async fn google_callback(
 
     let credential = params.credential.as_str();
     let token = verify_google_token(jwks, credential, client_id).map_err(|e| {
-        log::info!("verify google token error: {}", e);
+        tracing::info!("verify google token error: {}", e);
         error::ErrorBadRequest(format!("Failed to verify token: {}", e))
     })?;
     session.insert("user_id", token)?;
@@ -259,7 +260,7 @@ async fn google_callback(
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
-    env_logger::init();
+    tracing_subscriber::fmt::init();
     let cli = Cli::parse();
 
     let config = AppConfig::from_env().map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
@@ -295,6 +296,7 @@ async fn main() -> io::Result<()> {
 
             HttpServer::new(move || {
                 let mut app = App::new()
+                    .wrap(TracingLogger::default())
                     .app_data(web::Data::new(schema.clone()))
                     .app_data(web::Data::new(config.clone()))
                     .app_data(web::Data::new(pool.clone()))

@@ -56,20 +56,23 @@
           };
         };
         devShell = mkShell {
-          packages = [
+          nativeBuildInputs = [
             (rust-toolchain pkgs)
             sqlx-cli
             cargo-make
             packages.sqldef
             crate2nix
-          ] ++ lib.optionals stdenv.isDarwin [
+          ] ++ lib.optionals stdenv.isLinux [
+            pkg-config
+          ];
+
+          buildInputs = lib.optionals stdenv.isDarwin [
             libiconv
             darwin.apple_sdk.frameworks.SystemConfiguration
             darwin.apple_sdk.frameworks.CoreFoundation
             darwin.apple_sdk.frameworks.Security
           ] ++ lib.optionals stdenv.isLinux [
             openssl
-            pkg-config
             glibc
           ];
         };

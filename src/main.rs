@@ -1,4 +1,3 @@
-#![feature(let_else, try_blocks, let_chains, try_trait_v2, result_flattening)]
 #![deny(warnings)]
 
 use actix_session::storage::RedisSessionStore;
@@ -23,10 +22,10 @@ use actix_web_extras::middleware::Condition as OptionalCondition;
 use average_character_cloud_backend::app_config::{AppConfig, AuthConfig, SessionConfig};
 use average_character_cloud_backend::graphql::{create_schema, AppCtx, Loaders, Schema};
 use clap::{Parser, Subcommand};
+use guard::guard;
 use jsonwebtoken::jwk::{self, JwkSet};
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
-
 #[derive(Parser)]
 #[clap(name = "average-character-cloud-backend")]
 struct Cli {
@@ -90,9 +89,9 @@ struct GoogleCallbackParams {
 
 #[get("/google_login")]
 async fn google_login_front(config: web::Data<AppConfig>) -> HttpResponse {
-    let AuthConfig::Google { client_id, enable_front,.. } = &config.auth else {
+    guard!(let AuthConfig::Google { client_id, enable_front,.. } = &config.auth else {
         return HttpResponse::NotFound().body("Not found");
-    };
+    });
 
     if !enable_front {
         return HttpResponse::NotFound().body("Not found");
@@ -195,9 +194,9 @@ async fn google_callback(
     google_public_key_provider: web::Data<mpsc::Sender<GooglePublicKeyProviderCommand>>,
     session: Session,
 ) -> Result<HttpResponse, error::Error> {
-    let AuthConfig::Google { client_id, redirect_url,.. }= &config.auth else {
+    guard!(let AuthConfig::Google { client_id, redirect_url,.. }= &config.auth else {
         return Err(error::ErrorBadRequest("Invalid auth kind"));
-    };
+    });
 
     let (jwks_tx, jwks_rx) = oneshot::channel();
     google_public_key_provider

@@ -3,11 +3,11 @@ use std::collections::HashSet;
 use std::str::FromStr;
 
 use derive_more::From;
+use guard::guard;
 use juniper::FieldResult;
 use juniper::{
     graphql_interface, EmptySubscription, GraphQLInputObject, GraphQLObject, RootNode, ID,
 };
-
 use ulid::Ulid;
 
 use crate::entities;
@@ -202,9 +202,9 @@ impl Character {
 
     async fn character_config(&self, ctx: &mut AppCtx) -> FieldResult<Option<CharacterConfig>> {
         handler(|| async {
-            let Some(user_id) = ctx.user_id.clone() else {
+            guard!(let Some(user_id) = ctx.user_id.clone() else {
                 return Err(GraphqlUserError::from("Authentication required").into());
-            };
+            });
 
             let character_config = ctx
                 .loaders
@@ -232,9 +232,9 @@ impl Character {
     ) -> FieldResult<FigureRecordConnection> {
         // TODO: N+1
         handler(|| async {
-            let Some(user_id) = ctx.user_id.clone() else {
+            guard!(let Some(user_id) = ctx.user_id.clone() else {
                 return Err(GraphqlUserError::from("Authentication required").into());
-            };
+            });
 
             let ids = ids
                 .map(|ids| -> anyhow::Result<Vec<Ulid>> {
@@ -251,9 +251,9 @@ impl Character {
 
             let after_id = after
                 .map(|after| -> anyhow::Result<Ulid> {
-                    let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(after)) else {
+                    guard!(let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(after)) else {
                         return Err(GraphqlUserError::from("after must be a valid cursor").into())
-                    };
+                    });
 
                     Ok(id)
                 })
@@ -261,9 +261,9 @@ impl Character {
 
             let before_id = before
                 .map(|before| -> anyhow::Result<Ulid> {
-                    let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(before)) else {
+                    guard!(let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(before)) else {
                         return Err(GraphqlUserError::from("before must be a valid cursor").into());
-                    };
+                    });
                     Ok(id)
                 })
                 .transpose()?;
@@ -329,13 +329,13 @@ impl QueryRoot {
 
     async fn node(ctx: &AppCtx, id: ID) -> FieldResult<Option<NodeValue>> {
         handler(|| async {
-            let Some(user_id) = ctx.user_id.clone() else {
+            guard!(let Some(user_id) = ctx.user_id.clone() else {
                 return Err(GraphqlUserError::from("Authentication required").into());
-            };
+            });
 
-            let Some(id) = NodeID::from_id(&id) else {
+            guard!(let Some(id) = NodeID::from_id(&id) else {
                 return Ok(None);
-            };
+            });
 
             match id {
                 NodeID::FigureRecord(id) => {
@@ -404,9 +404,9 @@ impl QueryRoot {
         before: Option<String>,
     ) -> FieldResult<CharacterConfigConnection> {
         handler(|| async {
-            let Some(user_id) = ctx.user_id.clone() else {
+            guard!(let Some(user_id) = ctx.user_id.clone() else {
                 return Err(GraphqlUserError::from("Authentication required").into());
-            };
+            });
 
             let ids = ids
                 .map(|ids| -> anyhow::Result<Vec<Ulid>> {
@@ -423,9 +423,9 @@ impl QueryRoot {
 
             let after_id = after
                 .map(|after| -> anyhow::Result<Ulid> {
-                    let Some(NodeID::CharacterConfig(id)) = NodeID::from_id(&ID::new(after)) else {
+                    guard!(let Some(NodeID::CharacterConfig(id)) = NodeID::from_id(&ID::new(after)) else {
                     return Err(GraphqlUserError::from("after must be a valid cursor").into())
-                };
+                });
 
                     Ok(id)
                 })
@@ -433,9 +433,9 @@ impl QueryRoot {
 
             let before_id = before
                 .map(|before| -> anyhow::Result<Ulid> {
-                    let Some(NodeID::CharacterConfig(id)) = NodeID::from_id(&ID::new(before)) else {
+                    guard!(let Some(NodeID::CharacterConfig(id)) = NodeID::from_id(&ID::new(before)) else {
                     return Err(GraphqlUserError::from("before must be a valid cursor").into());
-                };
+                });
 
                     Ok(id)
                 })
@@ -493,9 +493,9 @@ impl MutationRoot {
         handler(|| async {
             let mut trx = ctx.pool.begin().await?;
 
-            let Some(user_id) = ctx.user_id.clone() else {
+            guard!(let Some(user_id) = ctx.user_id.clone() else {
                 return Err(GraphqlUserError::from("Authentication required").into());
-            } ;
+            } );
 
                 let character = match entities::character::Character::try_from(input.character.as_str()) {
                     Ok(character) => character,
@@ -507,14 +507,14 @@ impl MutationRoot {
                     }),
                 };
 
-                let Some(figure) = entities::figure::Figure::from_json(&input.figure) else {
+                guard!(let Some(figure) = entities::figure::Figure::from_json(&input.figure) else {
                     return Ok(CreateFigureRecordPayload {
                         figure_record: None,
                         errors: Some(vec![GraphqlErrorType {
                             message: "figure must be valid json".to_string(),
                         }])
                     });
-                };
+                });
 
                 let record = entities::figure_record::FigureRecord {
                     id: Ulid::from_datetime(ctx.now),
@@ -556,9 +556,9 @@ impl MutationRoot {
         handler(|| async {
             let mut trx = ctx.pool.begin().await?;
 
-            let Some(user_id) = ctx.user_id.clone() else {
+            guard!(let Some(user_id) = ctx.user_id.clone() else {
                 return Err(GraphqlUserError::from("Authentication required").into());
-            };
+            });
 
             let character = match entities::character::Character::try_from(input.character.as_str()) {
                 Ok(character) => character,
@@ -570,14 +570,14 @@ impl MutationRoot {
                 }),
             };
 
-            let Ok(stroke_count) = input.stroke_count.try_into() else {
+            guard!(let Ok(stroke_count) = input.stroke_count.try_into() else {
                 return Ok(CreateCharacterConfigPayload {
                     character_config: None,
                     errors: Some(vec![GraphqlErrorType {
                         message: "stroke_count must be an non negative integer".to_string(),
                     }])
                 });
-            };
+            });
 
             let character = entities::character_config::CharacterConfig {
                 id: Ulid::from_datetime(ctx.now),
@@ -647,13 +647,13 @@ impl MutationRoot {
     ) -> FieldResult<UpdateCharacterConfigPayload> {
         handler(|| async {
             let mut trx = ctx.pool.begin().await?;
-            let Some(user_id) = ctx.user_id.clone() else {
+            guard!(let Some(user_id) = ctx.user_id.clone() else {
                 return Err(GraphqlUserError::from("Authentication required").into());
-            };
+            });
 
-            let Some(NodeID::CharacterConfig(id)) = NodeID::from_id(&input.id) else {
+            guard!(let Some(NodeID::CharacterConfig(id)) = NodeID::from_id(&input.id) else {
                 return Err(GraphqlUserError::from("Not found").into());
-            };
+            });
 
             let character_config = ctx
                 .loaders
@@ -667,9 +667,9 @@ impl MutationRoot {
                 .await
                 .context("load character_config")??;
 
-            let Some(mut character_config) = character_config else {
+            guard!(let Some(mut character_config) = character_config else {
                 return Err(GraphqlUserError::from("Not found").into());
-            };
+            });
 
             let prev_version = character_config.version;
 

@@ -1255,6 +1255,10 @@ rec {
             packageId = "derive_more";
           }
           {
+            name = "guard";
+            packageId = "guard";
+          }
+          {
             name = "jsonwebtoken";
             packageId = "jsonwebtoken";
             features = [ "use_pem" ];
@@ -3115,6 +3119,17 @@ rec {
           }
         ];
 
+      };
+      "guard" = rec {
+        crateName = "guard";
+        version = "0.5.1";
+        edition = "2015";
+        sha256 = "1slkgi0xj1gqjq44cvg8rc65mg3fq1v47bzvfcxqlkx03v2kr2gz";
+        authors = [
+          "Alex Burka <rust@alexburka.com>"
+        ];
+        features = {
+        };
       };
       "h2" = rec {
         crateName = "h2";

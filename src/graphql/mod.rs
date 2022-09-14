@@ -172,7 +172,7 @@ struct CreateCharacterConfigPayload {
 
 #[derive(GraphQLInputObject, Clone, Debug)]
 struct UpdateCharacterConfigInput {
-    id: ID,
+    id: UlidScalar,
     stroke_count: Option<i32>,
 }
 
@@ -592,9 +592,7 @@ impl MutationRoot {
             return Err(GraphqlUserError::from("Authentication required").into());
         });
 
-        guard!(let Some(NodeID::CharacterConfig(id)) = NodeID::from_id(&input.id) else {
-            return Err(GraphqlUserError::from("Not found").into());
-        });
+        let id = input.id.0;
 
         let character_config = ctx
             .loaders

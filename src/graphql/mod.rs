@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
-use std::str::FromStr;
-
+use chrono::{DateTime, Utc};
 use derive_more::From;
 use guard::guard;
 use juniper::FieldResult;
@@ -14,6 +13,7 @@ use crate::entities;
 use crate::graphql::figure_record_query::{
     FigureRecordByIdLoaderParams, FigureRecordsByCharacterLoaderParams,
 };
+use crate::graphql::scalars::{FigureScalar, UlidScalar};
 use anyhow::{anyhow, Context};
 
 pub mod dataloader_with_params;
@@ -28,10 +28,13 @@ use character_config_query::{
     CharacterConfigsLoaderParams,
 };
 
+use self::scalars::CharacterValueScalar;
+
 mod character_config_query;
 mod figure_record_query;
+mod scalars;
 
-/**
+/*
  * replayの仕様に従うこと
  *   https://relay.dev/docs/guides/graphql-server-specification/
  *   https://relay.dev/graphql/connections.htm
@@ -52,20 +55,20 @@ impl FigureRecord {
         self.node_id()
     }
 
-    fn figure_record_id(&self) -> String {
-        self.0.id.to_string()
+    fn figure_record_id(&self) -> UlidScalar {
+        UlidScalar(self.0.id)
     }
 
     fn character(&self) -> Character {
         Character::from(self.0.character.clone())
     }
 
-    fn figure(&self) -> String {
-        self.0.figure.to_json()
+    fn figure(&self) -> FigureScalar {
+        FigureScalar(self.0.figure.clone())
     }
 
-    fn created_at(&self) -> String {
-        self.0.created_at.to_rfc3339()
+    fn created_at(&self) -> DateTime<Utc> {
+        self.0.created_at
     }
 }
 
@@ -92,8 +95,8 @@ struct FigureRecordConnection {
 
 #[derive(GraphQLInputObject, Clone, Debug)]
 struct CreateFigureRecordInput {
-    character: String,
-    figure: String,
+    character: CharacterValueScalar,
+    figure: FigureScalar,
 }
 
 #[derive(GraphQLObject, Clone, Debug)]
@@ -119,8 +122,8 @@ impl CharacterConfig {
         self.node_id()
     }
 
-    fn character_config_id(&self) -> String {
-        self.0.id.to_string()
+    fn character_config_id(&self) -> UlidScalar {
+        UlidScalar(self.0.id)
     }
 
     fn character(&self) -> Character {
@@ -131,12 +134,12 @@ impl CharacterConfig {
         self.0.stroke_count as i32
     }
 
-    fn created_at(&self) -> String {
-        self.0.created_at.to_rfc3339()
+    fn created_at(&self) -> DateTime<Utc> {
+        self.0.created_at
     }
 
-    fn updated_at(&self) -> String {
-        self.0.updated_at.to_rfc3339()
+    fn updated_at(&self) -> DateTime<Utc> {
+        self.0.updated_at
     }
 }
 
@@ -156,7 +159,7 @@ struct CharacterConfigConnection {
 
 #[derive(GraphQLInputObject, Clone, Debug)]
 struct CreateCharacterConfigInput {
-    character: String,
+    character: CharacterValueScalar,
     stroke_count: i32,
 }
 
@@ -196,8 +199,8 @@ impl Character {
         self.node_id()
     }
 
-    fn value(&self) -> String {
-        String::from(self.0.clone())
+    fn value(&self) -> CharacterValueScalar {
+        CharacterValueScalar(self.0.clone())
     }
 
     async fn character_config(&self, ctx: &mut AppCtx) -> FieldResult<Option<CharacterConfig>> {
@@ -224,7 +227,7 @@ impl Character {
     async fn figure_records(
         &self,
         ctx: &AppCtx,
-        ids: Option<Vec<ID>>,
+        ids: Option<Vec<UlidScalar>>,
         first: Option<i32>,
         after: Option<String>,
         last: Option<i32>,
@@ -237,15 +240,13 @@ impl Character {
             });
 
             let ids = ids
-                .map(|ids| -> anyhow::Result<Vec<Ulid>> {
+                .map(|ids| {
                     ids.into_iter()
-                        .map(|id| -> anyhow::Result<Ulid> {
-                            Ulid::from_str(id.to_string().as_str())
-                                .map_err(|_| GraphqlUserError::from("invalid ids").into())
+                        .map(|id| {
+                            id.0
                         })
-                        .collect::<anyhow::Result<Vec<_>>>()
-                })
-                .transpose()?;
+                        .collect::<Vec<_>>()
+                });
 
             let limit = Limit::encode(first, last)?;
 
@@ -369,15 +370,9 @@ impl QueryRoot {
         .await
     }
 
-    async fn characters(values: Vec<String>) -> FieldResult<Vec<Character>> {
+    async fn characters(values: Vec<CharacterValueScalar>) -> FieldResult<Vec<Character>> {
         handler(|| async {
-            let entities = values
-                .into_iter()
-                .map(|value| {
-                    entities::character::Character::try_from(value.as_str())
-                        .map_err(|e| GraphqlUserError::from(anyhow::Error::new(e)).into())
-                })
-                .collect::<anyhow::Result<Vec<_>>>()?;
+            let entities = values.into_iter().map(|value| value.0).collect::<Vec<_>>();
 
             let mut entities = entities
                 .into_iter()
@@ -397,7 +392,7 @@ impl QueryRoot {
 
     async fn character_configs(
         ctx: &AppCtx,
-        ids: Option<Vec<ID>>,
+        ids: Option<Vec<UlidScalar>>,
         first: Option<i32>,
         after: Option<String>,
         last: Option<i32>,
@@ -409,15 +404,11 @@ impl QueryRoot {
             });
 
             let ids = ids
-                .map(|ids| -> anyhow::Result<Vec<Ulid>> {
+                .map(|ids| {
                     ids.into_iter()
-                        .map(|id| -> anyhow::Result<Ulid> {
-                            Ulid::from_str(id.to_string().as_str())
-                                .map_err(|_| GraphqlUserError::from("invalid ids").into())
-                        })
-                        .collect::<anyhow::Result<Vec<_>>>()
-                })
-                .transpose()?;
+                        .map(|id| id.0)
+                        .collect::<Vec<_>>()
+                });
 
             let limit = Limit::encode(first, last)?;
 
@@ -497,24 +488,9 @@ impl MutationRoot {
                 return Err(GraphqlUserError::from("Authentication required").into());
             } );
 
-                let character = match entities::character::Character::try_from(input.character.as_str()) {
-                    Ok(character) => character,
-                    Err(err) => return Ok(CreateFigureRecordPayload {
-                        figure_record: None,
-                        errors: Some(vec![GraphqlErrorType {
-                            message: err.to_string(),
-                        }])
-                    }),
-                };
+                let character = input.character.0;
 
-                guard!(let Some(figure) = entities::figure::Figure::from_json(&input.figure) else {
-                    return Ok(CreateFigureRecordPayload {
-                        figure_record: None,
-                        errors: Some(vec![GraphqlErrorType {
-                            message: "figure must be valid json".to_string(),
-                        }])
-                    });
-                });
+                let figure = input.figure.0;
 
                 let record = entities::figure_record::FigureRecord {
                     id: Ulid::from_datetime(ctx.now),
@@ -560,15 +536,7 @@ impl MutationRoot {
                 return Err(GraphqlUserError::from("Authentication required").into());
             });
 
-            let character = match entities::character::Character::try_from(input.character.as_str()) {
-                Ok(character) => character,
-                Err(err) => return Ok(CreateCharacterConfigPayload {
-                    character_config: None,
-                    errors: Some(vec![GraphqlErrorType {
-                        message: err.to_string(),
-                    }])
-                }),
-            };
+            let character = input.character.0;
 
             guard!(let Ok(stroke_count) = input.stroke_count.try_into() else {
                 return Ok(CreateCharacterConfigPayload {

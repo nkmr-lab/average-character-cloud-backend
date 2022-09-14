@@ -1,7 +1,5 @@
-use std::future::Future;
 use std::str::FromStr;
 
-use juniper::FieldResult;
 use juniper::GraphQLObject;
 use juniper::ID;
 
@@ -39,18 +37,24 @@ impl From<&str> for GraphqlUserError {
     }
 }
 
-pub async fn handler<T, Fut: Future<Output = anyhow::Result<T>>>(
-    f: impl FnOnce() -> Fut,
-) -> FieldResult<T> {
-    match f().await {
-        Ok(value) => Ok(value),
-        Err(err) => Err(match err.downcast_ref::<GraphqlUserError>() {
+#[derive(Debug)]
+pub struct ApiError(pub anyhow::Error);
+
+impl<S: juniper::ScalarValue> juniper::IntoFieldError<S> for ApiError {
+    fn into_field_error(self) -> juniper::FieldError<S> {
+        match self.0.downcast_ref::<GraphqlUserError>() {
             Some(err) => err.source.to_string().into(),
             None => {
-                tracing::error!("{:?}", err);
+                tracing::error!("{:?}", self.0);
                 "Internal error".into()
             }
-        }),
+        }
+    }
+}
+
+impl<T: Into<anyhow::Error>> From<T> for ApiError {
+    fn from(err: T) -> Self {
+        Self(err.into())
     }
 }
 

@@ -372,10 +372,9 @@ impl QueryRoot {
 
     async fn characters(values: Vec<CharacterValueScalar>) -> FieldResult<Vec<Character>> {
         handler(|| async {
-            let entities = values.into_iter().map(|value| value.0).collect::<Vec<_>>();
-
-            let mut entities = entities
+            let mut entities = values
                 .into_iter()
+                .map(|value| value.0)
                 .collect::<HashSet<_>>()
                 .into_iter()
                 .collect::<Vec<_>>();

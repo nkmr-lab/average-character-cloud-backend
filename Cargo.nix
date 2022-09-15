@@ -6054,9 +6054,9 @@ rec {
       };
       "serde-env" = rec {
         crateName = "serde-env";
-        version = "0.0.3";
+        version = "0.1.0";
         edition = "2021";
-        sha256 = "080alc70dn212l2fhg8klmlzc887i2d9a6n34rmi50pj2hib2gaf";
+        sha256 = "1nrmmh31d8vk2qy34a4q4s4vphlf9qgnbfpfzkig4m208dhfsccz";
         authors = [
           "Xuanwo <github@xuanwo.io>"
         ];

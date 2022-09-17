@@ -8,5 +8,6 @@ pub mod google_public_key_provider;
 pub mod graphql;
 mod shareable_error;
 pub use shareable_error::ShareableError;
+pub mod commands;
 pub mod queries;
 pub mod values;

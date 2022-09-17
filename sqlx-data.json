@@ -261,23 +261,6 @@
     },
     "query": "\n                SELECT\n                    id,\n                    user_id,\n                    character,\n                    figure,\n                    created_at,\n                    stroke_count\n                FROM\n                    figure_records\n                WHERE\n                    id = Any($1)\n                    AND user_id = $2\n            "
   },
-  "b2dd9feeceec58e6631b039b8434d89adb27e721ec0c441b2f76bd63d95c3bdd": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Varchar",
-          "Varchar",
-          "Varchar",
-          "Jsonb",
-          "Timestamptz",
-          "Int4"
-        ]
-      }
-    },
-    "query": "\n                    INSERT INTO figure_records (id, user_id, character, figure, created_at, stroke_count)\n                    VALUES ($1, $2, $3, $4, $5, $6)\n                "
-  },
   "ca5b4e47a14e8eaa09d5de390f917bceb0db9548d4aadf4d2b816446e41570ec": {
     "describe": {
       "columns": [
@@ -333,6 +316,23 @@
       }
     },
     "query": "\n                    SELECT\n                        id,\n                        user_id,\n                        character,\n                        figure,\n                        created_at,\n                        stroke_count\n                    FROM (\n                        SELECT\n                            r.id,\n                            r.user_id,\n                            r.character,\n                            r.figure,\n                            r.created_at,\n                            r.stroke_count,\n                            rank() OVER (\n                                PARTITION BY r.character\n                                ORDER BY\n                                    CASE WHEN $6 = 0 THEN r.id END DESC,\n                                    CASE WHEN $6 = 1 THEN r.id END ASC\n                            ) AS rank\n                        FROM\n                            figure_records AS r\n                        JOIN\n                            character_configs AS c ON r.character = c.character AND r.user_id = c.user_id\n                        WHERE\n                            r.user_id = $1\n                            AND\n                            r.character = Any($2)\n                            AND\n                            ($3::VARCHAR(64)[] IS NULL OR r.id = Any($3))\n                            AND\n                            ($4::VARCHAR(64) IS NULL OR r.id < $4)\n                            AND\n                            ($5::VARCHAR(64) IS NULL OR r.id > $5)\n                            AND\n                            r.stroke_count = c.stroke_count\n                    ) as r\n                    WHERE\n                        rank <= $7\n                    ORDER BY\n                        id DESC\n                "
+  },
+  "d1947d79f32bcb143fb7a1845b5e38a795973559b20d165d9af4cb07e4fbdccd": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Varchar",
+          "Varchar",
+          "Jsonb",
+          "Timestamptz",
+          "Int4"
+        ]
+      }
+    },
+    "query": "\n                INSERT INTO figure_records (id, user_id, character, figure, created_at, stroke_count)\n                VALUES ($1, $2, $3, $4, $5, $6)\n            "
   },
   "daf7de1ef242a09e60fb4424e18d4a2616d693350376ac653484e08283f02188": {
     "describe": {

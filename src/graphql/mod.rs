@@ -21,6 +21,7 @@ pub use app_ctx::*;
 mod loaders;
 
 use self::scalars::CharacterValueScalar;
+use crate::commands::figure_records_command;
 
 mod scalars;
 use crate::queries::{
@@ -452,46 +453,23 @@ impl MutationRoot {
         ctx: &AppCtx,
         input: CreateFigureRecordInput,
     ) -> Result<CreateFigureRecordPayload, ApiError> {
-        let mut trx = ctx.pool.begin().await?;
-
         guard!(let Some(user_id) = ctx.user_id.clone() else {
                 return Err(GraphqlUserError::from("Authentication required").into());
             } );
 
-        let character = input.character.0;
-
-        let figure = input.figure.0;
-
-        let record = entities::FigureRecord {
-            id: Ulid::from_datetime(ctx.now),
+        let record = figure_records_command::create(
+            &ctx.pool,
             user_id,
-            character,
-            figure,
-            created_at: ctx.now,
-        };
+            ctx.now,
+            input.character.0,
+            input.figure.0,
+        )
+        .await?;
 
-        sqlx::query!(
-                r#"
-                    INSERT INTO figure_records (id, user_id, character, figure, created_at, stroke_count)
-                    VALUES ($1, $2, $3, $4, $5, $6)
-                "#,
-                record.id.to_string(),
-                record.user_id,
-                String::from(record.character.clone()),
-                record.figure.to_json_ast(),
-                record.created_at,
-                record.figure.strokes.len() as i32,
-            )
-            .execute(&mut trx)
-            .await
-            .context("fetch figure_records")?;
-
-        let result = Ok(CreateFigureRecordPayload {
+        Ok(CreateFigureRecordPayload {
             figure_record: Some(FigureRecord::from(record)),
             errors: None,
-        });
-        trx.commit().await?;
-        result
+        })
     }
 
     async fn create_character_config(

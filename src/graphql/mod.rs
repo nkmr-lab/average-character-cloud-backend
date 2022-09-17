@@ -16,8 +16,6 @@ use crate::graphql::figure_record_query::{
 use crate::graphql::scalars::{FigureScalar, UlidScalar};
 use anyhow::{anyhow, Context};
 
-pub mod dataloader_with_params;
-
 mod common;
 pub use common::*;
 mod app_ctx;
@@ -47,7 +45,7 @@ trait Node {
 }
 
 #[derive(Clone, Debug, From)]
-struct FigureRecord(entities::figure_record::FigureRecord);
+struct FigureRecord(entities::FigureRecord);
 
 #[juniper::graphql_object(Context = AppCtx, impl = NodeValue)]
 impl FigureRecord {
@@ -107,7 +105,7 @@ struct CreateFigureRecordPayload {
 }
 
 #[derive(Clone, Debug, From)]
-struct CharacterConfig(entities::character_config::CharacterConfig);
+struct CharacterConfig(entities::CharacterConfig);
 
 #[graphql_interface]
 impl Node for CharacterConfig {
@@ -184,7 +182,7 @@ struct UpdateCharacterConfigPayload {
 }
 
 #[derive(Clone, Debug, From)]
-struct Character(entities::character::Character);
+struct Character(entities::Character);
 
 #[graphql_interface]
 impl Node for Character {
@@ -466,7 +464,7 @@ impl MutationRoot {
 
         let figure = input.figure.0;
 
-        let record = entities::figure_record::FigureRecord {
+        let record = entities::FigureRecord {
             id: Ulid::from_datetime(ctx.now),
             user_id,
             character,
@@ -519,7 +517,7 @@ impl MutationRoot {
             });
         });
 
-        let character = entities::character_config::CharacterConfig {
+        let character = entities::CharacterConfig {
             id: Ulid::from_datetime(ctx.now),
             user_id,
             character,

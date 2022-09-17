@@ -4,9 +4,9 @@ use super::{
     character_config_query::{
         CharacterConfigByCharacterLoader, CharacterConfigByIdLoader, CharacterConfigsLoader,
     },
-    dataloader_with_params::DataloaderWithParams,
     figure_record_query::{FigureRecordByIdLoader, FigureRecordsByCharacterLoader},
 };
+use crate::DataloaderWithParams;
 
 pub struct Loaders {
     pub character_config_by_character_loader:

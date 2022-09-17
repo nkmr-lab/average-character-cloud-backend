@@ -114,7 +114,7 @@ impl Limit {
 pub enum NodeID {
     FigureRecord(Ulid),
     CharacterConfig(Ulid),
-    Character(entities::character::Character),
+    Character(entities::Character),
 }
 
 impl NodeID {
@@ -144,7 +144,7 @@ impl NodeID {
             Some(NodeID::CharacterConfig(ulid))
         } else if let Some(character) = s.strip_prefix("Character:") {
             Some(NodeID::Character(
-                entities::character::Character::try_from(character).ok()?,
+                entities::Character::try_from(character).ok()?,
             ))
         } else {
             None

@@ -26,7 +26,7 @@ where
 }
 
 #[derive(Debug, Clone)]
-pub struct FigureScalar(pub entities::figure::Figure);
+pub struct FigureScalar(pub entities::Figure);
 
 #[juniper::graphql_scalar(name = "Figure")]
 impl<S> GraphQLScalar for FigureScalar
@@ -40,7 +40,7 @@ where
     fn from_input_value(value: &juniper::InputValue) -> Option<FigureScalar> {
         value
             .as_string_value()
-            .and_then(|s| entities::figure::Figure::from_json(s).map(FigureScalar))
+            .and_then(|s| entities::Figure::from_json(s).map(FigureScalar))
     }
 
     fn from_str<'a>(value: juniper::ScalarToken<'a>) -> juniper::ParseScalarResult<'a, S> {
@@ -49,7 +49,7 @@ where
 }
 
 #[derive(Debug, Clone)]
-pub struct CharacterValueScalar(pub entities::character::Character);
+pub struct CharacterValueScalar(pub entities::Character);
 
 #[juniper::graphql_scalar(name = "CharacterValue")]
 impl<S> GraphQLScalar for CharacterValueScalar
@@ -62,7 +62,7 @@ where
 
     fn from_input_value(value: &juniper::InputValue) -> Option<CharacterValueScalar> {
         value.as_string_value().and_then(|s| {
-            entities::character::Character::try_from(s)
+            entities::Character::try_from(s)
                 .map(CharacterValueScalar)
                 .ok()
         })

@@ -8,13 +8,13 @@ use chrono::{DateTime, Utc};
 
 use ulid::Ulid;
 
-use super::{dataloader_with_params::BatchFnWithParams, Limit, LimitKind};
+use super::{Limit, LimitKind};
 use crate::entities;
 use anyhow::Context;
 use async_trait::async_trait;
 
-use super::dataloader_with_params::ShareableError;
-
+use crate::BatchFnWithParams;
+use crate::ShareableError;
 #[derive(Debug, Clone)]
 pub struct CharacterConfigModel {
     pub id: String,
@@ -27,12 +27,12 @@ pub struct CharacterConfigModel {
 }
 
 impl CharacterConfigModel {
-    pub fn into_entity(self) -> anyhow::Result<entities::character_config::CharacterConfig> {
+    pub fn into_entity(self) -> anyhow::Result<entities::CharacterConfig> {
         let id = Ulid::from_str(&self.id).context("ulid decode error")?;
 
-        let character = entities::character::Character::try_from(self.character.as_str())?;
+        let character = entities::Character::try_from(self.character.as_str())?;
 
-        Ok(entities::character_config::CharacterConfig {
+        Ok(entities::CharacterConfig {
             id,
             user_id: self.user_id,
             character,
@@ -56,8 +56,8 @@ pub struct CharacterConfigByCharacterLoaderParams {
 
 #[async_trait]
 impl BatchFnWithParams for CharacterConfigByCharacterLoader {
-    type K = entities::character::Character;
-    type V = Result<Option<entities::character_config::CharacterConfig>, ShareableError>;
+    type K = entities::Character;
+    type V = Result<Option<entities::CharacterConfig>, ShareableError>;
     type P = CharacterConfigByCharacterLoaderParams;
 
     async fn load_with_params(
@@ -139,7 +139,7 @@ pub struct CharacterConfigByIdLoaderParams {
 #[async_trait]
 impl BatchFnWithParams for CharacterConfigByIdLoader {
     type K = Ulid;
-    type V = Result<Option<entities::character_config::CharacterConfig>, ShareableError>;
+    type V = Result<Option<entities::CharacterConfig>, ShareableError>;
     type P = CharacterConfigByIdLoaderParams;
 
     async fn load_with_params(
@@ -222,7 +222,7 @@ pub struct CharacterConfigsLoaderParams {
 #[async_trait]
 impl BatchFnWithParams for CharacterConfigsLoader {
     type K = ();
-    type V = Result<(Vec<entities::character_config::CharacterConfig>, bool), ShareableError>;
+    type V = Result<(Vec<entities::CharacterConfig>, bool), ShareableError>;
     type P = CharacterConfigsLoaderParams;
 
     async fn load_with_params(

@@ -9,10 +9,9 @@ use ulid::Ulid;
 use crate::entities;
 use anyhow::{anyhow, ensure, Context};
 
-use super::{
-    dataloader_with_params::{BatchFnWithParams, ShareableError},
-    Limit, LimitKind,
-};
+use super::{Limit, LimitKind};
+use crate::BatchFnWithParams;
+use crate::ShareableError;
 
 #[derive(Debug, Clone)]
 pub struct FigureRecordModel {
@@ -25,12 +24,12 @@ pub struct FigureRecordModel {
 }
 
 impl FigureRecordModel {
-    pub fn into_entity(self) -> anyhow::Result<entities::figure_record::FigureRecord> {
+    pub fn into_entity(self) -> anyhow::Result<entities::FigureRecord> {
         let id = Ulid::from_str(&self.id).context("ulid decode error")?;
 
-        let character = entities::character::Character::try_from(self.character.as_str())?;
+        let character = entities::Character::try_from(self.character.as_str())?;
 
-        let figure = entities::figure::Figure::from_json_ast(self.figure)
+        let figure = entities::Figure::from_json_ast(self.figure)
             .ok_or_else(|| anyhow!("figure must be valid json"))?;
 
         ensure!(
@@ -38,7 +37,7 @@ impl FigureRecordModel {
             "stroke_count invalid"
         );
 
-        Ok(entities::figure_record::FigureRecord {
+        Ok(entities::FigureRecord {
             id,
             user_id: self.user_id,
             character,
@@ -61,7 +60,7 @@ pub struct FigureRecordByIdLoaderParams {
 #[async_trait]
 impl BatchFnWithParams for FigureRecordByIdLoader {
     type K = Ulid;
-    type V = Result<Option<entities::figure_record::FigureRecord>, ShareableError>;
+    type V = Result<Option<entities::FigureRecord>, ShareableError>;
     type P = FigureRecordByIdLoaderParams;
 
     async fn load_with_params(
@@ -141,8 +140,8 @@ pub struct FigureRecordsByCharacterLoaderParams {
 
 #[async_trait]
 impl BatchFnWithParams for FigureRecordsByCharacterLoader {
-    type K = entities::character::Character;
-    type V = Result<(Vec<entities::figure_record::FigureRecord>, bool), ShareableError>;
+    type K = entities::Character;
+    type V = Result<(Vec<entities::FigureRecord>, bool), ShareableError>;
     type P = FigureRecordsByCharacterLoaderParams;
 
     async fn load_with_params(

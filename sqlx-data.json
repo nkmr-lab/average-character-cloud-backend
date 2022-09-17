@@ -1,5 +1,22 @@
 {
   "db": "PostgreSQL",
+  "1c715e3548fc85e23a2c3ebdf330477f6518acc690740df0ac22bc52608a4134": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Timestamptz",
+          "Int4",
+          "Int4",
+          "Text",
+          "Text",
+          "Int4"
+        ]
+      }
+    },
+    "query": "\n            UPDATE character_configs\n                SET\n                    updated_at = $1,\n                    stroke_count = $2,\n                    version = $3\n                WHERE\n                    id = $4\n                    AND\n                    user_id = $5\n                    AND\n                    version = $6\n            "
+  },
   "2d2be972d4dc51206cc1652086e50e7cee48089060b372b8c80d894fb0a72f9c": {
     "describe": {
       "columns": [
@@ -117,23 +134,6 @@
       }
     },
     "query": "\n            SELECT\n                id,\n                user_id,\n                character,\n                stroke_count,\n                created_at,\n                updated_at,\n                version\n            FROM\n                character_configs\n            WHERE\n                user_id = $1\n                AND\n                ($2::VARCHAR(64)[] IS NULL OR id = Any($2))\n                AND\n                ($3::VARCHAR(64) IS NULL OR id < $3)\n                AND\n                ($4::VARCHAR(64) IS NULL OR id > $4)\n            ORDER BY\n                CASE WHEN $5 = 0 THEN id END DESC,\n                CASE WHEN $5 = 1 THEN id END ASC\n            LIMIT $6\n        "
-  },
-  "5d2433e19db059c10e849101933918a73545c6b82a5fd3621af6615194c9af23": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Timestamptz",
-          "Int4",
-          "Int4",
-          "Text",
-          "Text",
-          "Int4"
-        ]
-      }
-    },
-    "query": "\n                UPDATE character_configs\n                    SET\n                        updated_at = $1,\n                        stroke_count = $2,\n                        version = $3\n                    WHERE\n                        id = $4\n                        AND\n                        user_id = $5\n                        AND\n                        version = $6\n                "
   },
   "82057a0bb000435195b6cf1fb039398f47ce15a7762d06fec8a86cc9f4606ba9": {
     "describe": {

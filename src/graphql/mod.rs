@@ -12,7 +12,7 @@ use ulid::Ulid;
 use crate::entities;
 
 use crate::graphql::scalars::{FigureScalar, UlidScalar};
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 
 mod common;
 pub use common::*;
@@ -519,7 +519,6 @@ impl MutationRoot {
         ctx: &AppCtx,
         input: UpdateCharacterConfigInput,
     ) -> Result<UpdateCharacterConfigPayload, ApiError> {
-        let mut trx = ctx.pool.begin().await?;
         guard!(let Some(user_id) = ctx.user_id.clone() else {
             return Err(GraphqlUserError::from("Authentication required").into());
         });
@@ -542,58 +541,31 @@ impl MutationRoot {
             return Err(GraphqlUserError::from("Not found").into());
         });
 
-        let prev_version = character_config.version;
+        guard!(let Ok(stroke_count) = input
+        .stroke_count
+        .map(|stroke_count| stroke_count.try_into())
+        .transpose() else {
+           return Ok(UpdateCharacterConfigPayload {
+                character_config: None,
+                errors: Some(vec![GraphqlErrorType {
+                    message: "stroke_count must be an non negative integer".to_string(),
+                }]),
+            });
+        });
 
-        character_config.version += 1;
-        character_config.updated_at = ctx.now;
-        if let Some(stroke_count) = input.stroke_count {
-            if let Ok(stroke_count) = stroke_count.try_into() {
-                character_config.stroke_count = stroke_count;
-            } else {
-                return Ok(UpdateCharacterConfigPayload {
-                    character_config: None,
-                    errors: Some(vec![GraphqlErrorType {
-                        message: "stroke_count must be an non negative integer".to_string(),
-                    }]),
-                });
-            }
-        }
-
-        let result = sqlx::query!(
-            r#"
-                UPDATE character_configs
-                    SET
-                        updated_at = $1,
-                        stroke_count = $2,
-                        version = $3
-                    WHERE
-                        id = $4
-                        AND
-                        user_id = $5
-                        AND
-                        version = $6
-                "#,
-            &character_config.updated_at,
-            character_config.stroke_count as i32,
-            character_config.version,
-            id.to_string(),
-            &user_id,
-            prev_version,
+        let character_config = character_configs_command::update(
+            &ctx.pool,
+            user_id,
+            ctx.now,
+            character_config,
+            stroke_count,
         )
-        .execute(&mut trx)
-        .await
-        .context("update character_config")?;
+        .await?;
 
-        if result.rows_affected() == 0 {
-            return Err(anyhow!("conflict").into());
-        }
-
-        let result = Ok(UpdateCharacterConfigPayload {
+        Ok(UpdateCharacterConfigPayload {
             character_config: Some(CharacterConfig::from(character_config)),
             errors: None,
-        });
-        trx.commit().await?;
-        result
+        })
     }
 }
 

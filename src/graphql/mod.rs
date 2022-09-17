@@ -21,7 +21,7 @@ pub use app_ctx::*;
 mod loaders;
 
 use self::scalars::CharacterValueScalar;
-use crate::commands::figure_records_command;
+use crate::commands::{character_configs_command, figure_records_command};
 
 mod scalars;
 use crate::queries::{
@@ -476,13 +476,9 @@ impl MutationRoot {
         ctx: &AppCtx,
         input: CreateCharacterConfigInput,
     ) -> Result<CreateCharacterConfigPayload, ApiError> {
-        let mut trx = ctx.pool.begin().await?;
-
         guard!(let Some(user_id) = ctx.user_id.clone() else {
             return Err(GraphqlUserError::from("Authentication required").into());
         });
-
-        let character = input.character.0;
 
         guard!(let Ok(stroke_count) = input.stroke_count.try_into() else {
             return Ok(CreateCharacterConfigPayload {
@@ -493,68 +489,34 @@ impl MutationRoot {
             });
         });
 
-        let character = entities::CharacterConfig {
-            id: Ulid::from_datetime(ctx.now),
+        let character_config = match character_configs_command::create(
+            &ctx.pool,
             user_id,
-            character,
-            created_at: ctx.now,
-            updated_at: ctx.now,
+            ctx.now,
+            input.character.0,
             stroke_count,
-            version: 1,
+        )
+        .await
+        {
+            Ok(character_config) => character_config,
+            Err(e) => {
+                if let Some(e) = e.downcast_ref::<character_configs_command::CreateError>() {
+                    return Ok(CreateCharacterConfigPayload {
+                        character_config: None,
+                        errors: Some(vec![GraphqlErrorType {
+                            message: e.to_string(),
+                        }]),
+                    });
+                } else {
+                    return Err(e.into());
+                }
+            }
         };
 
-        // check exist
-        let exists = sqlx::query!(
-            r#"
-                SELECT
-                    id
-                FROM
-                    character_configs
-                WHERE
-                    user_id = $1
-                    AND
-                    character = $2
-            "#,
-            character.user_id,
-            String::from(character.character.clone()),
-        )
-        .fetch_optional(&mut trx)
-        .await
-        .context("check character_config exist")?
-        .is_some();
-
-        if exists {
-            return Ok(CreateCharacterConfigPayload {
-                character_config: None,
-                errors: Some(vec![GraphqlErrorType {
-                    message: "character already exists".to_string(),
-                }]),
-            });
-        }
-
-        sqlx::query!(
-                r#"
-                    INSERT INTO character_configs (id, user_id, character, created_at, updated_at, stroke_count, version)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
-                "#,
-                character.id.to_string(),
-                character.user_id,
-                String::from(character.character.clone()),
-                character.created_at,
-                character.updated_at,
-                character.stroke_count as i32,
-                character.version,
-            )
-            .execute(&mut trx)
-            .await
-            .context("insert character_configs")?;
-
-        let result = Ok(CreateCharacterConfigPayload {
-            character_config: Some(CharacterConfig::from(character)),
+        Ok(CreateCharacterConfigPayload {
+            character_config: Some(CharacterConfig::from(character_config)),
             errors: None,
-        });
-        trx.commit().await?;
-        result
+        })
     }
 
     async fn update_character_config(

@@ -1,4 +1,4 @@
-use crate::entities::{self};
+use crate::entities;
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use sqlx::{Pool, Postgres};

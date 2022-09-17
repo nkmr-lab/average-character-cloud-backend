@@ -9,6 +9,7 @@ use ulid::Ulid;
 use crate::entities::{self};
 use anyhow::anyhow;
 
+use crate::values::{Limit, LimitKind};
 use std::fmt;
 
 #[derive(Debug, Error)]
@@ -58,55 +59,41 @@ impl<T: Into<anyhow::Error>> From<T> for ApiError {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum LimitKind {
-    First,
-    Last,
-}
+pub fn encode_limit(first: Option<i32>, last: Option<i32>) -> anyhow::Result<Limit> {
+    let max = 100;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Limit {
-    pub kind: LimitKind,
-    pub value: i32,
-}
-
-impl Limit {
-    pub fn encode(first: Option<i32>, last: Option<i32>) -> anyhow::Result<Self> {
-        let max = 100;
-
-        match (first, last) {
-            (Some(first), None) => {
-                if first < 0 {
-                    Err(GraphqlUserError::from("first must be greater than or equal to 0").into())
-                } else if first > max {
-                    Err(GraphqlUserError::from(
-                        format!("first must be less than or equal to {}", max).as_str(),
-                    )
-                    .into())
-                } else {
-                    Ok(Limit {
-                        kind: LimitKind::First,
-                        value: first,
-                    })
-                }
+    match (first, last) {
+        (Some(first), None) => {
+            if first < 0 {
+                Err(GraphqlUserError::from("first must be greater than or equal to 0").into())
+            } else if first > max {
+                Err(GraphqlUserError::from(
+                    format!("first must be less than or equal to {}", max).as_str(),
+                )
+                .into())
+            } else {
+                Ok(Limit {
+                    kind: LimitKind::First,
+                    value: first,
+                })
             }
-            (None, Some(last)) => {
-                if last < 0 {
-                    Err(GraphqlUserError::from("last must be greater than or equal to 0").into())
-                } else if last > max {
-                    Err(GraphqlUserError::from(
-                        format!("last must be less than or equal to {}", max).as_str(),
-                    )
-                    .into())
-                } else {
-                    Ok(Limit {
-                        kind: LimitKind::Last,
-                        value: last,
-                    })
-                }
-            }
-            _ => Err(GraphqlUserError::from("Must provide either first or last, not both").into()),
         }
+        (None, Some(last)) => {
+            if last < 0 {
+                Err(GraphqlUserError::from("last must be greater than or equal to 0").into())
+            } else if last > max {
+                Err(GraphqlUserError::from(
+                    format!("last must be less than or equal to {}", max).as_str(),
+                )
+                .into())
+            } else {
+                Ok(Limit {
+                    kind: LimitKind::Last,
+                    value: last,
+                })
+            }
+        }
+        _ => Err(GraphqlUserError::from("Must provide either first or last, not both").into()),
     }
 }
 

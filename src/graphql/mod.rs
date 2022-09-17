@@ -10,9 +10,7 @@ use juniper::{
 use ulid::Ulid;
 
 use crate::entities;
-use crate::graphql::figure_record_query::{
-    FigureRecordByIdLoaderParams, FigureRecordsByCharacterLoaderParams,
-};
+
 use crate::graphql::scalars::{FigureScalar, UlidScalar};
 use anyhow::{anyhow, Context};
 
@@ -21,16 +19,16 @@ pub use common::*;
 mod app_ctx;
 pub use app_ctx::*;
 mod loaders;
-use character_config_query::{
-    CharacterConfigByCharacterLoaderParams, CharacterConfigByIdLoaderParams,
-    CharacterConfigsLoaderParams,
-};
 
 use self::scalars::CharacterValueScalar;
 
-mod character_config_query;
-mod figure_record_query;
 mod scalars;
+use crate::queries::{
+    CharacterConfigByCharacterLoaderParams, CharacterConfigByIdLoaderParams,
+    CharacterConfigsLoaderParams, FigureRecordByIdLoaderParams,
+    FigureRecordsByCharacterLoaderParams,
+};
+use crate::values::LimitKind;
 
 /*
  * replayの仕様に従うこと
@@ -238,7 +236,7 @@ impl Character {
 
         let ids = ids.map(|ids| ids.into_iter().map(|id| id.0).collect::<Vec<_>>());
 
-        let limit = Limit::encode(first, last)?;
+        let limit = encode_limit(first, last)?;
 
         let after_id = after
             .map(|after| -> anyhow::Result<Ulid> {
@@ -385,7 +383,7 @@ impl QueryRoot {
 
         let ids = ids.map(|ids| ids.into_iter().map(|id| id.0).collect::<Vec<_>>());
 
-        let limit = Limit::encode(first, last)?;
+        let limit = encode_limit(first, last)?;
 
         let after_id = after
                 .map(|after| -> anyhow::Result<Ulid> {

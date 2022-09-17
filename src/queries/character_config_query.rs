@@ -8,8 +8,8 @@ use chrono::{DateTime, Utc};
 
 use ulid::Ulid;
 
-use super::{Limit, LimitKind};
 use crate::entities;
+use crate::values::{Limit, LimitKind};
 use anyhow::Context;
 use async_trait::async_trait;
 

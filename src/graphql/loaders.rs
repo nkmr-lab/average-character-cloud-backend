@@ -1,10 +1,8 @@
 use sqlx::PgPool;
 
-use super::{
-    character_config_query::{
-        CharacterConfigByCharacterLoader, CharacterConfigByIdLoader, CharacterConfigsLoader,
-    },
-    figure_record_query::{FigureRecordByIdLoader, FigureRecordsByCharacterLoader},
+use crate::queries::{
+    CharacterConfigByCharacterLoader, CharacterConfigByIdLoader, CharacterConfigsLoader,
+    FigureRecordByIdLoader, FigureRecordsByCharacterLoader,
 };
 use crate::DataloaderWithParams;
 

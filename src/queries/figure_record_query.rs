@@ -9,7 +9,7 @@ use ulid::Ulid;
 use crate::entities;
 use anyhow::{anyhow, ensure, Context};
 
-use super::{Limit, LimitKind};
+use crate::values::{Limit, LimitKind};
 use crate::BatchFnWithParams;
 use crate::ShareableError;
 

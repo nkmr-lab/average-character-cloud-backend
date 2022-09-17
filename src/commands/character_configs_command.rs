@@ -17,7 +17,7 @@ pub async fn create(
     now: DateTime<Utc>,
     character: entities::Character,
     stroke_count: usize,
-) -> anyhow::Result<entities::CharacterConfig> {
+) -> anyhow::Result<Result<entities::CharacterConfig, CreateError>> {
     let mut trx = pool.begin().await?;
 
     let character_config = entities::CharacterConfig {
@@ -51,7 +51,7 @@ pub async fn create(
     .is_some();
 
     if exists {
-        return Err(CreateError::AlreadyExists.into());
+        return Ok(Err(CreateError::AlreadyExists));
     }
 
     sqlx::query!(
@@ -72,5 +72,5 @@ pub async fn create(
         .context("insert character_configs")?;
 
     trx.commit().await?;
-    Ok(character_config)
+    Ok(Ok(character_config))
 }

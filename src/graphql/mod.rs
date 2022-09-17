@@ -496,20 +496,16 @@ impl MutationRoot {
             input.character.0,
             stroke_count,
         )
-        .await
+        .await?
         {
             Ok(character_config) => character_config,
             Err(e) => {
-                if let Some(e) = e.downcast_ref::<character_configs_command::CreateError>() {
-                    return Ok(CreateCharacterConfigPayload {
-                        character_config: None,
-                        errors: Some(vec![GraphqlErrorType {
-                            message: e.to_string(),
-                        }]),
-                    });
-                } else {
-                    return Err(e.into());
-                }
+                return Ok(CreateCharacterConfigPayload {
+                    character_config: None,
+                    errors: Some(vec![GraphqlErrorType {
+                        message: e.to_string(),
+                    }]),
+                });
             }
         };
 

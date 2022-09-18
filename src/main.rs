@@ -4,6 +4,7 @@ use actix_session::storage::RedisSessionStore;
 use actix_session::{Session, SessionLength, SessionMiddleware};
 use actix_web::cookie::Key;
 use actix_web::{error, get, middleware, post, web, App, HttpRequest, HttpResponse, HttpServer};
+use anyhow::Context;
 use average_character_cloud_backend::google_public_key_provider::{
     GooglePublicKeyProvider, GooglePublicKeyProviderCommand,
 };
@@ -16,6 +17,7 @@ use sqlx::PgPool;
 use std::collections::HashMap;
 use std::io;
 use time::Duration;
+use tokio_cron_scheduler::JobScheduler;
 use tracing_actix_web::TracingLogger;
 
 use actix_web_extras::middleware::Condition as OptionalCondition;
@@ -234,7 +236,7 @@ async fn google_callback(
 }
 
 #[tokio::main]
-async fn main() -> io::Result<()> {
+async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
     let cli = Cli::parse();
 
@@ -242,13 +244,13 @@ async fn main() -> io::Result<()> {
     let pool = PgPoolOptions::new()
         .connect(&config.database_url)
         .await
-        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+        .context("Failed to connect to database")?;
 
     match cli.command {
         Some(Commands::Migrate) => sqlx::migrate!("./migrations")
             .run(&pool)
             .await
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, err)),
+            .context("migrate"),
         None => {
             let host = config.host.clone();
             let port = config.port;
@@ -260,9 +262,7 @@ async fn main() -> io::Result<()> {
             } = &config.session
             {
                 let secret_key = Key::from(crypto_key.as_slice());
-                let store = RedisSessionStore::new(redis_url.clone())
-                    .await
-                    .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+                let store = RedisSessionStore::new(redis_url.clone()).await?;
 
                 Some((secret_key, store))
             } else {
@@ -273,12 +273,26 @@ async fn main() -> io::Result<()> {
             tokio::spawn(async move {
                 GooglePublicKeyProvider::run(google_public_key_provider_rx).await;
             });
+
+            let amqp_pool = {
+                let mut cfg = deadpool_lapin::Config::default();
+                cfg.url = Some(config.amqp_uri.clone());
+                cfg.create_pool(Some(deadpool_lapin::Runtime::Tokio1))?
+            };
+
+            if config.enqueue_cron_task {
+                let sched = JobScheduler::new().await?;
+                // TODO
+                sched.start().await?;
+            }
+
             HttpServer::new(move || {
                 let mut app = App::new()
                     .wrap(TracingLogger::default())
                     .app_data(web::Data::new(schema.clone()))
                     .app_data(web::Data::new(config.clone()))
                     .app_data(web::Data::new(pool.clone()))
+                    .app_data(web::Data::new(amqp_pool.clone()))
                     .service(graphql)
                     .service(graphiql)
                     .service(logout);
@@ -308,6 +322,7 @@ async fn main() -> io::Result<()> {
             .bind((host.as_str(), port))?
             .run()
             .await
+            .context("Failed to start server")
         }
     }
 }

@@ -38,6 +38,8 @@ pub struct AppConfig {
     pub session: SessionConfig,
     pub origin: String,
     pub logout_redirect_url: String,
+    pub amqp_uri: String,
+    pub enqueue_cron_task: bool,
 }
 
 // serde_envがprefixに未対応なので

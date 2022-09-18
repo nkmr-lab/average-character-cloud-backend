@@ -13,10 +13,12 @@ base64 = "0.13.0"
 chrono = "0.4.19"
 clap = {version = "3.2.16", features = ["derive"]}
 dataloader = {version = "0.15.0", features = ["runtime-tokio"], default-features = false}
+deadpool-lapin = "0.10.0"
 derive_more = "0.99.17"
 guard = "0.5.1"
 jsonwebtoken = {version = "8.1.0", features = ["use_pem"]}
 juniper = "0.15.9"
+lapin = "2.1.1"
 reqwest = "0.11.10"
 serde = "1.0.137"
 serde-env = "0.1.0"
@@ -25,6 +27,7 @@ sqlx = {version = "0.5.13", features = ["runtime-tokio-native-tls", "postgres", 
 thiserror = "1.0"
 time = "0.3.9"
 tokio = {version = "1.19.2", features = ["sync", "rt", "macros"]}
+tokio-cron-scheduler = "0.8.1"
 tracing = "0.1"
 tracing-actix-web = "0.6"
 tracing-subscriber = "0.2"

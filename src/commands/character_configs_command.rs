@@ -64,7 +64,7 @@ pub async fn create(
             String::from(character_config.character.clone()),
             character_config.created_at,
             character_config.updated_at,
-            character_config.stroke_count as i32,
+            i32::try_from(character_config.stroke_count)?,
             character_config.version,
         )
         .execute(&mut trx)
@@ -106,7 +106,7 @@ pub async fn update(
                     version = $6
             "#,
         &character_config.updated_at,
-        character_config.stroke_count as i32,
+        i32::try_from(character_config.stroke_count)?,
         character_config.version,
         character_config.id.to_string(),
         &character_config.user_id,

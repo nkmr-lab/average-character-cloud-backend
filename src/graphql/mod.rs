@@ -127,8 +127,8 @@ impl CharacterConfig {
         Character::from(self.0.character.clone())
     }
 
-    fn stroke_count(&self) -> i32 {
-        self.0.stroke_count as i32
+    fn stroke_count(&self) -> Result<i32, ApiError> {
+        Ok(i32::try_from(self.0.stroke_count)?)
     }
 
     fn created_at(&self) -> DateTime<Utc> {

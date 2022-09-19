@@ -33,7 +33,7 @@ impl FigureRecordModel {
             .ok_or_else(|| anyhow!("figure must be valid json"))?;
 
         ensure!(
-            self.stroke_count as usize == figure.strokes.len(),
+            usize::try_from(self.stroke_count)? == figure.strokes.len(),
             "stroke_count invalid"
         );
 
@@ -211,8 +211,8 @@ impl BatchFnWithParams for FigureRecordsByCharacterLoader {
                 ids.as_ref().map(|ids| ids.as_slice()),
                 params.after_id.map(|id| id.to_string()),
                 params.before_id.map(|id| id.to_string()),
-                (params.limit.kind == LimitKind::Last) as i32,
-                params.limit.value as i64 + 1,
+                i32::from(params.limit.kind == LimitKind::Last),
+                i64::from(params.limit.value) + 1,
             )
             .fetch_all(&self.pool)
             .await
@@ -243,16 +243,18 @@ impl BatchFnWithParams for FigureRecordsByCharacterLoader {
             .map(|key| {
                 (
                     key.clone(),
-                    result
-                        .as_ref()
-                        .map(|figure_records_map| {
+                    result.as_ref().map_err(|e| e.clone()).and_then(
+                        |figure_records_map| -> Result<_, ShareableError> {
                             let mut figure_records =
                                 figure_records_map.get(key).cloned().unwrap_or_default();
-                            let has_extra = figure_records.len() > params.limit.value as usize;
-                            figure_records.truncate(params.limit.value as usize);
-                            (figure_records, has_extra)
-                        })
-                        .map_err(|e| e.clone()),
+                            let has_extra = figure_records.len()
+                                > usize::try_from(params.limit.value).context("into usize")?;
+                            figure_records.truncate(
+                                usize::try_from(params.limit.value).context("into usize")?,
+                            );
+                            Ok((figure_records, has_extra))
+                        },
+                    ),
                 )
             })
             .collect()

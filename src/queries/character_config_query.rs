@@ -36,7 +36,7 @@ impl CharacterConfigModel {
             id,
             user_id: self.user_id,
             character,
-            stroke_count: self.stroke_count as usize,
+            stroke_count: usize::try_from(self.stroke_count)?,
             created_at: self.created_at,
             updated_at: self.updated_at,
             version: self.version,
@@ -265,8 +265,8 @@ impl BatchFnWithParams for CharacterConfigsLoader {
                 ids.as_ref().map(|ids| ids.as_slice()),
                 params.after_id.map(|id| id.to_string()),
                 params.before_id.map(|id| id.to_string()),
-                (params.limit.kind == LimitKind::Last) as i32,
-                params.limit.value as i64 + 1,
+                i32::from(params.limit.kind == LimitKind::Last),
+                i64::from(params.limit.value) + 1,
             )
             .fetch_all(&self.pool)
             .await
@@ -278,9 +278,10 @@ impl BatchFnWithParams for CharacterConfigsLoader {
                 .collect::<anyhow::Result<Vec<_>>>()
                 .context("convert CharacterConfig")?;
 
-            let has_extra = character_configs.len() > params.limit.value as usize;
+            let has_extra = character_configs.len()
+                > usize::try_from(params.limit.value).context("into usize")?;
 
-            character_configs.truncate(params.limit.value as usize);
+            character_configs.truncate(usize::try_from(params.limit.value).context("into usize")?);
 
             if params.limit.kind == LimitKind::Last {
                 character_configs.reverse();

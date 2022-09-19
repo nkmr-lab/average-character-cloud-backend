@@ -297,10 +297,16 @@ impl Character {
     }
 }
 
-#[derive(GraphQLObject, Clone, Debug)]
-#[graphql(context = AppCtx)]
-struct LoginUser {
-    user_id: String,
+#[derive(Clone, Debug)]
+struct User {
+    id: String,
+}
+
+#[juniper::graphql_object(Context = AppCtx)]
+impl User {
+    fn user_id(&self) -> String {
+        self.id.clone()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -311,8 +317,8 @@ impl QueryRoot {
         QueryRoot
     }
 
-    fn login_user(ctx: &AppCtx) -> Option<LoginUser> {
-        ctx.user_id.clone().map(|user_id| LoginUser { user_id })
+    fn login_user(ctx: &AppCtx) -> Option<User> {
+        ctx.user_id.clone().map(|user_id| User { id: user_id })
     }
 
     async fn node(ctx: &AppCtx, id: ID) -> Result<Option<NodeValue>, ApiError> {

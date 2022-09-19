@@ -17,6 +17,50 @@
     },
     "query": "\n            UPDATE character_configs\n                SET\n                    updated_at = $1,\n                    stroke_count = $2,\n                    version = $3\n                WHERE\n                    id = $4\n                    AND\n                    user_id = $5\n                    AND\n                    version = $6\n            "
   },
+  "1c8e09b6ce8711ce16140da47da64e332face9636cb3b559a503244698d85e20": {
+    "describe": {
+      "columns": [
+        {
+          "name": "user_id",
+          "ordinal": 0,
+          "type_info": "Varchar"
+        },
+        {
+          "name": "allow_sharing_character_configs",
+          "ordinal": 1,
+          "type_info": "Bool"
+        },
+        {
+          "name": "allow_sharing_figure_records",
+          "ordinal": 2,
+          "type_info": "Bool"
+        },
+        {
+          "name": "updated_at",
+          "ordinal": 3,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "version",
+          "ordinal": 4,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      }
+    },
+    "query": "\n        SELECT\n            user_id,\n            allow_sharing_character_configs,\n            allow_sharing_figure_records,\n            updated_at,\n            version\n        FROM\n            user_configs\n        WHERE\n            user_id = $1\n        "
+  },
   "2d2be972d4dc51206cc1652086e50e7cee48089060b372b8c80d894fb0a72f9c": {
     "describe": {
       "columns": [

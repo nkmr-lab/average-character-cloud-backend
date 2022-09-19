@@ -25,7 +25,7 @@ use crate::commands::{character_configs_command, figure_records_command};
 
 mod scalars;
 use crate::queries::{
-    CharacterConfigByCharacterLoaderParams, CharacterConfigByIdLoaderParams,
+    load_user_config, CharacterConfigByCharacterLoaderParams, CharacterConfigByIdLoaderParams,
     CharacterConfigsLoaderParams, FigureRecordByIdLoaderParams,
     FigureRecordsByCharacterLoaderParams,
 };
@@ -297,28 +297,48 @@ impl Character {
     }
 }
 
-#[derive(Clone, Debug)]
-struct User {
-    id: String,
-}
+#[derive(Clone, Debug, From)]
+struct UserConfig(entities::UserConfig);
 
 #[juniper::graphql_object(Context = AppCtx)]
-impl User {
-    fn user_id(&self) -> String {
-        self.id.clone()
+impl UserConfig {
+    fn allow_sharing_character_configs(&self) -> bool {
+        self.0.allow_sharing_character_configs
     }
+
+    fn allow_sharing_figure_records(&self) -> bool {
+        self.0.allow_sharing_figure_records
+    }
+
+    fn updated_at(&self) -> Option<DateTime<Utc>> {
+        self.0.updated_at
+    }
+}
+
+#[derive(GraphQLObject, Clone, Debug)]
+#[graphql(context = AppCtx)]
+struct LoginUser {
+    user_id: String,
 }
 
 #[derive(Clone, Debug)]
 pub struct QueryRoot;
+
 #[juniper::graphql_object(Context = AppCtx, name = "Query")]
 impl QueryRoot {
     fn query() -> QueryRoot {
         QueryRoot
     }
+    fn login_user(ctx: &AppCtx) -> Option<LoginUser> {
+        ctx.user_id.clone().map(|user_id| LoginUser { user_id })
+    }
 
-    fn login_user(ctx: &AppCtx) -> Option<User> {
-        ctx.user_id.clone().map(|user_id| User { id: user_id })
+    async fn user_config(&self, ctx: &AppCtx) -> Result<UserConfig, ApiError> {
+        guard!(let Some(user_id) = ctx.user_id.clone() else {
+            return Err(GraphqlUserError::from("Authentication required").into());
+        });
+
+        Ok(UserConfig(load_user_config(&ctx.pool, user_id).await?))
     }
 
     async fn node(ctx: &AppCtx, id: ID) -> Result<Option<NodeValue>, ApiError> {

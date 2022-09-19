@@ -30,3 +30,11 @@ CREATE INDEX "character_configs_created_at_idx" ON "character_configs" ("created
 CREATE INDEX "character_configs_updated_at_idx" ON "character_configs" ("updated_at");
 CREATE INDEX "character_configs_version_idx" ON "character_configs" ("version");
 CREATE UNIQUE INDEX "character_configs_user_id_character_idx" ON "character_configs" ("user_id", "character");
+
+CREATE TABLE "user_configs" (
+  "user_id" VARCHAR(64) PRIMARY KEY,
+  "allow_sharing_character_configs" BOOLEAN NOT NULL,
+  "allow_sharing_figure_records" BOOLEAN NOT NULL,
+  "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL,
+  "version" INTEGER NOT NULL
+);

@@ -308,7 +308,7 @@
     },
     "query": "\n                SELECT\n                    id,\n                    user_id,\n                    character,\n                    figure,\n                    created_at,\n                    stroke_count\n                FROM\n                    figure_records\n                WHERE\n                    id = Any($1)\n                    AND user_id = $2\n            "
   },
-  "aed0ffddb175178be0620398364e70b98b5812261b818894434ad862b37c47a7": {
+  "9957fce4a6bebc578cebea4d5bdb85a29658556500853e8e12264650c6a9bdd6": {
     "describe": {
       "columns": [],
       "nullable": [],
@@ -323,7 +323,7 @@
         ]
       }
     },
-    "query": "\n            UPDATE user_configs\n                SET\n                    updated_at = $1,\n                    allow_sharing_character_configs = $2,\n                    allow_sharing_figure_records = $3,\n                    version = $4\n                WHERE\n                    user_id = $5\n                    AND\n                    version = $6\n            "
+    "query": "\n                UPDATE user_configs\n                    SET\n                        updated_at = $1,\n                        allow_sharing_character_configs = $2,\n                        allow_sharing_figure_records = $3,\n                        version = $4\n                    WHERE\n                        user_id = $5\n                        AND\n                        version = $6\n                "
   },
   "ca5b4e47a14e8eaa09d5de390f917bceb0db9548d4aadf4d2b816446e41570ec": {
     "describe": {
@@ -415,5 +415,21 @@
       }
     },
     "query": "\n                INSERT INTO figure_records (id, user_id, character, figure, created_at, stroke_count)\n                VALUES ($1, $2, $3, $4, $5, $6)\n            "
+  },
+  "f262beb24bec3ecd492c3236e2cedf5962e7297e20df02f5093b921504ab186f": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Bool",
+          "Bool",
+          "Timestamptz",
+          "Int4"
+        ]
+      }
+    },
+    "query": " \n                INSERT\n                    INTO user_configs (\n                        user_id,\n                        allow_sharing_character_configs,\n                        allow_sharing_figure_records,\n                        updated_at,\n                        version\n                    ) VALUES ($1, $2, $3, $4, $5)\n                "
   }
 }

@@ -102,6 +102,7 @@ pub enum NodeID {
     FigureRecord(Ulid),
     CharacterConfig(Ulid),
     Character(entities::Character),
+    UserConfig(String),
 }
 
 impl NodeID {
@@ -115,6 +116,7 @@ impl NodeID {
                 "Character:{}",
                 String::from(character.clone())
             ))),
+            NodeID::UserConfig(id) => ID::new(base64::encode(format!("UserConfig:{}", id))),
         }
     }
 
@@ -133,6 +135,8 @@ impl NodeID {
             Some(NodeID::Character(
                 entities::Character::try_from(character).ok()?,
             ))
+        } else if let Some(user_id) = s.strip_prefix("UserConfig:") {
+            Some(NodeID::UserConfig(user_id.to_string()))
         } else {
             None
         }

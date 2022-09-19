@@ -37,7 +37,7 @@ use crate::values::LimitKind;
  *   https://relay.dev/graphql/connections.htm
 */
 
-#[graphql_interface(for = [FigureRecord, CharacterConfig, Character], context = AppCtx)]
+#[graphql_interface(for = [FigureRecord, CharacterConfig, Character, UserConfig], context = AppCtx)]
 trait Node {
     #[graphql(name = "id")]
     fn node_id(&self) -> ID;
@@ -315,8 +315,19 @@ impl Character {
 #[derive(Clone, Debug, From)]
 struct UserConfig(entities::UserConfig);
 
-#[juniper::graphql_object(Context = AppCtx)]
+#[graphql_interface]
+impl Node for UserConfig {
+    fn node_id(&self) -> ID {
+        NodeID::UserConfig(self.0.user_id.clone()).to_id()
+    }
+}
+
+#[juniper::graphql_object(Context = AppCtx, impl = NodeValue)]
 impl UserConfig {
+    fn id(&self) -> ID {
+        self.node_id()
+    }
+
     fn allow_sharing_character_configs(&self) -> bool {
         self.0.allow_sharing_character_configs
     }
@@ -393,6 +404,13 @@ impl QueryRoot {
             }
             NodeID::Character(character) => {
                 Ok(Some(NodeValue::Character(Character::from(character))))
+            }
+            NodeID::UserConfig(user_id_of_node_id) => {
+                if user_id_of_node_id != user_id {
+                    return Ok(None);
+                }
+                let user_config = load_user_config(&ctx.pool, user_id).await?;
+                Ok(Some(NodeValue::UserConfig(UserConfig(user_config))))
             }
         }
     }

@@ -77,7 +77,6 @@ pub async fn create(
 
 pub async fn update(
     pool: &Pool<Postgres>,
-    user_id: String,
     now: DateTime<Utc>,
     mut character_config: entities::CharacterConfig,
     stroke_count: Option<usize>,
@@ -110,7 +109,7 @@ pub async fn update(
         character_config.stroke_count as i32,
         character_config.version,
         character_config.id.to_string(),
-        &user_id,
+        &character_config.user_id,
         prev_version,
     )
     .execute(&mut trx)
@@ -118,7 +117,7 @@ pub async fn update(
     .context("update character_config")?;
 
     if result.rows_affected() == 0 {
-        return Err(anyhow!("conflict").into());
+        return Err(anyhow!("conflict"));
     }
 
     trx.commit().await?;

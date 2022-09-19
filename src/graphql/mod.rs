@@ -21,7 +21,7 @@ pub use app_ctx::*;
 mod loaders;
 
 use self::scalars::CharacterValueScalar;
-use crate::commands::{character_configs_command, figure_records_command};
+use crate::commands::{character_configs_command, figure_records_command, user_configs_command};
 
 mod scalars;
 use crate::queries::{
@@ -177,6 +177,19 @@ struct UpdateCharacterConfigInput {
 #[graphql(context = AppCtx)]
 struct UpdateCharacterConfigPayload {
     character_config: Option<CharacterConfig>,
+    errors: Option<Vec<GraphqlErrorType>>,
+}
+
+#[derive(GraphQLInputObject, Clone, Debug)]
+struct UpdateUserConfigInput {
+    allow_sharing_character_configs: Option<bool>,
+    allow_sharing_figure_records: Option<bool>,
+}
+
+#[derive(GraphQLObject, Clone, Debug)]
+#[graphql(context = AppCtx)]
+struct UpdateUserConfigPayload {
+    user_config: Option<UserConfig>,
     errors: Option<Vec<GraphqlErrorType>>,
 }
 
@@ -579,17 +592,40 @@ impl MutationRoot {
             });
         });
 
-        let character_config = character_configs_command::update(
-            &ctx.pool,
-            user_id,
-            ctx.now,
-            character_config,
-            stroke_count,
-        )
-        .await?;
+        let character_config =
+            character_configs_command::update(&ctx.pool, ctx.now, character_config, stroke_count)
+                .await?;
 
         Ok(UpdateCharacterConfigPayload {
             character_config: Some(CharacterConfig::from(character_config)),
+            errors: None,
+        })
+    }
+
+    async fn update_user_config(
+        ctx: &AppCtx,
+        input: UpdateUserConfigInput,
+    ) -> Result<UpdateUserConfigPayload, ApiError> {
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
+
+        let user_config = load_user_config(&ctx.pool, user_id.clone())
+            .await
+            .context("load user_config")?;
+
+        let user_config = user_configs_command::update(
+            &ctx.pool,
+            ctx.now,
+            user_config,
+            input.allow_sharing_character_configs,
+            input.allow_sharing_figure_records,
+        )
+        .await?;
+
+        Ok(UpdateUserConfigPayload {
+            user_config: Some(UserConfig::from(user_config)),
             errors: None,
         })
     }

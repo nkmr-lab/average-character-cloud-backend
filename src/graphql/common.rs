@@ -124,22 +124,15 @@ impl NodeID {
         let id = id.to_string();
         let buf = base64::decode(id).ok()?;
         let s = String::from_utf8(buf).ok()?;
-
-        if let Some(record_id) = s.strip_prefix("FigureRecord:") {
-            let ulid = Ulid::from_str(record_id).ok()?;
-            Some(NodeID::FigureRecord(ulid))
-        } else if let Some(character_id) = s.strip_prefix("CharacterConfig:") {
-            let ulid = Ulid::from_str(character_id).ok()?;
-            Some(NodeID::CharacterConfig(ulid))
-        } else if let Some(character) = s.strip_prefix("Character:") {
-            Some(NodeID::Character(
-                entities::Character::try_from(character).ok()?,
-            ))
-        } else if let Some(user_id) = s.strip_prefix("UserConfig:") {
-            Some(NodeID::UserConfig(user_id.to_string()))
-        } else {
-            None
-        }
+        s.split_once(':').and_then(|(kind, id)| match kind {
+            "FigureRecord" => Ulid::from_str(id).ok().map(NodeID::FigureRecord),
+            "CharacterConfig" => Ulid::from_str(id).ok().map(NodeID::CharacterConfig),
+            "Character" => entities::Character::try_from(id)
+                .ok()
+                .map(NodeID::Character),
+            "UserConfig" => Some(NodeID::UserConfig(id.to_string())),
+            _ => None,
+        })
     }
 }
 

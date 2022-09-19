@@ -217,9 +217,10 @@ impl Character {
         &self,
         ctx: &mut AppCtx,
     ) -> Result<Option<CharacterConfig>, ApiError> {
-        guard!(let Some(user_id) = ctx.user_id.clone() else {
-            return Err(GraphqlUserError::from("Authentication required").into());
-        });
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
         let character_config = ctx
             .loaders
@@ -244,9 +245,10 @@ impl Character {
         before: Option<String>,
     ) -> Result<FigureRecordConnection, ApiError> {
         // TODO: N+1
-        guard!(let Some(user_id) = ctx.user_id.clone() else {
-            return Err(GraphqlUserError::from("Authentication required").into());
-        });
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
         let ids = ids.map(|ids| ids.into_iter().map(|id| id.0).collect::<Vec<_>>());
 
@@ -347,17 +349,19 @@ impl QueryRoot {
     }
 
     async fn user_config(&self, ctx: &AppCtx) -> Result<UserConfig, ApiError> {
-        guard!(let Some(user_id) = ctx.user_id.clone() else {
-            return Err(GraphqlUserError::from("Authentication required").into());
-        });
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
         Ok(UserConfig(load_user_config(&ctx.pool, user_id).await?))
     }
 
     async fn node(ctx: &AppCtx, id: ID) -> Result<Option<NodeValue>, ApiError> {
-        guard!(let Some(user_id) = ctx.user_id.clone() else {
-            return Err(GraphqlUserError::from("Authentication required").into());
-        });
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
         guard!(let Some(id) = NodeID::from_id(&id) else {
             return Ok(None);
@@ -417,9 +421,10 @@ impl QueryRoot {
         last: Option<i32>,
         before: Option<String>,
     ) -> Result<CharacterConfigConnection, ApiError> {
-        guard!(let Some(user_id) = ctx.user_id.clone() else {
-            return Err(GraphqlUserError::from("Authentication required").into());
-        });
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
         let ids = ids.map(|ids| ids.into_iter().map(|id| id.0).collect::<Vec<_>>());
 
@@ -492,9 +497,10 @@ impl MutationRoot {
         ctx: &AppCtx,
         input: CreateFigureRecordInput,
     ) -> Result<CreateFigureRecordPayload, ApiError> {
-        guard!(let Some(user_id) = ctx.user_id.clone() else {
-                return Err(GraphqlUserError::from("Authentication required").into());
-            } );
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
         let record = figure_records_command::create(
             &ctx.pool,
@@ -515,9 +521,10 @@ impl MutationRoot {
         ctx: &AppCtx,
         input: CreateCharacterConfigInput,
     ) -> Result<CreateCharacterConfigPayload, ApiError> {
-        guard!(let Some(user_id) = ctx.user_id.clone() else {
-            return Err(GraphqlUserError::from("Authentication required").into());
-        });
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
         guard!(let Ok(stroke_count) = input.stroke_count.try_into() else {
             return Ok(CreateCharacterConfigPayload {
@@ -558,9 +565,10 @@ impl MutationRoot {
         ctx: &AppCtx,
         input: UpdateCharacterConfigInput,
     ) -> Result<UpdateCharacterConfigPayload, ApiError> {
-        guard!(let Some(user_id) = ctx.user_id.clone() else {
-            return Err(GraphqlUserError::from("Authentication required").into());
-        });
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
         let id = input.id.0;
 
@@ -574,11 +582,8 @@ impl MutationRoot {
                 id,
             )
             .await
-            .context("load character_config")??;
-
-        guard!(let Some(mut character_config) = character_config else {
-            return Err(GraphqlUserError::from("Not found").into());
-        });
+            .context("load character_config")??
+            .ok_or_else(|| GraphqlUserError::from("Not found"))?;
 
         guard!(let Ok(stroke_count) = input
         .stroke_count

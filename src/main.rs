@@ -275,8 +275,10 @@ async fn main() -> anyhow::Result<()> {
             });
 
             let amqp_pool = {
-                let mut cfg = deadpool_lapin::Config::default();
-                cfg.url = Some(config.amqp_uri.clone());
+                let cfg = deadpool_lapin::Config {
+                    url: Some(config.amqp_uri.clone()),
+                    ..Default::default()
+                };
                 cfg.create_pool(Some(deadpool_lapin::Runtime::Tokio1))?
             };
 

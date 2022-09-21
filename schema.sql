@@ -36,6 +36,9 @@ CREATE TABLE "user_configs" (
   "version" INTEGER NOT NULL
 );
 
+CREATE INDEX "user_configs_updated_at_idx" ON "user_configs" ("updated_at");
+CREATE INDEX "user_configs_version_idx" ON "user_configs" ("version");
+
 CREATE TABLE "character_config_seeds" (
   "character" VARCHAR(8) PRIMARY KEY,
   "stroke_count" INTEGER NOT NULL

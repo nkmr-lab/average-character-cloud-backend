@@ -25,9 +25,8 @@ use crate::commands::{character_configs_command, figure_records_command, user_co
 
 mod scalars;
 use crate::queries::{
-    load_user_config, CharacterConfigByCharacterLoaderParams, CharacterConfigByIdLoaderParams,
-    CharacterConfigsLoaderParams, FigureRecordByIdLoaderParams,
-    FigureRecordsByCharacterLoaderParams,
+    load_user_config, CharacterConfigByCharacterLoaderParams, CharacterConfigsLoaderParams,
+    FigureRecordByIdLoaderParams, FigureRecordsByCharacterLoaderParams,
 };
 use crate::values::LimitKind;
 
@@ -109,7 +108,7 @@ struct CharacterConfig(entities::CharacterConfig);
 #[graphql_interface]
 impl Node for CharacterConfig {
     fn node_id(&self) -> ID {
-        NodeID::CharacterConfig(self.0.id).to_id()
+        NodeID::CharacterConfig(self.0.user_id.clone(), self.0.character.clone()).to_id()
     }
 }
 
@@ -117,10 +116,6 @@ impl Node for CharacterConfig {
 impl CharacterConfig {
     fn id(&self) -> ID {
         self.node_id()
-    }
-
-    fn character_config_id(&self) -> UlidScalar {
-        UlidScalar(self.0.id)
     }
 
     fn character(&self) -> Character {
@@ -169,7 +164,7 @@ struct CreateCharacterConfigPayload {
 
 #[derive(GraphQLInputObject, Clone, Debug)]
 struct UpdateCharacterConfigInput {
-    id: UlidScalar,
+    character: CharacterValueScalar,
     stroke_count: Option<i32>,
 }
 
@@ -390,11 +385,14 @@ impl QueryRoot {
                     .map(FigureRecord::from)
                     .map(NodeValue::FigureRecord))
             }
-            NodeID::CharacterConfig(id) => {
+            NodeID::CharacterConfig(_, character) => {
                 let character_config = ctx
                     .loaders
-                    .character_config_by_id_loader
-                    .load(CharacterConfigByIdLoaderParams { user_id }, id)
+                    .character_config_by_character_loader
+                    .load(
+                        CharacterConfigByCharacterLoaderParams { user_id },
+                        character,
+                    )
                     .await
                     .context("load character_config")??;
 
@@ -405,10 +403,7 @@ impl QueryRoot {
             NodeID::Character(character) => {
                 Ok(Some(NodeValue::Character(Character::from(character))))
             }
-            NodeID::UserConfig(user_id_of_node_id) => {
-                if user_id_of_node_id != user_id {
-                    return Ok(None);
-                }
+            NodeID::UserConfig(_) => {
                 let user_config = load_user_config(&ctx.pool, user_id).await?;
                 Ok(Some(NodeValue::UserConfig(UserConfig(user_config))))
             }
@@ -433,7 +428,6 @@ impl QueryRoot {
 
     async fn character_configs(
         ctx: &AppCtx,
-        ids: Option<Vec<UlidScalar>>,
         first: Option<i32>,
         after: Option<String>,
         last: Option<i32>,
@@ -444,27 +438,25 @@ impl QueryRoot {
             .clone()
             .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
-        let ids = ids.map(|ids| ids.into_iter().map(|id| id.0).collect::<Vec<_>>());
-
         let limit = encode_limit(first, last)?;
 
-        let after_id = after
-                .map(|after| -> anyhow::Result<Ulid> {
-                    guard!(let Some(NodeID::CharacterConfig(id)) = NodeID::from_id(&ID::new(after)) else {
+        let after_character = after
+                .map(|after| -> anyhow::Result<_> {
+                    guard!(let Some(NodeID::CharacterConfig(_, character)) = NodeID::from_id(&ID::new(after)) else {
                     return Err(GraphqlUserError::from("after must be a valid cursor").into())
                 });
 
-                    Ok(id)
+                    Ok(character)
                 })
                 .transpose()?;
 
-        let before_id = before
-                .map(|before| -> anyhow::Result<Ulid> {
-                    guard!(let Some(NodeID::CharacterConfig(id)) = NodeID::from_id(&ID::new(before)) else {
+        let before_character = before
+                .map(|before| -> anyhow::Result<_> {
+                    guard!(let Some(NodeID::CharacterConfig(_, character)) = NodeID::from_id(&ID::new(before)) else {
                     return Err(GraphqlUserError::from("before must be a valid cursor").into());
                 });
 
-                    Ok(id)
+                    Ok(character)
                 })
                 .transpose()?;
 
@@ -474,9 +466,8 @@ impl QueryRoot {
             .load(
                 CharacterConfigsLoaderParams {
                     user_id,
-                    ids,
-                    after_id,
-                    before_id,
+                    after_character,
+                    before_character,
                     limit: limit.clone(),
                 },
                 (),
@@ -588,16 +579,16 @@ impl MutationRoot {
             .clone()
             .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
-        let id = input.id.0;
+        let character = input.character.0;
 
         let character_config = ctx
             .loaders
-            .character_config_by_id_loader
+            .character_config_by_character_loader
             .load(
-                CharacterConfigByIdLoaderParams {
+                CharacterConfigByCharacterLoaderParams {
                     user_id: user_id.clone(),
                 },
-                id,
+                character,
             )
             .await
             .context("load character_config")??

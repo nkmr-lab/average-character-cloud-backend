@@ -3,8 +3,7 @@ mod figure_record_query;
 mod user_config_query;
 pub use character_config_query::{
     CharacterConfigByCharacterLoader, CharacterConfigByCharacterLoaderParams,
-    CharacterConfigByIdLoader, CharacterConfigByIdLoaderParams, CharacterConfigsLoader,
-    CharacterConfigsLoaderParams,
+    CharacterConfigsLoader, CharacterConfigsLoaderParams,
 };
 pub use figure_record_query::{
     FigureRecordByIdLoader, FigureRecordByIdLoaderParams, FigureRecordsByCharacterLoader,

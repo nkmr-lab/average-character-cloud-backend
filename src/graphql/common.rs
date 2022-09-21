@@ -100,7 +100,7 @@ pub fn encode_limit(first: Option<i32>, last: Option<i32>) -> anyhow::Result<Lim
 #[derive(Debug, Clone)]
 pub enum NodeID {
     FigureRecord(Ulid),
-    CharacterConfig(Ulid),
+    CharacterConfig(String, entities::Character),
     Character(entities::Character),
     UserConfig(String),
 }
@@ -109,9 +109,11 @@ impl NodeID {
     pub fn to_id(&self) -> ID {
         match self {
             NodeID::FigureRecord(id) => ID::new(base64::encode(format!("FigureRecord:{}", id))),
-            NodeID::CharacterConfig(id) => {
-                ID::new(base64::encode(format!("CharacterConfig:{}", id)))
-            }
+            NodeID::CharacterConfig(user_id, character) => ID::new(base64::encode(format!(
+                "CharacterConfig:{}-{}",
+                base64::encode(user_id),
+                base64::encode(String::from(character.clone()))
+            ))),
             NodeID::Character(character) => ID::new(base64::encode(format!(
                 "Character:{}",
                 String::from(character.clone())
@@ -126,7 +128,15 @@ impl NodeID {
         let s = String::from_utf8(buf).ok()?;
         s.split_once(':').and_then(|(kind, id)| match kind {
             "FigureRecord" => Ulid::from_str(id).ok().map(NodeID::FigureRecord),
-            "CharacterConfig" => Ulid::from_str(id).ok().map(NodeID::CharacterConfig),
+            "CharacterConfig" => {
+                let (user_id, character) = id.split_once('-')?;
+                let user_id = base64::decode(user_id).ok()?;
+                let user_id = String::from_utf8(user_id).ok()?;
+                let character = base64::decode(character).ok()?;
+                let character = String::from_utf8(character).ok()?;
+                let character = entities::Character::try_from(character.as_str()).ok()?;
+                Some(NodeID::CharacterConfig(user_id, character))
+            }
             "Character" => entities::Character::try_from(id)
                 .ok()
                 .map(NodeID::Character),

@@ -3,7 +3,6 @@ use anyhow::{anyhow, Context};
 use chrono::{DateTime, Utc};
 use sqlx::{Pool, Postgres};
 use thiserror::Error;
-use ulid::Ulid;
 
 #[derive(Clone, Error, Debug)]
 pub enum CreateError {
@@ -21,7 +20,6 @@ pub async fn create(
     let mut trx = pool.begin().await?;
 
     let character_config = entities::CharacterConfig {
-        id: Ulid::from_datetime(now),
         user_id,
         character,
         created_at: now,
@@ -34,7 +32,7 @@ pub async fn create(
     let exists = sqlx::query!(
         r#"
             SELECT
-                id
+                1 as check
             FROM
                 character_configs
             WHERE
@@ -56,10 +54,9 @@ pub async fn create(
 
     sqlx::query!(
             r#"
-                INSERT INTO character_configs (id, user_id, character, created_at, updated_at, stroke_count, version)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                INSERT INTO character_configs (user_id, character, created_at, updated_at, stroke_count, version)
+                VALUES ($1, $2, $3, $4, $5, $6)
             "#,
-            character_config.id.to_string(),
             character_config.user_id,
             String::from(character_config.character.clone()),
             character_config.created_at,
@@ -99,17 +96,17 @@ pub async fn update(
                     stroke_count = $2,
                     version = $3
                 WHERE
-                    id = $4
+                    user_id = $4
                     AND
-                    user_id = $5
+                    character = $5
                     AND
                     version = $6
             "#,
         &character_config.updated_at,
         i32::try_from(character_config.stroke_count)?,
         character_config.version,
-        character_config.id.to_string(),
         &character_config.user_id,
+        String::from(character_config.character.clone()),
         prev_version,
     )
     .execute(&mut trx)

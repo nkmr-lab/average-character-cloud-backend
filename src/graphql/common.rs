@@ -103,6 +103,7 @@ pub enum NodeID {
     CharacterConfig(String, entities::Character),
     Character(entities::Character),
     UserConfig(String),
+    CharacterConfigSeed(entities::Character),
 }
 
 impl NodeID {
@@ -119,6 +120,10 @@ impl NodeID {
                 String::from(character.clone())
             ))),
             NodeID::UserConfig(id) => ID::new(base64::encode(format!("UserConfig:{}", id))),
+            NodeID::CharacterConfigSeed(character) => ID::new(base64::encode(format!(
+                "CharacterConfigSeed:{}",
+                String::from(character.clone())
+            ))),
         }
     }
 
@@ -141,6 +146,9 @@ impl NodeID {
                 .ok()
                 .map(NodeID::Character),
             "UserConfig" => Some(NodeID::UserConfig(id.to_string())),
+            "CharacterConfigSeed" => entities::Character::try_from(id)
+                .ok()
+                .map(NodeID::CharacterConfigSeed),
             _ => None,
         })
     }

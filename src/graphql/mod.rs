@@ -25,8 +25,10 @@ use crate::commands::{character_configs_command, figure_records_command, user_co
 
 mod scalars;
 use crate::queries::{
-    load_user_config, CharacterConfigByCharacterLoaderParams, CharacterConfigsLoaderParams,
-    FigureRecordByIdLoaderParams, FigureRecordsByCharacterLoaderParams,
+    load_user_config, CharacterConfigByCharacterLoaderParams,
+    CharacterConfigSeedByCharacterLoaderParams, CharacterConfigSeedsLoaderParams,
+    CharacterConfigsLoaderParams, FigureRecordByIdLoaderParams,
+    FigureRecordsByCharacterLoaderParams,
 };
 use crate::values::LimitKind;
 
@@ -36,7 +38,7 @@ use crate::values::LimitKind;
  *   https://relay.dev/graphql/connections.htm
 */
 
-#[graphql_interface(for = [FigureRecord, CharacterConfig, Character, UserConfig], context = AppCtx)]
+#[graphql_interface(for = [FigureRecord, CharacterConfig, Character, UserConfig, CharacterConfigSeed], context = AppCtx)]
 trait Node {
     #[graphql(name = "id")]
     fn node_id(&self) -> ID;
@@ -155,6 +157,49 @@ struct CreateCharacterConfigInput {
     stroke_count: i32,
 }
 
+#[derive(Clone, Debug, From)]
+struct CharacterConfigSeed(entities::CharacterConfigSeed);
+
+#[graphql_interface]
+impl Node for CharacterConfigSeed {
+    fn node_id(&self) -> ID {
+        NodeID::CharacterConfigSeed(self.0.character.clone()).to_id()
+    }
+}
+
+#[juniper::graphql_object(Context = AppCtx, impl = NodeValue)]
+impl CharacterConfigSeed {
+    fn id(&self) -> ID {
+        self.node_id()
+    }
+
+    fn character(&self) -> Character {
+        Character::from(self.0.character.clone())
+    }
+
+    fn stroke_count(&self) -> Result<i32, ApiError> {
+        Ok(i32::try_from(self.0.stroke_count)?)
+    }
+
+    fn updated_at(&self) -> DateTime<Utc> {
+        self.0.updated_at
+    }
+}
+
+#[derive(GraphQLObject, Clone, Debug)]
+#[graphql(context = AppCtx)]
+struct CharacterConfigSeedEdge {
+    cursor: String,
+    node: CharacterConfigSeed,
+}
+
+#[derive(GraphQLObject, Clone, Debug)]
+#[graphql(context = AppCtx)]
+struct CharacterConfigSeedConnection {
+    page_info: PageInfo,
+    edges: Vec<CharacterConfigSeedEdge>,
+}
+
 #[derive(GraphQLObject, Clone, Debug)]
 #[graphql(context = AppCtx)]
 struct CreateCharacterConfigPayload {
@@ -228,6 +273,28 @@ impl Character {
             .context("load character_config")??;
 
         Ok(character_config.map(CharacterConfig::from))
+    }
+
+    async fn character_config_seed(
+        &self,
+        ctx: &mut AppCtx,
+    ) -> Result<Option<CharacterConfigSeed>, ApiError> {
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
+
+        let character_config_seed = ctx
+            .loaders
+            .character_config_seed_by_character_loader
+            .load(
+                CharacterConfigSeedByCharacterLoaderParams { user_id },
+                self.0.clone(),
+            )
+            .await
+            .context("load character_config_seed")??;
+
+        Ok(character_config_seed.map(CharacterConfigSeed::from))
     }
 
     async fn figure_records(
@@ -407,6 +474,21 @@ impl QueryRoot {
                 let user_config = load_user_config(&ctx.pool, user_id).await?;
                 Ok(Some(NodeValue::UserConfig(UserConfig(user_config))))
             }
+            NodeID::CharacterConfigSeed(character) => {
+                let character_config_seed = ctx
+                    .loaders
+                    .character_config_seed_by_character_loader
+                    .load(
+                        CharacterConfigSeedByCharacterLoaderParams { user_id },
+                        character,
+                    )
+                    .await
+                    .context("load character_config_seed")??;
+
+                Ok(character_config_seed
+                    .map(CharacterConfigSeed::from)
+                    .map(NodeValue::CharacterConfigSeed))
+            }
         }
     }
 
@@ -490,6 +572,77 @@ impl QueryRoot {
             edges: records
                 .into_iter()
                 .map(|character| CharacterConfigEdge {
+                    cursor: character.node_id().to_string(),
+                    node: character,
+                })
+                .collect(),
+        })
+    }
+
+    async fn character_config_seeds(
+        ctx: &AppCtx,
+        first: Option<i32>,
+        after: Option<String>,
+        last: Option<i32>,
+        before: Option<String>,
+    ) -> Result<CharacterConfigSeedConnection, ApiError> {
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
+
+        let limit = encode_limit(first, last)?;
+
+        let after_character = after
+                .map(|after| -> anyhow::Result<_> {
+                    guard!(let Some(NodeID::CharacterConfigSeed(character)) = NodeID::from_id(&ID::new(after)) else {
+                    return Err(GraphqlUserError::from("after must be a valid cursor").into())
+                });
+
+                    Ok(character)
+                })
+                .transpose()?;
+
+        let before_character = before
+                .map(|before| -> anyhow::Result<_> {
+                    guard!(let Some(NodeID::CharacterConfigSeed(character)) = NodeID::from_id(&ID::new(before)) else {
+                    return Err(GraphqlUserError::from("before must be a valid cursor").into());
+                });
+
+                    Ok(character)
+                })
+                .transpose()?;
+
+        let (character_config_seeds, has_extra) = ctx
+            .loaders
+            .character_config_seeds_loader
+            .load(
+                CharacterConfigSeedsLoaderParams {
+                    user_id,
+                    after_character,
+                    before_character,
+                    limit: limit.clone(),
+                },
+                (),
+            )
+            .await
+            .context("load character_config_seed")??;
+
+        let records = character_config_seeds
+            .into_iter()
+            .map(CharacterConfigSeed::from)
+            .collect::<Vec<_>>();
+
+        Ok(CharacterConfigSeedConnection {
+            page_info: PageInfo {
+                has_next_page: has_extra && limit.kind == LimitKind::First,
+                has_previous_page: has_extra && limit.kind == LimitKind::Last,
+                start_cursor: records.first().map(|record| record.node_id().to_string()),
+                end_cursor: records.last().map(|record| record.node_id().to_string()),
+            },
+            edges: records
+                .into_iter()
+                .map(|character| CharacterConfigSeedEdge {
                     cursor: character.node_id().to_string(),
                     node: character,
                 })

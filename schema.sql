@@ -41,5 +41,8 @@ CREATE INDEX "user_configs_version_idx" ON "user_configs" ("version");
 
 CREATE TABLE "character_config_seeds" (
   "character" VARCHAR(8) PRIMARY KEY,
-  "stroke_count" INTEGER NOT NULL
+  "stroke_count" INTEGER NOT NULL,
+  "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL
 );
+
+CREATE INDEX "character_config_seeds_updated_at_idx" ON "character_config_seeds" ("updated_at");

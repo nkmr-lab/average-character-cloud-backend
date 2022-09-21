@@ -45,9 +45,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ./target
-          key: cargo-cache-20220609-1-${{ github.sha }}
+          key: cargo-cache-20220921-1-${{ github.sha }}
           restore-keys: |
-            cargo-cache-20220609-1-
+            cargo-cache-20220921-1-
       - name: Cache cargo home
         uses: actions/cache@v3
         with:

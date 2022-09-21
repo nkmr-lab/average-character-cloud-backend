@@ -9,5 +9,6 @@ pub mod graphql;
 mod shareable_error;
 pub use shareable_error::ShareableError;
 pub mod commands;
+pub mod jobs;
 pub mod queries;
 pub mod values;

@@ -16,13 +16,14 @@ use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use std::collections::HashMap;
 use std::io;
+use std::str::FromStr;
 use time::Duration;
-use tokio_cron_scheduler::JobScheduler;
 use tracing_actix_web::TracingLogger;
 
 use actix_web_extras::middleware::Condition as OptionalCondition;
 use average_character_cloud_backend::app_config::{AppConfig, AuthConfig, SessionConfig};
 use average_character_cloud_backend::graphql::{create_schema, AppCtx, Loaders, Schema};
+use average_character_cloud_backend::jobs;
 use clap::{Parser, Subcommand};
 use guard::guard;
 use jsonwebtoken::jwk::{self, JwkSet};
@@ -136,12 +137,9 @@ async fn google_login_front(config: web::Data<AppConfig>) -> HttpResponse {
 }
 
 #[get("/run_task")]
-async fn run_task_front(
-    amqp_pool: web::Data<deadpool_lapin::Pool>,
-) -> Result<HttpResponse, error::Error> {
+async fn run_task_front(jobs_app: web::Data<jobs::App>) -> Result<HttpResponse, error::Error> {
     (|| async {
-        let connection = amqp_pool.as_ref().get().await?;
-        let channel = connection.create_channel().await?;
+        jobs_app.send_task(jobs::update_seeds::new()).await?;
 
         Ok(HttpResponse::Ok()
             .content_type("text/html; charset=utf-8")
@@ -293,18 +291,31 @@ async fn main() -> anyhow::Result<()> {
                 GooglePublicKeyProvider::run(google_public_key_provider_rx).await;
             });
 
-            let amqp_pool = {
-                let cfg = deadpool_lapin::Config {
-                    url: Some(config.amqp_uri.clone()),
-                    ..Default::default()
-                };
-                cfg.create_pool(Some(deadpool_lapin::Runtime::Tokio1))?
-            };
+            let jobs_app =
+                jobs::init_app(config.amqp_uri.clone(), jobs::Ctx { pool: pool.clone() }).await?;
 
             if config.enqueue_cron_task {
-                let sched = JobScheduler::new().await?;
-                // TODO
-                sched.start().await?;
+                let jobs_app = jobs_app.clone();
+
+                tokio::spawn(async move {
+                    for datetime in cron::Schedule::from_str("0 0 1/6 * * * *")
+                        .unwrap()
+                        .upcoming(Utc)
+                    {
+                        let now = Utc::now();
+                        let delay = datetime - now;
+                        if let Ok(delay) = delay.to_std() {
+                            tokio::time::sleep(delay).await;
+                        } else {
+                            tracing::warn!("delay is negative");
+                            continue;
+                        }
+
+                        if let Err(e) = jobs_app.send_task(jobs::update_seeds::new()).await {
+                            tracing::error!("enqueue update_seeds error: {}", e);
+                        }
+                    }
+                });
             }
 
             HttpServer::new(move || {
@@ -313,10 +324,14 @@ async fn main() -> anyhow::Result<()> {
                     .app_data(web::Data::new(schema.clone()))
                     .app_data(web::Data::new(config.clone()))
                     .app_data(web::Data::new(pool.clone()))
-                    .app_data(web::Data::new(amqp_pool.clone()))
+                    .app_data(web::Data::new(jobs_app.clone()))
                     .service(graphql)
                     .service(graphiql)
                     .service(logout);
+                if config.enable_task_front {
+                    app = app.service(run_task_front);
+                }
+
                 if let AuthConfig::Google { enable_front, .. } = &config.auth {
                     app = app
                         .app_data(web::Data::new(google_public_key_provider_tx.clone()))

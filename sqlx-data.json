@@ -1,5 +1,15 @@
 {
   "db": "PostgreSQL",
+  "16c8ed04ebd8cf1e55667d687df353356ba845eeba343bafea6c0ae649a30ee4": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "DELETE FROM character_config_seeds"
+  },
   "1c8e09b6ce8711ce16140da47da64e332face9636cb3b559a503244698d85e20": {
     "describe": {
       "columns": [
@@ -188,6 +198,20 @@
       }
     },
     "query": "\n            SELECT\n                user_id,\n                character,\n                stroke_count,\n                created_at,\n                updated_at,\n                version\n            FROM\n                character_configs\n            WHERE\n                user_id = $1\n                AND\n                ($2::VARCHAR(64) IS NULL OR character < $2)\n                AND\n                ($3::VARCHAR(64) IS NULL OR character > $3)\n            ORDER BY\n                CASE WHEN $4 = 0 THEN character END ASC,\n                CASE WHEN $4 = 1 THEN character END DESC\n            LIMIT $5\n        "
+  },
+  "60b998e16be6d7bca116bdab5c2d46eef75d2c2bd416406ea4def7d1a1092f13": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Int4",
+          "Timestamptz"
+        ]
+      }
+    },
+    "query": "\n                INSERT INTO character_config_seeds (character, stroke_count, updated_at)\n                VALUES ($1, $2, $3)\n                "
   },
   "8d05453ea36bfa778538af26ffde9267596f542e942d0ffb1308a5fa0cc8101e": {
     "describe": {
@@ -429,5 +453,29 @@
       }
     },
     "query": " \n                INSERT\n                    INTO user_configs (\n                        user_id,\n                        allow_sharing_character_configs,\n                        allow_sharing_figure_records,\n                        updated_at,\n                        version\n                    ) VALUES ($1, $2, $3, $4, $5)\n                "
+  },
+  "f8dddd38ffb8ff8dcebfad25fa4a329abcd868b66d4b5928cb9284241d4b6ee5": {
+    "describe": {
+      "columns": [
+        {
+          "name": "character",
+          "ordinal": 0,
+          "type_info": "Varchar"
+        },
+        {
+          "name": "avg_stroke_count",
+          "ordinal": 1,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        false,
+        null
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n            SELECT\n                character,\n                AVG(stroke_count)::INTEGER as avg_stroke_count\n            FROM\n                character_configs\n                INNER JOIN user_configs ON character_configs.user_id = user_configs.user_id\n            WHERE\n                user_configs.allow_sharing_character_configs\n            GROUP BY\n                character\n            "
   }
 }

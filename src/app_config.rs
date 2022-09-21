@@ -20,6 +20,7 @@ pub enum AuthConfig {
     Disable {},
     Google {
         client_id: String,
+        #[serde(default)]
         enable_front: bool,
         redirect_url: String,
     },
@@ -40,6 +41,8 @@ pub struct AppConfig {
     pub logout_redirect_url: String,
     pub amqp_uri: String,
     pub enqueue_cron_task: bool,
+    #[serde(default)]
+    pub enable_task_front: bool,
 }
 
 // serde_envがprefixに未対応なので

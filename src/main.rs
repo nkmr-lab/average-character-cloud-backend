@@ -135,6 +135,25 @@ async fn google_login_front(config: web::Data<AppConfig>) -> HttpResponse {
         .body(content)
 }
 
+#[get("/run_task")]
+async fn run_task_front(
+    amqp_pool: web::Data<deadpool_lapin::Pool>,
+) -> Result<HttpResponse, error::Error> {
+    (|| async {
+        let connection = amqp_pool.as_ref().get().await?;
+        let channel = connection.create_channel().await?;
+
+        Ok(HttpResponse::Ok()
+            .content_type("text/html; charset=utf-8")
+            .body("ok"))
+    })()
+    .await
+    .map_err(|e: anyhow::Error| {
+        tracing::error!("run_task_front error: {}", e);
+        error::ErrorInternalServerError(e)
+    })
+}
+
 fn verify_google_token(
     jwks: JwkSet,
     token: &str,

@@ -99,6 +99,60 @@
     },
     "query": "\n                INSERT INTO character_configs (user_id, character, created_at, updated_at, stroke_count, version)\n                VALUES ($1, $2, $3, $4, $5, $6)\n            "
   },
+  "557ee6dc18c7f2b6694de85213fffb6e79d306b64647334578c507ffe062e233": {
+    "describe": {
+      "columns": [
+        {
+          "name": "user_id",
+          "ordinal": 0,
+          "type_info": "Varchar"
+        },
+        {
+          "name": "character",
+          "ordinal": 1,
+          "type_info": "Varchar"
+        },
+        {
+          "name": "stroke_count",
+          "ordinal": 2,
+          "type_info": "Int4"
+        },
+        {
+          "name": "created_at",
+          "ordinal": 3,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "ordinal": 4,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "version",
+          "ordinal": 5,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Varchar",
+          "Varchar",
+          "Int4",
+          "Int8"
+        ]
+      }
+    },
+    "query": "\n            SELECT\n                user_id,\n                character,\n                stroke_count,\n                created_at,\n                updated_at,\n                version\n            FROM\n                character_configs\n            WHERE\n                user_id = $1\n                AND\n                ($2::VARCHAR(64) IS NULL OR character < $2)\n                AND\n                ($3::VARCHAR(64) IS NULL OR character > $3)\n            ORDER BY\n                CASE WHEN $4 = 0 THEN character END ASC,\n                CASE WHEN $4 = 1 THEN character END DESC\n            LIMIT $5\n        "
+  },
   "8d05453ea36bfa778538af26ffde9267596f542e942d0ffb1308a5fa0cc8101e": {
     "describe": {
       "columns": [
@@ -217,60 +271,6 @@
       }
     },
     "query": "\n                UPDATE user_configs\n                    SET\n                        updated_at = $1,\n                        allow_sharing_character_configs = $2,\n                        allow_sharing_figure_records = $3,\n                        version = $4\n                    WHERE\n                        user_id = $5\n                        AND\n                        version = $6\n                "
-  },
-  "c6922d2e70c4c7e768acc70beb3c3de773d69ebb13615df6275d80931bdb1f96": {
-    "describe": {
-      "columns": [
-        {
-          "name": "user_id",
-          "ordinal": 0,
-          "type_info": "Varchar"
-        },
-        {
-          "name": "character",
-          "ordinal": 1,
-          "type_info": "Varchar"
-        },
-        {
-          "name": "stroke_count",
-          "ordinal": 2,
-          "type_info": "Int4"
-        },
-        {
-          "name": "created_at",
-          "ordinal": 3,
-          "type_info": "Timestamptz"
-        },
-        {
-          "name": "updated_at",
-          "ordinal": 4,
-          "type_info": "Timestamptz"
-        },
-        {
-          "name": "version",
-          "ordinal": 5,
-          "type_info": "Int4"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Varchar",
-          "Varchar",
-          "Int4",
-          "Int8"
-        ]
-      }
-    },
-    "query": "\n            SELECT\n                user_id,\n                character,\n                stroke_count,\n                created_at,\n                updated_at,\n                version\n            FROM\n                character_configs\n            WHERE\n                user_id = $1\n                AND\n                ($2::VARCHAR(64) IS NULL OR character < $2)\n                AND\n                ($3::VARCHAR(64) IS NULL OR character > $3)\n            ORDER BY\n                CASE WHEN $4 = 0 THEN character END DESC,\n                CASE WHEN $4 = 1 THEN character END ASC\n            LIMIT $5\n        "
   },
   "ca5b4e47a14e8eaa09d5de390f917bceb0db9548d4aadf4d2b816446e41570ec": {
     "describe": {

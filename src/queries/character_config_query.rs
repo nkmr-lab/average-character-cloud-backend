@@ -161,8 +161,8 @@ impl BatchFnWithParams for CharacterConfigsLoader {
                 AND
                 ($3::VARCHAR(64) IS NULL OR character > $3)
             ORDER BY
-                CASE WHEN $4 = 0 THEN character END DESC,
-                CASE WHEN $4 = 1 THEN character END ASC
+                CASE WHEN $4 = 0 THEN character END ASC,
+                CASE WHEN $4 = 1 THEN character END DESC
             LIMIT $5
         "#,
                 &params.user_id,

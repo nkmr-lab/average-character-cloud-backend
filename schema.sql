@@ -38,3 +38,8 @@ CREATE TABLE "user_configs" (
   "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL,
   "version" INTEGER NOT NULL
 );
+
+CREATE TABLE "character_config_seeds" (
+  "character" VARCHAR(8) PRIMARY KEY,
+  "stroke_count" INTEGER NOT NULL
+);

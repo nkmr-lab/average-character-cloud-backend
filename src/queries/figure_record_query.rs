@@ -9,6 +9,7 @@ use ulid::Ulid;
 use crate::entities;
 use anyhow::{anyhow, ensure, Context};
 
+use super::UserType;
 use crate::values::{Limit, LimitKind};
 use crate::BatchFnWithParams;
 use crate::ShareableError;
@@ -75,17 +76,18 @@ impl BatchFnWithParams for FigureRecordByIdLoader {
                 FigureRecordModel,
                 r#"
                 SELECT
-                    id,
-                    user_id,
-                    character,
-                    figure,
-                    created_at,
-                    stroke_count
+                    r.id,
+                    r.user_id,
+                    r.character,
+                    r.figure,
+                    r.created_at,
+                    r.stroke_count
                 FROM
-                    figure_records
+                    figure_records AS r
+                    LEFT OUTER JOIN user_configs ON r.user_id = user_configs.user_id
                 WHERE
-                    id = Any($1)
-                    AND user_id = $2
+                    r.id = Any($1)
+                    AND (r.user_id = $2 OR user_configs.allow_sharing_figure_records)
             "#,
                 ids.as_slice(),
                 &params.user_id,
@@ -136,6 +138,7 @@ pub struct FigureRecordsByCharacterLoaderParams {
     pub after_id: Option<Ulid>,
     pub before_id: Option<Ulid>,
     pub limit: Limit,
+    pub user_type: Option<UserType>,
 }
 
 #[async_trait]
@@ -186,10 +189,10 @@ impl BatchFnWithParams for FigureRecordsByCharacterLoader {
                             ) AS rank
                         FROM
                             figure_records AS r
-                        JOIN
-                            character_configs AS c ON r.character = c.character AND r.user_id = c.user_id
+                            JOIN character_configs ON r.character = character_configs.character AND r.user_id = character_configs.user_id
+                            LEFT OUTER JOIN user_configs ON r.user_id = user_configs.user_id
                         WHERE
-                            r.user_id = $1
+                            (r.user_id = $1 OR user_configs.allow_sharing_figure_records)
                             AND
                             r.character = Any($2)
                             AND
@@ -199,7 +202,12 @@ impl BatchFnWithParams for FigureRecordsByCharacterLoader {
                             AND
                             ($5::VARCHAR(64) IS NULL OR r.id > $5)
                             AND
-                            r.stroke_count = c.stroke_count
+                            r.stroke_count = character_configs.stroke_count
+                            AND
+                            (NOT $8 OR r.user_id = $1)
+                            AND
+                            (NOT $9 OR r.user_id <> $1)
+
                     ) as r
                     WHERE
                         rank <= $7
@@ -213,6 +221,8 @@ impl BatchFnWithParams for FigureRecordsByCharacterLoader {
                 params.before_id.map(|id| id.to_string()),
                 i32::from(params.limit.kind == LimitKind::Last),
                 i64::from(params.limit.value) + 1,
+                params.user_type == Some(UserType::Myself),
+                params.user_type == Some(UserType::Other),
             )
             .fetch_all(&self.pool)
             .await

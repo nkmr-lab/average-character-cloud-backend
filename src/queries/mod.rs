@@ -15,3 +15,9 @@ pub use figure_record_query::{
     FigureRecordsByCharacterLoaderParams,
 };
 pub use user_config_query::load_user_config;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum UserType {
+    Myself,
+    Other,
+}

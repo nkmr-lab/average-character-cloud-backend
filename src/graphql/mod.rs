@@ -24,6 +24,7 @@ use self::scalars::CharacterValueScalar;
 use crate::commands::{character_configs_command, figure_records_command, user_configs_command};
 
 mod scalars;
+use crate::queries;
 use crate::queries::{
     load_user_config, CharacterConfigByCharacterLoaderParams,
     CharacterConfigSeedByCharacterLoaderParams, CharacterConfigSeedsLoaderParams,
@@ -243,6 +244,12 @@ impl Node for Character {
     }
 }
 
+#[derive(juniper::GraphQLEnum)]
+enum UserType {
+    Myself,
+    Other,
+}
+
 #[juniper::graphql_object(Context = AppCtx, impl = NodeValue)]
 impl Character {
     fn id(&self) -> ID {
@@ -305,6 +312,7 @@ impl Character {
         after: Option<String>,
         last: Option<i32>,
         before: Option<String>,
+        user_type: Option<UserType>,
     ) -> Result<FigureRecordConnection, ApiError> {
         // TODO: N+1
         let user_id = ctx
@@ -345,6 +353,10 @@ impl Character {
                     after_id,
                     before_id,
                     limit: limit.clone(),
+                    user_type: user_type.map(|user_type| match user_type {
+                        UserType::Myself => queries::UserType::Myself,
+                        UserType::Other => queries::UserType::Other,
+                    }),
                 },
                 self.0.clone(),
             )

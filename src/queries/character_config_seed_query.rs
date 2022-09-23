@@ -36,9 +36,7 @@ pub struct CharacterConfigSeedByCharacterLoader {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct CharacterConfigSeedByCharacterLoaderParams {
-    pub user_id: String,
-}
+pub struct CharacterConfigSeedByCharacterLoaderParams {}
 
 #[async_trait]
 impl BatchFnWithParams for CharacterConfigSeedByCharacterLoader {
@@ -48,7 +46,7 @@ impl BatchFnWithParams for CharacterConfigSeedByCharacterLoader {
 
     async fn load_with_params(
         &mut self,
-        params: &Self::P,
+        _params: &Self::P,
         keys: &[Self::K],
     ) -> HashMap<Self::K, Self::V> {
         let character_values = keys
@@ -67,19 +65,8 @@ impl BatchFnWithParams for CharacterConfigSeedByCharacterLoader {
                 FROM
                     character_config_seeds
                 WHERE
-                    NOT EXISTS (
-                        SELECT
-                            1
-                        FROM
-                            character_configs
-                        WHERE
-                            character_configs.user_id = $1
-                            AND character_configs.character = character_config_seeds.character
-                    )
-                    AND
-                    character = Any($2)
+                    character = Any($1)
             "#,
-                &params.user_id,
                 character_values.as_slice(),
             )
             .fetch_all(&self.pool)
@@ -132,6 +119,7 @@ pub struct CharacterConfigSeedsLoaderParams {
     pub after_character: Option<entities::Character>,
     pub before_character: Option<entities::Character>,
     pub limit: Limit,
+    pub include_exist_character_config: bool,
 }
 
 #[async_trait]
@@ -156,7 +144,7 @@ impl BatchFnWithParams for CharacterConfigSeedsLoader {
             FROM
                 character_config_seeds
             WHERE
-                NOT EXISTS (
+                $6 OR NOT EXISTS (
                     SELECT
                         1
                     FROM
@@ -179,6 +167,7 @@ impl BatchFnWithParams for CharacterConfigSeedsLoader {
                 params.clone().before_character.map(String::from),
                 i32::from(params.limit.kind == LimitKind::Last),
                 i64::from(params.limit.value) + 1,
+                params.include_exist_character_config,
             )
             .fetch_all(&self.pool)
             .await

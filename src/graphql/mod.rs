@@ -286,7 +286,7 @@ impl Character {
         &self,
         ctx: &mut AppCtx,
     ) -> Result<Option<CharacterConfigSeed>, ApiError> {
-        let user_id = ctx
+        let _user_id = ctx
             .user_id
             .clone()
             .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
@@ -295,7 +295,7 @@ impl Character {
             .loaders
             .character_config_seed_by_character_loader
             .load(
-                CharacterConfigSeedByCharacterLoaderParams { user_id },
+                CharacterConfigSeedByCharacterLoaderParams {},
                 self.0.clone(),
             )
             .await
@@ -490,10 +490,7 @@ impl QueryRoot {
                 let character_config_seed = ctx
                     .loaders
                     .character_config_seed_by_character_loader
-                    .load(
-                        CharacterConfigSeedByCharacterLoaderParams { user_id },
-                        character,
-                    )
+                    .load(CharacterConfigSeedByCharacterLoaderParams {}, character)
                     .await
                     .context("load character_config_seed")??;
 
@@ -597,6 +594,7 @@ impl QueryRoot {
         after: Option<String>,
         last: Option<i32>,
         before: Option<String>,
+        #[graphql(default = false)] include_exist_character_config: bool,
     ) -> Result<CharacterConfigSeedConnection, ApiError> {
         let user_id = ctx
             .user_id
@@ -634,6 +632,7 @@ impl QueryRoot {
                     after_character,
                     before_character,
                     limit: limit.clone(),
+                    include_exist_character_config: include_exist_character_config,
                 },
                 (),
             )

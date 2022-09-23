@@ -166,9 +166,9 @@ impl BatchFnWithParams for CharacterConfigSeedsLoader {
                         AND character_configs.character = character_config_seeds.character
                 )
                 AND
-                ($2::VARCHAR(64) IS NULL OR character < $2)
+                ($2::VARCHAR(64) IS NULL OR character > $2)
                 AND
-                ($3::VARCHAR(64) IS NULL OR character > $3)
+                ($3::VARCHAR(64) IS NULL OR character < $3)
             ORDER BY
                 CASE WHEN $4 = 0 THEN character END ASC,
                 CASE WHEN $4 = 1 THEN character END DESC

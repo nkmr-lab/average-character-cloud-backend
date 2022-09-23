@@ -632,7 +632,7 @@ impl QueryRoot {
                     after_character,
                     before_character,
                     limit: limit.clone(),
-                    include_exist_character_config: include_exist_character_config,
+                    include_exist_character_config,
                 },
                 (),
             )

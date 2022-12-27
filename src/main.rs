@@ -5,10 +5,12 @@ use actix_session::{Session, SessionLength, SessionMiddleware};
 use actix_web::cookie::Key;
 use actix_web::{error, get, middleware, post, web, App, HttpRequest, HttpResponse, HttpServer};
 use anyhow::Context;
+use average_character_cloud_backend::faktory::FaktoryConnectionManager;
 use average_character_cloud_backend::google_public_key_provider::{
     GooglePublicKeyProvider, GooglePublicKeyProviderCommand,
 };
 use chrono::Utc;
+use faktory::Job;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
 use serde::{Deserialize, Serialize};
@@ -23,12 +25,13 @@ use tracing_actix_web::TracingLogger;
 use actix_web_extras::middleware::Condition as OptionalCondition;
 use average_character_cloud_backend::app_config::{AppConfig, AuthConfig, SessionConfig};
 use average_character_cloud_backend::graphql::{create_schema, AppCtx, Loaders, Schema};
-use average_character_cloud_backend::jobs;
+use average_character_cloud_backend::{job, jobs};
 use clap::{Parser, Subcommand};
 use guard::guard;
 use jsonwebtoken::jwk::{self, JwkSet};
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
+
 #[derive(Parser)]
 #[clap(name = "average-character-cloud-backend")]
 struct Cli {
@@ -137,9 +140,19 @@ async fn google_login_front(config: web::Data<AppConfig>) -> HttpResponse {
 }
 
 #[get("/run_task")]
-async fn run_task_front(jobs_app: web::Data<jobs::App>) -> Result<HttpResponse, error::Error> {
+async fn run_task_front(
+    faktory_pool: web::Data<r2d2::Pool<FaktoryConnectionManager>>,
+) -> Result<HttpResponse, error::Error> {
     (|| async {
-        jobs_app.send_task(jobs::update_seeds::new()).await?;
+        tokio::task::spawn_blocking(move || {
+            faktory_pool.get()?.enqueue(Job::new(
+                jobs::update_seeds::JOB_TYPE,
+                vec![serde_json::to_value(jobs::update_seeds::Arg {}).unwrap()],
+            ))?;
+            let result: Result<(), anyhow::Error> = Ok(());
+            result
+        })
+        .await??;
 
         Ok(HttpResponse::Ok()
             .content_type("text/html; charset=utf-8")
@@ -262,6 +275,9 @@ async fn main() -> anyhow::Result<()> {
         .connect(&config.database_url)
         .await
         .context("Failed to connect to database")?;
+    let faktory_pool = r2d2::Pool::builder()
+        .build(FaktoryConnectionManager::new(config.faktory_url.clone()))
+        .context("Failed to connect to faktory")?;
 
     match cli.command {
         Some(Commands::Migrate) => sqlx::migrate!("./migrations")
@@ -291,11 +307,16 @@ async fn main() -> anyhow::Result<()> {
                 GooglePublicKeyProvider::run(google_public_key_provider_rx).await;
             });
 
-            let jobs_app =
-                jobs::init_app(config.amqp_uri.clone(), jobs::Ctx { pool: pool.clone() }).await?;
+            job::run_worker(
+                &config.faktory_url,
+                job::Ctx {
+                    pool: pool.clone(),
+                    rt: tokio::runtime::Handle::current(),
+                },
+            )?;
 
             if config.enqueue_cron_task {
-                let jobs_app = jobs_app.clone();
+                let faktory_pool = faktory_pool.clone();
 
                 tokio::spawn(async move {
                     for datetime in cron::Schedule::from_str("0 0 1/6 * * * *")
@@ -311,7 +332,17 @@ async fn main() -> anyhow::Result<()> {
                             continue;
                         }
 
-                        if let Err(e) = jobs_app.send_task(jobs::update_seeds::new()).await {
+                        let faktory_pool = faktory_pool.clone();
+                        if let Err(e) = tokio::task::spawn_blocking(move || {
+                            faktory_pool.get()?.enqueue(Job::new(
+                                jobs::update_seeds::JOB_TYPE,
+                                vec![serde_json::to_value(jobs::update_seeds::Arg {}).unwrap()],
+                            ))?;
+                            let result: Result<(), anyhow::Error> = Ok(());
+                            result
+                        })
+                        .await
+                        {
                             tracing::error!("enqueue update_seeds error: {}", e);
                         }
                     }
@@ -324,7 +355,7 @@ async fn main() -> anyhow::Result<()> {
                     .app_data(web::Data::new(schema.clone()))
                     .app_data(web::Data::new(config.clone()))
                     .app_data(web::Data::new(pool.clone()))
-                    .app_data(web::Data::new(jobs_app.clone()))
+                    .app_data(web::Data::new(faktory_pool.clone()))
                     .service(graphql)
                     .service(graphiql)
                     .service(logout);

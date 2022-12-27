@@ -39,7 +39,7 @@ pub struct AppConfig {
     pub session: SessionConfig,
     pub origin: String,
     pub logout_redirect_url: String,
-    pub amqp_uri: String,
+    pub faktory_url: String,
     pub enqueue_cron_task: bool,
     #[serde(default)]
     pub enable_task_front: bool,

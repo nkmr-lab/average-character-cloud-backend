@@ -1,4 +1,4 @@
-#![deny(warnings)]
+#![cfg_attr(not(debug_assertions), deny(warnings))]
 
 use actix_session::storage::RedisSessionStore;
 use actix_session::{Session, SessionLength, SessionMiddleware};

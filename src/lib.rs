@@ -1,4 +1,4 @@
-#![deny(warnings)]
+#![cfg_attr(not(debug_assertions), deny(warnings))]
 
 pub mod app_config;
 mod dataloader_with_params;

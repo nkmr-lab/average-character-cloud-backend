@@ -1,46 +1,61 @@
-use std::sync::Arc;
+use async_trait::async_trait;
+use r2d2::Pool;
 
-use chrono::Utc;
 use sqlx::PgPool;
 
-use crate::commands::character_config_seed_command;
+use crate::faktory::FaktoryConnectionManager;
 use crate::jobs;
 use faktory::ConsumerBuilder;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tokio::runtime::Handle;
 
 #[derive(Error, Debug)]
 #[error(transparent)]
 pub struct JobError(#[from] pub anyhow::Error);
 
-#[derive(Debug)]
+#[async_trait]
+pub trait Job<'de>: Deserialize<'de> + Serialize + 'static {
+    const JOB_TYPE: &'static str;
+
+    async fn run(self, ctx: Ctx) -> Result<(), anyhow::Error>;
+    fn register(c: &mut ConsumerBuilder<JobError>, ctx: &Ctx) {
+        let rt = tokio::runtime::Handle::current();
+        let ctx = ctx.clone();
+        c.register(Self::JOB_TYPE, move |job| -> Result<(), JobError> {
+            rt.block_on(async {
+                let params = Self::deserialize(job.args()[0].clone())?;
+                params.run(ctx.clone()).await
+            })
+            .map_err(JobError)
+        });
+    }
+
+    async fn enqueue(
+        self,
+        faktory_pool: &Pool<FaktoryConnectionManager>,
+    ) -> Result<(), anyhow::Error> {
+        let faktory_pool = faktory_pool.clone();
+        tokio::task::spawn_blocking(move || {
+            faktory_pool.get()?.enqueue(faktory::Job::new(
+                Self::JOB_TYPE,
+                vec![serde_json::to_value(self).unwrap()],
+            ))?;
+            let result: Result<(), anyhow::Error> = Ok(());
+            result
+        })
+        .await??;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Ctx {
     pub pool: PgPool,
-    pub rt: Handle,
 }
 
 pub fn run_worker(url: &str, ctx: Ctx) -> anyhow::Result<()> {
-    let ctx = Arc::new(ctx);
-
     let mut c = ConsumerBuilder::default();
-    {
-        let ctx = ctx.clone();
-        c.register(
-            jobs::update_seeds::JOB_TYPE,
-            move |job| -> Result<(), JobError> {
-                ctx.rt
-                    .block_on(async {
-                        let _arg = jobs::update_seeds::Arg::deserialize(&job.args()[0])?;
-                        let now = Utc::now();
-                        character_config_seed_command::update_seeds(&ctx.pool, now).await?;
-
-                        Ok(())
-                    })
-                    .map_err(JobError)
-            },
-        );
-    }
+    jobs::UpdateSeeds::register(&mut c, &ctx);
 
     let c = c.connect(Some(url)).unwrap();
     // 終了しないタスクはtokioのspawn_blockingを使ってはいけない

@@ -10,7 +10,6 @@ use average_character_cloud_backend::google_public_key_provider::{
     GooglePublicKeyProvider, GooglePublicKeyProviderCommand,
 };
 use chrono::Utc;
-use faktory::Job;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
 use serde::{Deserialize, Serialize};
@@ -25,13 +24,13 @@ use tracing_actix_web::TracingLogger;
 use actix_web_extras::middleware::Condition as OptionalCondition;
 use average_character_cloud_backend::app_config::{AppConfig, AuthConfig, SessionConfig};
 use average_character_cloud_backend::graphql::{create_schema, AppCtx, Loaders, Schema};
+use average_character_cloud_backend::job::Job;
 use average_character_cloud_backend::{job, jobs};
 use clap::{Parser, Subcommand};
 use guard::guard;
 use jsonwebtoken::jwk::{self, JwkSet};
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
-
 #[derive(Parser)]
 #[clap(name = "average-character-cloud-backend")]
 struct Cli {
@@ -144,16 +143,7 @@ async fn run_task_front(
     faktory_pool: web::Data<r2d2::Pool<FaktoryConnectionManager>>,
 ) -> Result<HttpResponse, error::Error> {
     (|| async {
-        tokio::task::spawn_blocking(move || {
-            faktory_pool.get()?.enqueue(Job::new(
-                jobs::update_seeds::JOB_TYPE,
-                vec![serde_json::to_value(jobs::update_seeds::Arg {}).unwrap()],
-            ))?;
-            let result: Result<(), anyhow::Error> = Ok(());
-            result
-        })
-        .await??;
-
+        (jobs::UpdateSeeds {}).enqueue(&faktory_pool).await?;
         Ok(HttpResponse::Ok()
             .content_type("text/html; charset=utf-8")
             .body("ok"))
@@ -307,13 +297,7 @@ async fn main() -> anyhow::Result<()> {
                 GooglePublicKeyProvider::run(google_public_key_provider_rx).await;
             });
 
-            job::run_worker(
-                &config.faktory_url,
-                job::Ctx {
-                    pool: pool.clone(),
-                    rt: tokio::runtime::Handle::current(),
-                },
-            )?;
+            job::run_worker(&config.faktory_url, job::Ctx { pool: pool.clone() })?;
 
             if config.enqueue_cron_task {
                 let faktory_pool = faktory_pool.clone();
@@ -332,17 +316,7 @@ async fn main() -> anyhow::Result<()> {
                             continue;
                         }
 
-                        let faktory_pool = faktory_pool.clone();
-                        if let Err(e) = tokio::task::spawn_blocking(move || {
-                            faktory_pool.get()?.enqueue(Job::new(
-                                jobs::update_seeds::JOB_TYPE,
-                                vec![serde_json::to_value(jobs::update_seeds::Arg {}).unwrap()],
-                            ))?;
-                            let result: Result<(), anyhow::Error> = Ok(());
-                            result
-                        })
-                        .await
-                        {
+                        if let Err(e) = (jobs::UpdateSeeds {}).enqueue(&faktory_pool).await {
                             tracing::error!("enqueue update_seeds error: {}", e);
                         }
                     }

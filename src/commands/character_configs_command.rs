@@ -1,7 +1,7 @@
 use crate::entities;
 use anyhow::{anyhow, Context};
 use chrono::{DateTime, Utc};
-use sqlx::{Pool, Postgres};
+use sqlx::{Postgres, Transaction};
 use thiserror::Error;
 
 #[derive(Clone, Error, Debug)]
@@ -11,14 +11,12 @@ pub enum CreateError {
 }
 
 pub async fn create(
-    pool: &Pool<Postgres>,
+    trx: &mut Transaction<'_, Postgres>,
     user_id: String,
     now: DateTime<Utc>,
     character: entities::Character,
     stroke_count: usize,
 ) -> anyhow::Result<Result<entities::CharacterConfig, CreateError>> {
-    let mut trx = pool.begin().await?;
-
     let character_config = entities::CharacterConfig {
         user_id,
         character,
@@ -43,7 +41,7 @@ pub async fn create(
         character_config.user_id,
         String::from(character_config.character.clone()),
     )
-    .fetch_optional(&mut trx)
+    .fetch_optional(&mut *trx)
     .await
     .context("check character_config exist")?
     .is_some();
@@ -64,22 +62,19 @@ pub async fn create(
             i32::try_from(character_config.stroke_count)?,
             character_config.version,
         )
-        .execute(&mut trx)
+        .execute(&mut *trx)
         .await
         .context("insert character_configs")?;
 
-    trx.commit().await?;
     Ok(Ok(character_config))
 }
 
 pub async fn update(
-    pool: &Pool<Postgres>,
+    trx: &mut Transaction<'_, Postgres>,
     now: DateTime<Utc>,
     mut character_config: entities::CharacterConfig,
     stroke_count: Option<usize>,
 ) -> anyhow::Result<entities::CharacterConfig> {
-    let mut trx = pool.begin().await?;
-
     let prev_version = character_config.version;
 
     character_config.version += 1;
@@ -109,7 +104,7 @@ pub async fn update(
         String::from(character_config.character.clone()),
         prev_version,
     )
-    .execute(&mut trx)
+    .execute(&mut *trx)
     .await
     .context("update character_config")?;
 
@@ -117,6 +112,5 @@ pub async fn update(
         return Err(anyhow!("conflict"));
     }
 
-    trx.commit().await?;
     Ok(character_config)
 }

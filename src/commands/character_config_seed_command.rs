@@ -1,9 +1,10 @@
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
+use sqlx::{Postgres, Transaction};
 
-pub async fn update_seeds(pool: &PgPool, now: DateTime<Utc>) -> anyhow::Result<()> {
-    let mut trx = pool.begin().await?;
-
+pub async fn update_seeds(
+    trx: &mut Transaction<'_, Postgres>,
+    now: DateTime<Utc>,
+) -> anyhow::Result<()> {
     let result = sqlx::query!(
         r#"
             SELECT
@@ -18,11 +19,11 @@ pub async fn update_seeds(pool: &PgPool, now: DateTime<Utc>) -> anyhow::Result<(
                 character
             "#,
     )
-    .fetch_all(&mut trx)
+    .fetch_all(&mut *trx)
     .await?;
 
     sqlx::query!("DELETE FROM character_config_seeds")
-        .execute(&mut trx)
+        .execute(&mut *trx)
         .await?;
 
     for row in result {
@@ -36,10 +37,9 @@ pub async fn update_seeds(pool: &PgPool, now: DateTime<Utc>) -> anyhow::Result<(
                 .ok_or_else(|| anyhow::anyhow!("avg_stroke_count is null"))?,
             now,
         )
-        .execute(&mut trx)
+        .execute(&mut *trx)
         .await?;
     }
 
-    trx.commit().await?;
     Ok(())
 }

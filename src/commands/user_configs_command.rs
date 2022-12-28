@@ -1,16 +1,15 @@
 use crate::entities;
 use anyhow::{anyhow, Context};
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
+use sqlx::{Postgres, Transaction};
 
 pub async fn update(
-    pool: &PgPool,
+    trx: &mut Transaction<'_, Postgres>,
     now: DateTime<Utc>,
     mut user_config: entities::UserConfig,
     allow_sharing_character_configs: Option<bool>,
     allow_sharing_figure_records: Option<bool>,
 ) -> anyhow::Result<entities::UserConfig> {
-    let mut trx = pool.begin().await?;
     let prev_version = user_config.version;
     user_config.version += 1;
     user_config.updated_at = Some(now);
@@ -41,7 +40,7 @@ pub async fn update(
             user_config.updated_at,
             i32::try_from(user_config.version)?
         )
-        .execute(&mut trx)
+        .execute(&mut *trx)
         .await
         .context("insert character_config")?;
     } else {
@@ -67,7 +66,7 @@ pub async fn update(
             &user_config.user_id,
             i32::try_from(prev_version)?,
         )
-        .execute(&mut trx)
+        .execute(&mut *trx)
         .await
         .context("update character_config")?;
 
@@ -75,8 +74,6 @@ pub async fn update(
             return Err(anyhow!("conflict"));
         }
     }
-
-    trx.commit().await?;
 
     Ok(user_config)
 }

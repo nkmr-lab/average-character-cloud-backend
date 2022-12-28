@@ -15,8 +15,9 @@ impl<'de> Job<'de> for UpdateSeeds {
 
     async fn run(self, ctx: Ctx) -> Result<(), anyhow::Error> {
         let now = Utc::now();
-        character_config_seed_command::update_seeds(&ctx.pool, now).await?;
-
+        let mut trx = ctx.pool.begin().await?;
+        character_config_seed_command::update_seeds(&mut trx, now).await?;
+        trx.commit().await?;
         Ok(())
     }
 }

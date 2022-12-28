@@ -1,17 +1,16 @@
 use crate::entities;
 use anyhow::Context;
 use chrono::{DateTime, Utc};
-use sqlx::{Pool, Postgres};
+use sqlx::{Postgres, Transaction};
 use ulid::Ulid;
 
 pub async fn create(
-    pool: &Pool<Postgres>,
+    trx: &mut Transaction<'_, Postgres>,
     user_id: String,
     now: DateTime<Utc>,
     character: entities::Character,
     figure: entities::Figure,
 ) -> anyhow::Result<entities::FigureRecord> {
-    let mut trx = pool.begin().await?;
     let record = entities::FigureRecord {
         id: Ulid::from_datetime(now),
         user_id,
@@ -32,10 +31,9 @@ pub async fn create(
             record.created_at,
             i32::try_from(record.figure.strokes.len())?,
         )
-        .execute(&mut trx)
+        .execute(&mut *trx)
         .await
         .context("fetch figure_records")?;
 
-    trx.commit().await?;
     Ok(record)
 }

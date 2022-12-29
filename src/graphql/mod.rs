@@ -415,10 +415,16 @@ impl UserConfig {
     }
 }
 
-#[derive(GraphQLObject, Clone, Debug)]
-#[graphql(context = AppCtx)]
+#[derive(Clone, Debug)]
 struct LoginUser {
-    user_id: String,
+    user_id: entities::UserId,
+}
+
+#[juniper::graphql_object(Context = AppCtx)]
+impl LoginUser {
+    fn user_id(&self) -> String {
+        String::from(self.user_id.clone())
+    }
 }
 
 #[derive(Clone, Debug)]

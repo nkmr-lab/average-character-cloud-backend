@@ -6,7 +6,7 @@ use ulid::Ulid;
 
 pub async fn create(
     conn: impl Acquire<'_, Database = Postgres>,
-    user_id: String,
+    user_id: entities::UserId,
     now: DateTime<Utc>,
     character: entities::Character,
     figure: entities::Figure,
@@ -26,7 +26,7 @@ pub async fn create(
                 VALUES ($1, $2, $3, $4, $5, $6)
             "#,
             record.id.to_string(),
-            record.user_id,
+            String::from(record.user_id.clone()),
             String::from(record.character.clone()),
             record.figure.to_json_ast(),
             record.created_at,

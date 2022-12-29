@@ -25,7 +25,7 @@ use actix_web_extras::middleware::Condition as OptionalCondition;
 use average_character_cloud_backend::app_config::{AppConfig, AuthConfig, SessionConfig};
 use average_character_cloud_backend::graphql::{create_schema, AppCtx, Loaders, Schema};
 use average_character_cloud_backend::job::Job;
-use average_character_cloud_backend::{job, jobs};
+use average_character_cloud_backend::{entities, job, jobs};
 use clap::{Parser, Subcommand};
 use guard::guard;
 use jsonwebtoken::jwk::{self, JwkSet};
@@ -69,12 +69,15 @@ async fn graphql(
     let ctx = AppCtx {
         pool: pool.get_ref().clone(),
         user_id: if let SessionConfig::Dummy { user_id } = &config.session {
-            Some(user_id.clone())
+            Some(entities::UserId::from(user_id.clone()))
         } else {
-            session.get::<String>("user_id").unwrap_or_else(|e| {
-                tracing::warn!("session decode error: : {}", e);
-                None
-            })
+            session
+                .get::<String>("user_id")
+                .unwrap_or_else(|e| {
+                    tracing::warn!("session decode error: : {}", e);
+                    None
+                })
+                .map(|s| entities::UserId::from(s))
         },
         now: Utc::now(),
         loaders: Loaders::new(pool.get_ref()),

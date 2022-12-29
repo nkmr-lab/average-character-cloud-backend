@@ -40,7 +40,7 @@ impl FigureRecordModel {
 
         Ok(entities::FigureRecord {
             id,
-            user_id: self.user_id,
+            user_id: entities::UserId::from(self.user_id),
             character,
             figure,
             created_at: self.created_at,
@@ -55,7 +55,7 @@ pub struct FigureRecordByIdLoader {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FigureRecordByIdLoaderParams {
-    pub user_id: String,
+    pub user_id: entities::UserId,
 }
 
 #[async_trait]
@@ -90,7 +90,7 @@ impl BatchFnWithParams for FigureRecordByIdLoader {
                     AND (r.user_id = $2 OR user_configs.allow_sharing_figure_records)
             "#,
                 ids.as_slice(),
-                &params.user_id,
+                String::from(params.user_id.clone()),
             )
             .fetch_all(&self.pool)
             .await
@@ -133,7 +133,7 @@ pub struct FigureRecordsByCharacterLoader {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FigureRecordsByCharacterLoaderParams {
-    pub user_id: String,
+    pub user_id: entities::UserId,
     pub ids: Option<Vec<Ulid>>,
     pub after_id: Option<Ulid>,
     pub before_id: Option<Ulid>,
@@ -214,7 +214,7 @@ impl BatchFnWithParams for FigureRecordsByCharacterLoader {
                     ORDER BY
                         id DESC
                 "#,
-                &params.user_id,
+                String::from(params.user_id.clone()),
                 characters.as_slice(),
                 ids.as_ref().map(|ids| ids.as_slice()),
                 params.after_id.map(|id| id.to_string()),

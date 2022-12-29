@@ -115,7 +115,7 @@ pub struct CharacterConfigSeedsLoader {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CharacterConfigSeedsLoaderParams {
-    pub user_id: String,
+    pub user_id: entities::UserId,
     pub after_character: Option<entities::Character>,
     pub before_character: Option<entities::Character>,
     pub limit: Limit,
@@ -162,7 +162,7 @@ impl BatchFnWithParams for CharacterConfigSeedsLoader {
                 CASE WHEN $4 = 1 THEN character END DESC
             LIMIT $5
         "#,
-                &params.user_id,
+                String::from(params.user_id.clone()),
                 params.clone().after_character.map(String::from),
                 params.clone().before_character.map(String::from),
                 i32::from(params.limit.kind == LimitKind::Last),

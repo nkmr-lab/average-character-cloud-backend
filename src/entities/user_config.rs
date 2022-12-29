@@ -1,8 +1,10 @@
 use chrono::{DateTime, Utc};
 
+use super::UserId;
+
 #[derive(Clone, Debug)]
 pub struct UserConfig {
-    pub user_id: String,
+    pub user_id: UserId,
     pub allow_sharing_character_configs: bool,
     pub allow_sharing_figure_records: bool,
     pub updated_at: Option<DateTime<Utc>>,
@@ -10,7 +12,7 @@ pub struct UserConfig {
 }
 
 impl UserConfig {
-    pub fn default_config(user_id: String) -> UserConfig {
+    pub fn default_config(user_id: UserId) -> UserConfig {
         UserConfig {
             user_id,
             allow_sharing_character_configs: false,

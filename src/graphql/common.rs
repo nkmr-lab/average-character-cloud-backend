@@ -100,9 +100,9 @@ pub fn encode_limit(first: Option<i32>, last: Option<i32>) -> anyhow::Result<Lim
 #[derive(Debug, Clone)]
 pub enum NodeID {
     FigureRecord(Ulid),
-    CharacterConfig(String, entities::Character),
+    CharacterConfig(entities::UserId, entities::Character),
     Character(entities::Character),
-    UserConfig(String),
+    UserConfig(entities::UserId),
     CharacterConfigSeed(entities::Character),
 }
 
@@ -112,14 +112,17 @@ impl NodeID {
             NodeID::FigureRecord(id) => ID::new(base64::encode(format!("FigureRecord:{}", id))),
             NodeID::CharacterConfig(user_id, character) => ID::new(base64::encode(format!(
                 "CharacterConfig:{}-{}",
-                base64::encode(user_id),
+                base64::encode(String::from(user_id.clone())),
                 base64::encode(String::from(character.clone()))
             ))),
             NodeID::Character(character) => ID::new(base64::encode(format!(
                 "Character:{}",
                 String::from(character.clone())
             ))),
-            NodeID::UserConfig(id) => ID::new(base64::encode(format!("UserConfig:{}", id))),
+            NodeID::UserConfig(id) => ID::new(base64::encode(format!(
+                "UserConfig:{}",
+                String::from(id.clone())
+            ))),
             NodeID::CharacterConfigSeed(character) => ID::new(base64::encode(format!(
                 "CharacterConfigSeed:{}",
                 String::from(character.clone())
@@ -136,7 +139,7 @@ impl NodeID {
             "CharacterConfig" => {
                 let (user_id, character) = id.split_once('-')?;
                 let user_id = base64::decode(user_id).ok()?;
-                let user_id = String::from_utf8(user_id).ok()?;
+                let user_id = entities::UserId::from(String::from_utf8(user_id).ok()?);
                 let character = base64::decode(character).ok()?;
                 let character = String::from_utf8(character).ok()?;
                 let character = entities::Character::try_from(character.as_str()).ok()?;
@@ -145,7 +148,7 @@ impl NodeID {
             "Character" => entities::Character::try_from(id)
                 .ok()
                 .map(NodeID::Character),
-            "UserConfig" => Some(NodeID::UserConfig(id.to_string())),
+            "UserConfig" => Some(NodeID::UserConfig(entities::UserId::from(id.to_string()))),
             "CharacterConfigSeed" => entities::Character::try_from(id)
                 .ok()
                 .map(NodeID::CharacterConfigSeed),

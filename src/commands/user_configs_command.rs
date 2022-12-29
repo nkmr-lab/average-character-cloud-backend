@@ -35,7 +35,7 @@ pub async fn update(
                         version
                     ) VALUES ($1, $2, $3, $4, $5)
                 "#,
-            &user_config.user_id,
+            &String::from(user_config.user_id.clone()),
             user_config.allow_sharing_character_configs,
             user_config.allow_sharing_figure_records,
             user_config.updated_at,
@@ -64,7 +64,7 @@ pub async fn update(
             user_config.allow_sharing_character_configs,
             user_config.allow_sharing_figure_records,
             i32::try_from(user_config.version)?,
-            &user_config.user_id,
+            &String::from(user_config.user_id.clone()),
             i32::try_from(prev_version)?,
         )
         .execute(&mut *trx)

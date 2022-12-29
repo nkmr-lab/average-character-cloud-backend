@@ -16,7 +16,7 @@ pub struct UserConfigModel {
 
 pub async fn load_user_config(
     pool: &PgPool,
-    user_id: String,
+    user_id: entities::UserId,
 ) -> anyhow::Result<entities::UserConfig> {
     let record = sqlx::query_as!(
         UserConfigModel,
@@ -32,7 +32,7 @@ pub async fn load_user_config(
         WHERE
             user_id = $1
         "#,
-        user_id
+        String::from(user_id.clone())
     )
     .fetch_optional(pool)
     .await?;
@@ -40,7 +40,7 @@ pub async fn load_user_config(
     let user_config = record
         .map(|record| -> anyhow::Result<_> {
             Ok(entities::UserConfig {
-                user_id: record.user_id,
+                user_id: entities::UserId::from(record.user_id),
                 allow_sharing_character_configs: record.allow_sharing_character_configs,
                 allow_sharing_figure_records: record.allow_sharing_figure_records,
                 updated_at: Some(record.updated_at),

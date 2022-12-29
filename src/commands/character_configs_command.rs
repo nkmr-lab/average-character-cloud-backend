@@ -12,7 +12,7 @@ pub enum CreateError {
 
 pub async fn create(
     conn: impl Acquire<'_, Database = Postgres>,
-    user_id: String,
+    user_id: entities::UserId,
     now: DateTime<Utc>,
     character: entities::Character,
     stroke_count: usize,
@@ -39,7 +39,7 @@ pub async fn create(
                 AND
                 character = $2
         "#,
-        character_config.user_id,
+        String::from(character_config.user_id.clone()),
         String::from(character_config.character.clone()),
     )
     .fetch_optional(&mut *trx)
@@ -56,7 +56,7 @@ pub async fn create(
                 INSERT INTO character_configs (user_id, character, created_at, updated_at, stroke_count, version)
                 VALUES ($1, $2, $3, $4, $5, $6)
             "#,
-            character_config.user_id,
+            String::from(character_config.user_id.clone()),
             String::from(character_config.character.clone()),
             character_config.created_at,
             character_config.updated_at,
@@ -103,7 +103,7 @@ pub async fn update(
         &character_config.updated_at,
         i32::try_from(character_config.stroke_count)?,
         character_config.version,
-        &character_config.user_id,
+        String::from(character_config.user_id.clone()),
         String::from(character_config.character.clone()),
         prev_version,
     )

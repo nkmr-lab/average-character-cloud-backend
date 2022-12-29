@@ -26,7 +26,7 @@ impl CharacterConfigModel {
         let character = entities::Character::try_from(self.character.as_str())?;
 
         Ok(entities::CharacterConfig {
-            user_id: self.user_id,
+            user_id: entities::UserId::from(self.user_id),
             character,
             stroke_count: usize::try_from(self.stroke_count)?,
             created_at: self.created_at,
@@ -43,7 +43,7 @@ pub struct CharacterConfigByCharacterLoader {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CharacterConfigByCharacterLoaderParams {
-    pub user_id: String,
+    pub user_id: entities::UserId,
 }
 
 #[async_trait]
@@ -80,7 +80,7 @@ impl BatchFnWithParams for CharacterConfigByCharacterLoader {
                     AND
                     character = Any($2)
             "#,
-                &params.user_id,
+                String::from(params.user_id.clone()),
                 character_values.as_slice(),
             )
             .fetch_all(&self.pool)
@@ -124,7 +124,7 @@ pub struct CharacterConfigsLoader {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CharacterConfigsLoaderParams {
-    pub user_id: String,
+    pub user_id: entities::UserId,
     pub after_character: Option<entities::Character>,
     pub before_character: Option<entities::Character>,
     pub limit: Limit,
@@ -165,7 +165,7 @@ impl BatchFnWithParams for CharacterConfigsLoader {
                 CASE WHEN $4 = 1 THEN character END DESC
             LIMIT $5
         "#,
-                &params.user_id,
+                String::from(params.user_id.clone()),
                 params.clone().after_character.map(String::from),
                 params.clone().before_character.map(String::from),
                 i32::from(params.limit.kind == LimitKind::Last),

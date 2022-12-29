@@ -8,5 +8,5 @@ pub struct CharacterConfig {
     pub stroke_count: usize,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    pub version: i32,
+    pub version: u32,
 }

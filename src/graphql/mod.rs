@@ -675,17 +675,14 @@ impl MutationRoot {
             .clone()
             .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
-        let mut trx = ctx.pool.begin().await?;
         let record = figure_records_command::create(
-            &mut trx,
+            &ctx.pool,
             user_id,
             ctx.now,
             input.character.0,
             input.figure.0,
         )
         .await?;
-
-        trx.commit().await?;
 
         Ok(CreateFigureRecordPayload {
             figure_record: Some(FigureRecord::from(record)),
@@ -711,9 +708,8 @@ impl MutationRoot {
             });
         });
 
-        let mut trx = ctx.pool.begin().await?;
         let character_config = match character_configs_command::create(
-            &mut trx,
+            &ctx.pool,
             user_id,
             ctx.now,
             input.character.0,
@@ -731,8 +727,6 @@ impl MutationRoot {
                 });
             }
         };
-
-        trx.commit().await?;
 
         Ok(CreateCharacterConfigPayload {
             character_config: Some(CharacterConfig::from(character_config)),
@@ -776,12 +770,10 @@ impl MutationRoot {
             });
         });
 
-        let mut trx = ctx.pool.begin().await?;
         let character_config =
-            character_configs_command::update(&mut trx, ctx.now, character_config, stroke_count)
+            character_configs_command::update(&ctx.pool, ctx.now, character_config, stroke_count)
                 .await?;
 
-        trx.commit().await?;
         Ok(UpdateCharacterConfigPayload {
             character_config: Some(CharacterConfig::from(character_config)),
             errors: None,
@@ -801,16 +793,14 @@ impl MutationRoot {
             .await
             .context("load user_config")?;
 
-        let mut trx = ctx.pool.begin().await?;
         let user_config = user_configs_command::update(
-            &mut trx,
+            &ctx.pool,
             ctx.now,
             user_config,
             input.allow_sharing_character_configs,
             input.allow_sharing_figure_records,
         )
         .await?;
-        trx.commit().await?;
 
         Ok(UpdateUserConfigPayload {
             user_config: Some(UserConfig::from(user_config)),

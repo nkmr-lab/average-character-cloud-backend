@@ -1,10 +1,11 @@
 use chrono::{DateTime, Utc};
-use sqlx::{Postgres, Transaction};
+use sqlx::{Acquire, Postgres};
 
 pub async fn update_seeds(
-    trx: &mut Transaction<'_, Postgres>,
+    conn: impl Acquire<'_, Database = Postgres>,
     now: DateTime<Utc>,
 ) -> anyhow::Result<()> {
+    let mut trx = conn.begin().await?;
     let result = sqlx::query!(
         r#"
             SELECT
@@ -41,5 +42,6 @@ pub async fn update_seeds(
         .await?;
     }
 
+    trx.commit().await?;
     Ok(())
 }

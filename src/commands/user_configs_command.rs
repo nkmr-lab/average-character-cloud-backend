@@ -1,15 +1,16 @@
 use crate::entities;
 use anyhow::{anyhow, Context};
 use chrono::{DateTime, Utc};
-use sqlx::{Postgres, Transaction};
+use sqlx::{Acquire, Postgres};
 
 pub async fn update(
-    trx: &mut Transaction<'_, Postgres>,
+    conn: impl Acquire<'_, Database = Postgres>,
     now: DateTime<Utc>,
     mut user_config: entities::UserConfig,
     allow_sharing_character_configs: Option<bool>,
     allow_sharing_figure_records: Option<bool>,
 ) -> anyhow::Result<entities::UserConfig> {
+    let mut trx = conn.begin().await?;
     let prev_version = user_config.version;
     user_config.version += 1;
     user_config.updated_at = Some(now);
@@ -74,6 +75,8 @@ pub async fn update(
             return Err(anyhow!("conflict"));
         }
     }
+
+    trx.commit().await?;
 
     Ok(user_config)
 }

@@ -1,7 +1,7 @@
 use crate::entities;
 use anyhow::{anyhow, Context};
 use chrono::{DateTime, Utc};
-use sqlx::{Postgres, Transaction};
+use sqlx::{Acquire, Postgres};
 use thiserror::Error;
 
 #[derive(Clone, Error, Debug)]
@@ -11,12 +11,13 @@ pub enum CreateError {
 }
 
 pub async fn create(
-    trx: &mut Transaction<'_, Postgres>,
+    conn: impl Acquire<'_, Database = Postgres>,
     user_id: String,
     now: DateTime<Utc>,
     character: entities::Character,
     stroke_count: usize,
 ) -> anyhow::Result<Result<entities::CharacterConfig, CreateError>> {
+    let mut trx = conn.begin().await?;
     let character_config = entities::CharacterConfig {
         user_id,
         character,
@@ -66,15 +67,17 @@ pub async fn create(
         .await
         .context("insert character_configs")?;
 
+    trx.commit().await?;
     Ok(Ok(character_config))
 }
 
 pub async fn update(
-    trx: &mut Transaction<'_, Postgres>,
+    conn: impl Acquire<'_, Database = Postgres>,
     now: DateTime<Utc>,
     mut character_config: entities::CharacterConfig,
     stroke_count: Option<usize>,
 ) -> anyhow::Result<entities::CharacterConfig> {
+    let mut trx = conn.begin().await?;
     let prev_version = character_config.version;
 
     character_config.version += 1;
@@ -112,5 +115,6 @@ pub async fn update(
         return Err(anyhow!("conflict"));
     }
 
+    trx.commit().await?;
     Ok(character_config)
 }

@@ -1,16 +1,17 @@
 use crate::entities;
 use anyhow::Context;
 use chrono::{DateTime, Utc};
-use sqlx::{Postgres, Transaction};
+use sqlx::{Acquire, Postgres};
 use ulid::Ulid;
 
 pub async fn create(
-    trx: &mut Transaction<'_, Postgres>,
+    conn: impl Acquire<'_, Database = Postgres>,
     user_id: String,
     now: DateTime<Utc>,
     character: entities::Character,
     figure: entities::Figure,
 ) -> anyhow::Result<entities::FigureRecord> {
+    let mut trx = conn.begin().await?;
     let record = entities::FigureRecord {
         id: Ulid::from_datetime(now),
         user_id,
@@ -35,5 +36,6 @@ pub async fn create(
         .await
         .context("fetch figure_records")?;
 
+    trx.commit().await?;
     Ok(record)
 }

@@ -62,6 +62,7 @@
             cargo-make
             packages.sqldef
             crate2nix
+            cargo-watch
           ] ++ lib.optionals stdenv.isLinux [
             pkg-config
           ];

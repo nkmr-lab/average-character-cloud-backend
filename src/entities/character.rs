@@ -1,4 +1,3 @@
-use std::fmt;
 use thiserror::Error;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]

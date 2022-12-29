@@ -31,7 +31,6 @@ use crate::queries::{
     CharacterConfigsLoaderParams, FigureRecordByIdLoaderParams,
     FigureRecordsByCharacterLoaderParams,
 };
-use crate::values::LimitKind;
 
 /*
  * replayの仕様に従うこと
@@ -370,8 +369,8 @@ impl Character {
 
         Ok(FigureRecordConnection {
             page_info: PageInfo {
-                has_next_page: has_extra && limit.kind == LimitKind::First,
-                has_previous_page: has_extra && limit.kind == LimitKind::Last,
+                has_next_page: has_extra && limit.kind() == entities::LimitKind::First,
+                has_previous_page: has_extra && limit.kind() == entities::LimitKind::Last,
                 start_cursor: records.first().map(|record| record.node_id().to_string()),
                 end_cursor: records.last().map(|record| record.node_id().to_string()),
             },
@@ -579,8 +578,8 @@ impl QueryRoot {
 
         Ok(CharacterConfigConnection {
             page_info: PageInfo {
-                has_next_page: has_extra && limit.kind == LimitKind::First,
-                has_previous_page: has_extra && limit.kind == LimitKind::Last,
+                has_next_page: has_extra && limit.kind() == entities::LimitKind::First,
+                has_previous_page: has_extra && limit.kind() == entities::LimitKind::Last,
                 start_cursor: records.first().map(|record| record.node_id().to_string()),
                 end_cursor: records.last().map(|record| record.node_id().to_string()),
             },
@@ -652,8 +651,8 @@ impl QueryRoot {
 
         Ok(CharacterConfigSeedConnection {
             page_info: PageInfo {
-                has_next_page: has_extra && limit.kind == LimitKind::First,
-                has_previous_page: has_extra && limit.kind == LimitKind::Last,
+                has_next_page: has_extra && limit.kind() == entities::LimitKind::First,
+                has_previous_page: has_extra && limit.kind() == entities::LimitKind::Last,
                 start_cursor: records.first().map(|record| record.node_id().to_string()),
                 end_cursor: records.last().map(|record| record.node_id().to_string()),
             },

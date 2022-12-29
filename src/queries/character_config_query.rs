@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 
 use crate::entities;
-use crate::values::{Limit, LimitKind};
 use anyhow::Context;
 use async_trait::async_trait;
 
@@ -127,7 +126,7 @@ pub struct CharacterConfigsLoaderParams {
     pub user_id: entities::UserId,
     pub after_character: Option<entities::Character>,
     pub before_character: Option<entities::Character>,
-    pub limit: Limit,
+    pub limit: entities::Limit,
 }
 
 #[async_trait]
@@ -168,8 +167,8 @@ impl BatchFnWithParams for CharacterConfigsLoader {
                 String::from(params.user_id.clone()),
                 params.clone().after_character.map(String::from),
                 params.clone().before_character.map(String::from),
-                i32::from(params.limit.kind == LimitKind::Last),
-                i64::from(params.limit.value) + 1,
+                i32::from(params.limit.kind() == entities::LimitKind::Last),
+                i64::from(params.limit.value()) + 1,
             )
             .fetch_all(&self.pool)
             .await
@@ -182,11 +181,12 @@ impl BatchFnWithParams for CharacterConfigsLoader {
                 .context("convert CharacterConfig")?;
 
             let has_extra = character_configs.len()
-                > usize::try_from(params.limit.value).context("into usize")?;
+                > usize::try_from(params.limit.value()).context("into usize")?;
 
-            character_configs.truncate(usize::try_from(params.limit.value).context("into usize")?);
+            character_configs
+                .truncate(usize::try_from(params.limit.value()).context("into usize")?);
 
-            if params.limit.kind == LimitKind::Last {
+            if params.limit.kind() == entities::LimitKind::Last {
                 character_configs.reverse();
             }
 

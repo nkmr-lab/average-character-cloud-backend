@@ -10,7 +10,6 @@ use crate::entities;
 use anyhow::{anyhow, ensure, Context};
 
 use super::UserType;
-use crate::values::{Limit, LimitKind};
 use crate::BatchFnWithParams;
 use crate::ShareableError;
 
@@ -137,7 +136,7 @@ pub struct FigureRecordsByCharacterLoaderParams {
     pub ids: Option<Vec<Ulid>>,
     pub after_id: Option<Ulid>,
     pub before_id: Option<Ulid>,
-    pub limit: Limit,
+    pub limit: entities::Limit,
     pub user_type: Option<UserType>,
 }
 
@@ -219,8 +218,8 @@ impl BatchFnWithParams for FigureRecordsByCharacterLoader {
                 ids.as_ref().map(|ids| ids.as_slice()),
                 params.after_id.map(|id| id.to_string()),
                 params.before_id.map(|id| id.to_string()),
-                i32::from(params.limit.kind == LimitKind::Last),
-                i64::from(params.limit.value) + 1,
+                i32::from(params.limit.kind() == entities::LimitKind::Last),
+                i64::from(params.limit.value()) + 1,
                 params.user_type == Some(UserType::Myself),
                 params.user_type == Some(UserType::Other),
             )
@@ -258,9 +257,9 @@ impl BatchFnWithParams for FigureRecordsByCharacterLoader {
                             let mut figure_records =
                                 figure_records_map.get(key).cloned().unwrap_or_default();
                             let has_extra = figure_records.len()
-                                > usize::try_from(params.limit.value).context("into usize")?;
+                                > usize::try_from(params.limit.value()).context("into usize")?;
                             figure_records.truncate(
-                                usize::try_from(params.limit.value).context("into usize")?,
+                                usize::try_from(params.limit.value()).context("into usize")?,
                             );
                             Ok((figure_records, has_extra))
                         },

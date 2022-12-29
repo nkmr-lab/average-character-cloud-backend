@@ -25,13 +25,8 @@ impl From<Character> for String {
 }
 
 #[derive(Error, Debug, Clone)]
-pub struct CharacterTryFromError(());
-
-impl fmt::Display for CharacterTryFromError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Character must be single character")
-    }
-}
+#[error("Character must be single character")]
+pub struct CharacterTryFromError;
 
 impl TryFrom<&str> for Character {
     type Error = CharacterTryFromError;
@@ -40,7 +35,7 @@ impl TryFrom<&str> for Character {
         if let &[character] = value.chars().collect::<Vec<_>>().as_slice() {
             Ok(Self { value: character })
         } else {
-            Err(CharacterTryFromError(()))
+            Err(CharacterTryFromError)
         }
     }
 }

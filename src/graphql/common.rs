@@ -6,22 +6,14 @@ use juniper::ID;
 use thiserror::Error;
 use ulid::Ulid;
 
-use crate::entities::{self};
+use crate::entities;
 use anyhow::anyhow;
 
-use crate::values::{Limit, LimitKind};
-use std::fmt;
-
 #[derive(Debug, Error)]
+#[error("{source}")]
 pub struct GraphqlUserError {
     #[source]
     pub source: anyhow::Error,
-}
-
-impl fmt::Display for GraphqlUserError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.source)
-    }
 }
 
 impl From<anyhow::Error> for GraphqlUserError {
@@ -59,38 +51,37 @@ impl<T: Into<anyhow::Error>> From<T> for ApiError {
     }
 }
 
-pub fn encode_limit(first: Option<i32>, last: Option<i32>) -> anyhow::Result<Limit> {
-    let max = 100;
-
+pub fn encode_limit(
+    first: Option<i32>,
+    last: Option<i32>,
+) -> Result<entities::Limit, GraphqlUserError> {
     match (first, last) {
         (Some(first), None) => {
             if first < 0 {
                 Err(GraphqlUserError::from("first must be greater than or equal to 0").into())
-            } else if first > max {
-                Err(GraphqlUserError::from(
-                    format!("first must be less than or equal to {}", max).as_str(),
-                )
-                .into())
             } else {
-                Ok(Limit {
-                    kind: LimitKind::First,
-                    value: first,
-                })
+                entities::Limit::new(
+                    entities::LimitKind::First,
+                    u32::try_from(first).map_err(|_| {
+                        GraphqlUserError::from("first must be greater than or equal to 0")
+                    })?,
+                )
+                .map_err(anyhow::Error::from)
+                .map_err(GraphqlUserError::from)
             }
         }
         (None, Some(last)) => {
             if last < 0 {
                 Err(GraphqlUserError::from("last must be greater than or equal to 0").into())
-            } else if last > max {
-                Err(GraphqlUserError::from(
-                    format!("last must be less than or equal to {}", max).as_str(),
-                )
-                .into())
             } else {
-                Ok(Limit {
-                    kind: LimitKind::Last,
-                    value: last,
-                })
+                entities::Limit::new(
+                    entities::LimitKind::Last,
+                    u32::try_from(last).map_err(|_| {
+                        GraphqlUserError::from("last must be greater than or equal to 0")
+                    })?,
+                )
+                .map_err(anyhow::Error::from)
+                .map_err(GraphqlUserError::from)
             }
         }
         _ => Err(GraphqlUserError::from("Must provide either first or last, not both").into()),

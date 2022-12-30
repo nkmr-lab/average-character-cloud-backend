@@ -21,9 +21,8 @@ impl ManageConnection for FaktoryConnectionManager {
         Producer::connect(Some(&self.url))
     }
 
-    fn is_valid(&self, _conn: &mut Self::Connection) -> Result<(), Self::Error> {
-        // faktoryにチェックする方法がない
-        Ok(())
+    fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
+        conn.info().map(|_| ())
     }
 
     fn has_broken(&self, _conn: &mut Self::Connection) -> bool {

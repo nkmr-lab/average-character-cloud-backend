@@ -1,25 +1,23 @@
 use thiserror::Error;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
-pub struct Character {
-    value: char,
-}
+pub struct Character(char);
 
 impl From<char> for Character {
     fn from(value: char) -> Self {
-        Self { value }
+        Self(value)
     }
 }
 
 impl From<Character> for char {
     fn from(value: Character) -> Self {
-        value.value
+        value.0
     }
 }
 
 impl From<Character> for String {
     fn from(value: Character) -> Self {
-        value.value.to_string()
+        value.0.to_string()
     }
 }
 
@@ -34,7 +32,7 @@ impl TryFrom<&str> for Character {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         if let &[character] = value.chars().collect::<Vec<_>>().as_slice() {
-            Ok(Self { value: character })
+            Ok(Self(character))
         } else {
             Err(CharacterTryFromError::NotSingleCharacter)
         }

@@ -33,7 +33,7 @@ impl FigureRecordModel {
             .ok_or_else(|| anyhow!("figure must be valid json"))?;
 
         ensure!(
-            usize::try_from(self.stroke_count)? == figure.strokes.len(),
+            self.stroke_count == i32::from(figure.stroke_count()),
             "stroke_count invalid"
         );
 

@@ -30,7 +30,7 @@ pub async fn create(
             String::from(record.character.clone()),
             record.figure.to_json_ast(),
             record.created_at,
-            i32::try_from(record.figure.strokes.len())?,
+            i32::try_from(record.figure.stroke_count())?,
         )
         .execute(&mut *trx)
         .await

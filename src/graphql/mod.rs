@@ -704,7 +704,7 @@ impl MutationRoot {
             .clone()
             .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
-        guard!(let Ok(stroke_count) = input.stroke_count.try_into() else {
+        guard!(let Ok(stroke_count) = entities::StrokeCount::try_from(input.stroke_count) else {
             return Ok(CreateCharacterConfigPayload {
                 character_config: None,
                 errors: Some(vec![GraphqlErrorType {
@@ -765,7 +765,7 @@ impl MutationRoot {
 
         guard!(let Ok(stroke_count) = input
         .stroke_count
-        .map(|stroke_count| stroke_count.try_into())
+        .map(entities::StrokeCount::try_from)
         .transpose() else {
            return Ok(UpdateCharacterConfigPayload {
                 character_config: None,

@@ -1,5 +1,3 @@
-use std::convert::TryInto;
-
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 

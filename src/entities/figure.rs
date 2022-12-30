@@ -37,6 +37,7 @@ impl Figure {
     }
 
     pub fn from_json_ast(json: serde_json::Value) -> Option<Figure> {
+        // TODO: StrokeCountのチェックなど
         serde_json::from_value(json).ok()
     }
 }

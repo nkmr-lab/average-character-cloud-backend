@@ -23,7 +23,7 @@ impl CharacterConfigSeedModel {
 
         Ok(entities::CharacterConfigSeed {
             character,
-            stroke_count: usize::try_from(self.stroke_count)?,
+            stroke_count: entities::StrokeCount::try_from(self.stroke_count)?,
             updated_at: self.updated_at,
         })
     }

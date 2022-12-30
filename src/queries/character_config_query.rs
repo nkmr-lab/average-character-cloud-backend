@@ -27,7 +27,7 @@ impl CharacterConfigModel {
         Ok(entities::CharacterConfig {
             user_id: entities::UserId::from(self.user_id),
             character,
-            stroke_count: usize::try_from(self.stroke_count)?,
+            stroke_count: entities::StrokeCount::try_from(self.stroke_count)?,
             created_at: self.created_at,
             updated_at: self.updated_at,
             version: u32::try_from(self.version)?,

@@ -15,7 +15,7 @@ pub async fn create(
     user_id: entities::UserId,
     now: DateTime<Utc>,
     character: entities::Character,
-    stroke_count: usize,
+    stroke_count: entities::StrokeCount,
 ) -> anyhow::Result<Result<entities::CharacterConfig, CreateError>> {
     let mut trx = conn.begin().await?;
     let character_config = entities::CharacterConfig {
@@ -75,7 +75,7 @@ pub async fn update(
     conn: impl Acquire<'_, Database = Postgres>,
     now: DateTime<Utc>,
     mut character_config: entities::CharacterConfig,
-    stroke_count: Option<usize>,
+    stroke_count: Option<entities::StrokeCount>,
 ) -> anyhow::Result<entities::CharacterConfig> {
     let mut trx = conn.begin().await?;
     let prev_version = character_config.version;
@@ -101,7 +101,7 @@ pub async fn update(
                     version = $6
             "#,
         &character_config.updated_at,
-        i32::try_from(character_config.stroke_count)?,
+        i32::from(character_config.stroke_count),
         i32::try_from(character_config.version)?,
         String::from(character_config.user_id.clone()),
         String::from(character_config.character.clone()),

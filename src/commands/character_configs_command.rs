@@ -60,7 +60,7 @@ pub async fn create(
             String::from(character_config.character.clone()),
             character_config.created_at,
             character_config.updated_at,
-            i32::try_from(character_config.stroke_count)?,
+            i32::from(character_config.stroke_count),
             i32::try_from(character_config.version)?,
         )
         .execute(&mut *trx)

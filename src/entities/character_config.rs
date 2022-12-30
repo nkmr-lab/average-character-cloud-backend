@@ -1,4 +1,4 @@
-use super::{character, StrokeCount, UserId};
+use super::{character, StrokeCount, UserId, Version};
 use chrono::{DateTime, Utc};
 
 #[derive(Clone, Debug)]
@@ -8,5 +8,5 @@ pub struct CharacterConfig {
     pub stroke_count: StrokeCount,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    pub version: u32,
+    pub version: Version,
 }

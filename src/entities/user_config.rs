@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 
-use super::UserId;
+use super::{UserId, Version};
 
 #[derive(Clone, Debug)]
 pub struct UserConfig {
@@ -8,7 +8,7 @@ pub struct UserConfig {
     pub allow_sharing_character_configs: bool,
     pub allow_sharing_figure_records: bool,
     pub updated_at: Option<DateTime<Utc>>,
-    pub version: u32,
+    pub version: Version,
 }
 
 impl UserConfig {
@@ -18,7 +18,7 @@ impl UserConfig {
             allow_sharing_character_configs: false,
             allow_sharing_figure_records: false,
             updated_at: None,
-            version: 0,
+            version: Version::none(),
         }
     }
 }

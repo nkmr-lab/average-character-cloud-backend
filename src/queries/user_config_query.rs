@@ -42,7 +42,7 @@ pub async fn load_user_config(
                 allow_sharing_character_configs: record.allow_sharing_character_configs,
                 allow_sharing_figure_records: record.allow_sharing_figure_records,
                 updated_at: Some(record.updated_at),
-                version: u32::try_from(record.version)?,
+                version: entities::Version::try_from(record.version)?,
             })
         })
         .unwrap_or_else(|| Ok(entities::UserConfig::default_config(user_id)))?;

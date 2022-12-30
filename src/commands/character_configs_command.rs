@@ -24,7 +24,7 @@ pub async fn create(
         created_at: now,
         updated_at: now,
         stroke_count,
-        version: 1,
+        version: entities::Version::new(),
     };
 
     // check exist
@@ -61,7 +61,7 @@ pub async fn create(
             character_config.created_at,
             character_config.updated_at,
             i32::from(character_config.stroke_count),
-            i32::try_from(character_config.version)?,
+            i32::from(character_config.version),
         )
         .execute(&mut *trx)
         .await
@@ -80,7 +80,7 @@ pub async fn update(
     let mut trx = conn.begin().await?;
     let prev_version = character_config.version;
 
-    character_config.version += 1;
+    character_config.version = character_config.version.next();
     character_config.updated_at = now;
     if let Some(stroke_count) = stroke_count {
         character_config.stroke_count = stroke_count;
@@ -102,10 +102,10 @@ pub async fn update(
             "#,
         &character_config.updated_at,
         i32::from(character_config.stroke_count),
-        i32::try_from(character_config.version)?,
+        i32::from(character_config.version),
         String::from(character_config.user_id.clone()),
         String::from(character_config.character.clone()),
-        i32::try_from(prev_version)?,
+        i32::from(prev_version),
     )
     .execute(&mut *trx)
     .await

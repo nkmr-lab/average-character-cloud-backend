@@ -12,7 +12,7 @@ pub async fn update(
 ) -> anyhow::Result<entities::UserConfig> {
     let mut trx = conn.begin().await?;
     let prev_version = user_config.version;
-    user_config.version += 1;
+    user_config.version = user_config.version.next();
     user_config.updated_at = Some(now);
 
     if let Some(allow_sharing_character_configs) = allow_sharing_character_configs {
@@ -23,7 +23,7 @@ pub async fn update(
         user_config.allow_sharing_figure_records = allow_sharing_figure_records;
     }
 
-    if prev_version == 0 {
+    if prev_version.is_none() {
         sqlx::query!(
             r#" 
                 INSERT
@@ -39,7 +39,7 @@ pub async fn update(
             user_config.allow_sharing_character_configs,
             user_config.allow_sharing_figure_records,
             user_config.updated_at,
-            i32::try_from(user_config.version)?
+            i32::from(user_config.version)
         )
         .execute(&mut *trx)
         .await
@@ -63,9 +63,9 @@ pub async fn update(
                 .ok_or(anyhow!("updated_at is None"))?,
             user_config.allow_sharing_character_configs,
             user_config.allow_sharing_figure_records,
-            i32::try_from(user_config.version)?,
+            i32::from(user_config.version),
             &String::from(user_config.user_id.clone()),
-            i32::try_from(prev_version)?,
+            i32::from(prev_version),
         )
         .execute(&mut *trx)
         .await

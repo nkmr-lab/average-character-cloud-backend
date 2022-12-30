@@ -13,7 +13,7 @@ pub use character::Character;
 pub use character_config::CharacterConfig;
 pub use character_config_seed::CharacterConfigSeed;
 pub use figure::Figure;
-pub use figure_record::FigureRecord;
+pub use figure_record::{FigureRecord, FigureRecordId};
 pub use limit::{Limit, LimitKind};
 pub use stroke_count::StrokeCount;
 pub use user_config::UserConfig;

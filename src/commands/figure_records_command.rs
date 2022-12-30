@@ -13,7 +13,7 @@ pub async fn create(
 ) -> anyhow::Result<entities::FigureRecord> {
     let mut trx = conn.begin().await?;
     let record = entities::FigureRecord {
-        id: Ulid::from_datetime(now),
+        id: entities::FigureRecordId::from(Ulid::from_datetime(now)),
         user_id,
         character,
         figure,
@@ -25,7 +25,7 @@ pub async fn create(
                 INSERT INTO figure_records (id, user_id, character, figure, created_at, stroke_count)
                 VALUES ($1, $2, $3, $4, $5, $6)
             "#,
-            record.id.to_string(),
+            Ulid::from(record.id).to_string(),
             String::from(record.user_id.clone()),
             String::from(record.character.clone()),
             record.figure.to_json_ast(),

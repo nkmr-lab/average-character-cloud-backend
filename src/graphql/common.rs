@@ -79,44 +79,48 @@ pub fn encode_limit(
 }
 
 #[derive(Debug, Clone)]
-pub enum NodeID {
-    FigureRecord(Ulid),
+pub enum NodeId {
+    FigureRecord(entities::FigureRecordId),
     CharacterConfig(entities::UserId, entities::Character),
     Character(entities::Character),
     UserConfig(entities::UserId),
     CharacterConfigSeed(entities::Character),
 }
 
-impl NodeID {
+impl NodeId {
     pub fn to_id(&self) -> ID {
         match self {
-            NodeID::FigureRecord(id) => ID::new(base64::encode(format!("FigureRecord:{}", id))),
-            NodeID::CharacterConfig(user_id, character) => ID::new(base64::encode(format!(
+            NodeId::FigureRecord(id) => {
+                ID::new(base64::encode(format!("FigureRecord:{}", Ulid::from(*id))))
+            }
+            NodeId::CharacterConfig(user_id, character) => ID::new(base64::encode(format!(
                 "CharacterConfig:{}-{}",
                 base64::encode(String::from(user_id.clone())),
                 base64::encode(String::from(character.clone()))
             ))),
-            NodeID::Character(character) => ID::new(base64::encode(format!(
+            NodeId::Character(character) => ID::new(base64::encode(format!(
                 "Character:{}",
                 String::from(character.clone())
             ))),
-            NodeID::UserConfig(id) => ID::new(base64::encode(format!(
+            NodeId::UserConfig(id) => ID::new(base64::encode(format!(
                 "UserConfig:{}",
                 String::from(id.clone())
             ))),
-            NodeID::CharacterConfigSeed(character) => ID::new(base64::encode(format!(
+            NodeId::CharacterConfigSeed(character) => ID::new(base64::encode(format!(
                 "CharacterConfigSeed:{}",
                 String::from(character.clone())
             ))),
         }
     }
 
-    pub fn from_id(id: &ID) -> Option<NodeID> {
+    pub fn from_id(id: &ID) -> Option<NodeId> {
         let id = id.to_string();
         let buf = base64::decode(id).ok()?;
         let s = String::from_utf8(buf).ok()?;
         s.split_once(':').and_then(|(kind, id)| match kind {
-            "FigureRecord" => Ulid::from_str(id).ok().map(NodeID::FigureRecord),
+            "FigureRecord" => Ulid::from_str(id)
+                .ok()
+                .map(|id| NodeId::FigureRecord(entities::FigureRecordId::from(id))),
             "CharacterConfig" => {
                 let (user_id, character) = id.split_once('-')?;
                 let user_id = base64::decode(user_id).ok()?;
@@ -124,15 +128,15 @@ impl NodeID {
                 let character = base64::decode(character).ok()?;
                 let character = String::from_utf8(character).ok()?;
                 let character = entities::Character::try_from(character.as_str()).ok()?;
-                Some(NodeID::CharacterConfig(user_id, character))
+                Some(NodeId::CharacterConfig(user_id, character))
             }
             "Character" => entities::Character::try_from(id)
                 .ok()
-                .map(NodeID::Character),
-            "UserConfig" => Some(NodeID::UserConfig(entities::UserId::from(id.to_string()))),
+                .map(NodeId::Character),
+            "UserConfig" => Some(NodeId::UserConfig(entities::UserId::from(id.to_string()))),
             "CharacterConfigSeed" => entities::Character::try_from(id)
                 .ok()
-                .map(NodeID::CharacterConfigSeed),
+                .map(NodeId::CharacterConfigSeed),
             _ => None,
         })
     }

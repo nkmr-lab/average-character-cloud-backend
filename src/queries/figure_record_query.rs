@@ -38,7 +38,7 @@ impl FigureRecordModel {
         );
 
         Ok(entities::FigureRecord {
-            id,
+            id: entities::FigureRecordId::from(id),
             user_id: entities::UserId::from(self.user_id),
             character,
             figure,
@@ -59,7 +59,7 @@ pub struct FigureRecordByIdLoaderParams {
 
 #[async_trait]
 impl BatchFnWithParams for FigureRecordByIdLoader {
-    type K = Ulid;
+    type K = entities::FigureRecordId;
     type V = Result<Option<entities::FigureRecord>, ShareableError>;
     type P = FigureRecordByIdLoaderParams;
 
@@ -68,7 +68,10 @@ impl BatchFnWithParams for FigureRecordByIdLoader {
         params: &Self::P,
         keys: &[Self::K],
     ) -> HashMap<Self::K, Self::V> {
-        let ids = keys.iter().map(|id| id.to_string()).collect::<Vec<_>>();
+        let ids = keys
+            .iter()
+            .map(|&id| Ulid::from(id).to_string())
+            .collect::<Vec<_>>();
 
         let result: Result<_, ShareableError> = (|| async {
             let models = sqlx::query_as!(
@@ -133,9 +136,9 @@ pub struct FigureRecordsByCharacterLoader {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FigureRecordsByCharacterLoaderParams {
     pub user_id: entities::UserId,
-    pub ids: Option<Vec<Ulid>>,
-    pub after_id: Option<Ulid>,
-    pub before_id: Option<Ulid>,
+    pub ids: Option<Vec<entities::FigureRecordId>>,
+    pub after_id: Option<entities::FigureRecordId>,
+    pub before_id: Option<entities::FigureRecordId>,
     pub limit: entities::Limit,
     pub user_type: Option<UserType>,
 }
@@ -151,10 +154,11 @@ impl BatchFnWithParams for FigureRecordsByCharacterLoader {
         params: &Self::P,
         keys: &[Self::K],
     ) -> HashMap<Self::K, Self::V> {
-        let ids = params
-            .ids
-            .as_ref()
-            .map(|ids| ids.iter().map(|id| id.to_string()).collect::<Vec<_>>());
+        let ids = params.ids.as_ref().map(|ids| {
+            ids.iter()
+                .map(|&id| Ulid::from(id).to_string())
+                .collect::<Vec<_>>()
+        });
 
         let characters = keys
             .iter()
@@ -216,8 +220,8 @@ impl BatchFnWithParams for FigureRecordsByCharacterLoader {
                 String::from(params.user_id.clone()),
                 characters.as_slice(),
                 ids.as_ref().map(|ids| ids.as_slice()),
-                params.after_id.map(|id| id.to_string()),
-                params.before_id.map(|id| id.to_string()),
+                params.after_id.map(|id| Ulid::from(id).to_string()),
+                params.before_id.map(|id| Ulid::from(id).to_string()),
                 i32::from(params.limit.kind() == entities::LimitKind::Last),
                 i64::from(params.limit.value()) + 1,
                 params.user_type == Some(UserType::Myself),

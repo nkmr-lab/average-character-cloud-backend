@@ -54,7 +54,7 @@ impl FigureRecord {
     }
 
     fn figure_record_id(&self) -> UlidScalar {
-        UlidScalar(self.0.id)
+        UlidScalar(Ulid::from(self.0.id))
     }
 
     fn character(&self) -> Character {
@@ -73,7 +73,7 @@ impl FigureRecord {
 #[graphql_interface]
 impl Node for FigureRecord {
     fn node_id(&self) -> ID {
-        NodeID::FigureRecord(self.0.id).to_id()
+        NodeId::FigureRecord(self.0.id).to_id()
     }
 }
 
@@ -110,7 +110,7 @@ struct CharacterConfig(entities::CharacterConfig);
 #[graphql_interface]
 impl Node for CharacterConfig {
     fn node_id(&self) -> ID {
-        NodeID::CharacterConfig(self.0.user_id.clone(), self.0.character.clone()).to_id()
+        NodeId::CharacterConfig(self.0.user_id.clone(), self.0.character.clone()).to_id()
     }
 }
 
@@ -163,7 +163,7 @@ struct CharacterConfigSeed(entities::CharacterConfigSeed);
 #[graphql_interface]
 impl Node for CharacterConfigSeed {
     fn node_id(&self) -> ID {
-        NodeID::CharacterConfigSeed(self.0.character.clone()).to_id()
+        NodeId::CharacterConfigSeed(self.0.character.clone()).to_id()
     }
 }
 
@@ -239,7 +239,7 @@ struct Character(entities::Character);
 #[graphql_interface]
 impl Node for Character {
     fn node_id(&self) -> ID {
-        NodeID::Character(self.0.clone()).to_id()
+        NodeId::Character(self.0.clone()).to_id()
     }
 }
 
@@ -319,13 +319,17 @@ impl Character {
             .clone()
             .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
-        let ids = ids.map(|ids| ids.into_iter().map(|id| id.0).collect::<Vec<_>>());
+        let ids = ids.map(|ids| {
+            ids.into_iter()
+                .map(|id| entities::FigureRecordId::from(id.0))
+                .collect::<Vec<_>>()
+        });
 
         let limit = encode_limit(first, last)?;
 
         let after_id = after
-            .map(|after| -> anyhow::Result<Ulid> {
-                guard!(let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(after)) else {
+            .map(|after| -> anyhow::Result<entities::FigureRecordId> {
+                guard!(let Some(NodeId::FigureRecord(id)) = NodeId::from_id(&ID::new(after)) else {
                     return Err(GraphqlUserError::from("after must be a valid cursor").into())
                 });
 
@@ -334,8 +338,8 @@ impl Character {
             .transpose()?;
 
         let before_id = before
-            .map(|before| -> anyhow::Result<Ulid> {
-                guard!(let Some(NodeID::FigureRecord(id)) = NodeID::from_id(&ID::new(before)) else {
+            .map(|before| -> anyhow::Result<entities::FigureRecordId> {
+                guard!(let Some(NodeId::FigureRecord(id)) = NodeId::from_id(&ID::new(before)) else {
                     return Err(GraphqlUserError::from("before must be a valid cursor").into());
                 });
                 Ok(id)
@@ -391,7 +395,7 @@ struct UserConfig(entities::UserConfig);
 #[graphql_interface]
 impl Node for UserConfig {
     fn node_id(&self) -> ID {
-        NodeID::UserConfig(self.0.user_id.clone()).to_id()
+        NodeId::UserConfig(self.0.user_id.clone()).to_id()
     }
 }
 
@@ -453,12 +457,12 @@ impl QueryRoot {
             .clone()
             .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
-        guard!(let Some(id) = NodeID::from_id(&id) else {
+        guard!(let Some(id) = NodeId::from_id(&id) else {
             return Ok(None);
         });
 
         match id {
-            NodeID::FigureRecord(id) => {
+            NodeId::FigureRecord(id) => {
                 let figure_record = ctx
                     .loaders
                     .figure_record_by_id_loader
@@ -469,7 +473,7 @@ impl QueryRoot {
                     .map(FigureRecord::from)
                     .map(NodeValue::FigureRecord))
             }
-            NodeID::CharacterConfig(_, character) => {
+            NodeId::CharacterConfig(_, character) => {
                 let character_config = ctx
                     .loaders
                     .character_config_by_character_loader
@@ -484,14 +488,14 @@ impl QueryRoot {
                     .map(CharacterConfig::from)
                     .map(NodeValue::CharacterConfig))
             }
-            NodeID::Character(character) => {
+            NodeId::Character(character) => {
                 Ok(Some(NodeValue::Character(Character::from(character))))
             }
-            NodeID::UserConfig(_) => {
+            NodeId::UserConfig(_) => {
                 let user_config = load_user_config(&ctx.pool, user_id).await?;
                 Ok(Some(NodeValue::UserConfig(UserConfig(user_config))))
             }
-            NodeID::CharacterConfigSeed(character) => {
+            NodeId::CharacterConfigSeed(character) => {
                 let character_config_seed = ctx
                     .loaders
                     .character_config_seed_by_character_loader
@@ -538,7 +542,7 @@ impl QueryRoot {
 
         let after_character = after
                 .map(|after| -> anyhow::Result<_> {
-                    guard!(let Some(NodeID::CharacterConfig(_, character)) = NodeID::from_id(&ID::new(after)) else {
+                    guard!(let Some(NodeId::CharacterConfig(_, character)) = NodeId::from_id(&ID::new(after)) else {
                     return Err(GraphqlUserError::from("after must be a valid cursor").into())
                 });
 
@@ -548,7 +552,7 @@ impl QueryRoot {
 
         let before_character = before
                 .map(|before| -> anyhow::Result<_> {
-                    guard!(let Some(NodeID::CharacterConfig(_, character)) = NodeID::from_id(&ID::new(before)) else {
+                    guard!(let Some(NodeId::CharacterConfig(_, character)) = NodeId::from_id(&ID::new(before)) else {
                     return Err(GraphqlUserError::from("before must be a valid cursor").into());
                 });
 
@@ -610,7 +614,7 @@ impl QueryRoot {
 
         let after_character = after
                 .map(|after| -> anyhow::Result<_> {
-                    guard!(let Some(NodeID::CharacterConfigSeed(character)) = NodeID::from_id(&ID::new(after)) else {
+                    guard!(let Some(NodeId::CharacterConfigSeed(character)) = NodeId::from_id(&ID::new(after)) else {
                     return Err(GraphqlUserError::from("after must be a valid cursor").into())
                 });
 
@@ -620,7 +624,7 @@ impl QueryRoot {
 
         let before_character = before
                 .map(|before| -> anyhow::Result<_> {
-                    guard!(let Some(NodeID::CharacterConfigSeed(character)) = NodeID::from_id(&ID::new(before)) else {
+                    guard!(let Some(NodeId::CharacterConfigSeed(character)) = NodeId::from_id(&ID::new(before)) else {
                     return Err(GraphqlUserError::from("before must be a valid cursor").into());
                 });
 

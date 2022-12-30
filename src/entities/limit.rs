@@ -6,7 +6,7 @@ pub enum LimitKind {
     Last,
 }
 
-const MAX_LIMIT: u32 = 100;
+const MAX_LIMIT: i32 = 100;
 #[derive(Error, Debug, Clone)]
 
 pub enum CreateLimitError {
@@ -17,11 +17,11 @@ pub enum CreateLimitError {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Limit {
     kind: LimitKind,
-    value: u32,
+    value: i32,
 }
 
 impl Limit {
-    pub fn new(kind: LimitKind, value: u32) -> Result<Self, CreateLimitError> {
+    pub fn new(kind: LimitKind, value: i32) -> Result<Self, CreateLimitError> {
         if value > MAX_LIMIT {
             Err(CreateLimitError::LimitTooLarge)
         } else {
@@ -33,7 +33,7 @@ impl Limit {
         self.kind
     }
 
-    pub fn value(&self) -> u32 {
+    pub fn value(&self) -> i32 {
         self.value
     }
 }

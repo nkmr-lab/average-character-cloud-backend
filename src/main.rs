@@ -77,7 +77,7 @@ async fn graphql(
                     tracing::warn!("session decode error: : {}", e);
                     None
                 })
-                .map(|s| entities::UserId::from(s))
+                .map(entities::UserId::from)
         },
         now: Utc::now(),
         loaders: Loaders::new(pool.get_ref()),

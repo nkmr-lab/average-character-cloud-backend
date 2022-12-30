@@ -58,7 +58,9 @@ pub fn encode_limit(
     match (first, last) {
         (Some(first), None) => {
             if first < 0 {
-                Err(GraphqlUserError::from("first must be greater than or equal to 0").into())
+                Err(GraphqlUserError::from(
+                    "first must be greater than or equal to 0",
+                ))
             } else {
                 entities::Limit::new(entities::LimitKind::First, first)
                     .map_err(anyhow::Error::from)
@@ -67,14 +69,18 @@ pub fn encode_limit(
         }
         (None, Some(last)) => {
             if last < 0 {
-                Err(GraphqlUserError::from("last must be greater than or equal to 0").into())
+                Err(GraphqlUserError::from(
+                    "last must be greater than or equal to 0",
+                ))
             } else {
                 entities::Limit::new(entities::LimitKind::Last, last)
                     .map_err(anyhow::Error::from)
                     .map_err(GraphqlUserError::from)
             }
         }
-        _ => Err(GraphqlUserError::from("Must provide either first or last, not both").into()),
+        _ => Err(GraphqlUserError::from(
+            "Must provide either first or last, not both",
+        )),
     }
 }
 

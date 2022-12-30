@@ -31,7 +31,7 @@ impl Figure {
     }
 
     pub fn to_json_ast(&self) -> serde_json::Value {
-        serde_json::to_value(&self).unwrap()
+        serde_json::to_value(self).unwrap()
     }
 
     pub fn from_json(json: &str) -> Option<Figure> {

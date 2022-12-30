@@ -40,3 +40,9 @@ impl TryFrom<i32> for Version {
         }
     }
 }
+
+impl Default for Version {
+    fn default() -> Self {
+        Self::new()
+    }
+}

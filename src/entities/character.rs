@@ -24,8 +24,10 @@ impl From<Character> for String {
 }
 
 #[derive(Error, Debug, Clone)]
-#[error("Character must be single character")]
-pub struct CharacterTryFromError;
+pub enum CharacterTryFromError {
+    #[error("Character must be single character")]
+    NotSingleCharacter,
+}
 
 impl TryFrom<&str> for Character {
     type Error = CharacterTryFromError;
@@ -34,7 +36,7 @@ impl TryFrom<&str> for Character {
         if let &[character] = value.chars().collect::<Vec<_>>().as_slice() {
             Ok(Self { value: character })
         } else {
-            Err(CharacterTryFromError)
+            Err(CharacterTryFromError::NotSingleCharacter)
         }
     }
 }

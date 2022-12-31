@@ -1,0 +1,3 @@
+mod user_configs_repository_impl;
+
+pub use user_configs_repository_impl::UserConfigsRepositoryImpl;

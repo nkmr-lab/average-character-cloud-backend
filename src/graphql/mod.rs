@@ -9,6 +9,7 @@ use juniper::{
 };
 use ulid::Ulid;
 
+use crate::adapters::UserConfigsRepositoryImpl;
 use crate::entities;
 
 use crate::graphql::scalars::{FigureScalar, UlidScalar};
@@ -19,16 +20,15 @@ pub use common::*;
 mod app_ctx;
 pub use app_ctx::*;
 mod loaders;
-
 use self::scalars::CharacterValueScalar;
-use crate::commands::{character_configs_command, figure_records_command, user_configs_command};
+use crate::commands::{character_configs_command, figure_records_command};
+use crate::ports::UserConfigsRepository;
 
 mod scalars;
 use crate::queries;
 use crate::queries::{
-    load_user_config, CharacterConfigByCharacterLoaderParams,
-    CharacterConfigSeedByCharacterLoaderParams, CharacterConfigSeedsLoaderParams,
-    CharacterConfigsLoaderParams, FigureRecordByIdLoaderParams,
+    CharacterConfigByCharacterLoaderParams, CharacterConfigSeedByCharacterLoaderParams,
+    CharacterConfigSeedsLoaderParams, CharacterConfigsLoaderParams, FigureRecordByIdLoaderParams,
     FigureRecordsByCharacterLoaderParams,
 };
 
@@ -443,12 +443,17 @@ impl QueryRoot {
     }
 
     async fn user_config(&self, ctx: &AppCtx) -> Result<UserConfig, ApiError> {
+        let mut user_config_repository = UserConfigsRepositoryImpl::new();
+        let mut conn = ctx.pool.acquire().await?;
+
         let user_id = ctx
             .user_id
             .clone()
             .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
-        Ok(UserConfig(load_user_config(&ctx.pool, user_id).await?))
+        Ok(UserConfig(
+            user_config_repository.get(&mut conn, user_id).await?,
+        ))
     }
 
     async fn node(ctx: &AppCtx, id: ID) -> Result<Option<NodeValue>, ApiError> {
@@ -492,7 +497,10 @@ impl QueryRoot {
                 Ok(Some(NodeValue::Character(Character::from(character))))
             }
             NodeId::UserConfig(_) => {
-                let user_config = load_user_config(&ctx.pool, user_id).await?;
+                let mut user_config_repository = UserConfigsRepositoryImpl::new();
+                let mut conn = ctx.pool.acquire().await?;
+
+                let user_config = user_config_repository.get(&mut conn, user_id).await?;
                 Ok(Some(NodeValue::UserConfig(UserConfig(user_config))))
             }
             NodeId::CharacterConfigSeed(character) => {
@@ -793,23 +801,28 @@ impl MutationRoot {
         ctx: &AppCtx,
         input: UpdateUserConfigInput,
     ) -> Result<UpdateUserConfigPayload, ApiError> {
+        let mut user_config_repository = UserConfigsRepositoryImpl::new();
+        let mut conn = ctx.pool.acquire().await?;
+
         let user_id = ctx
             .user_id
             .clone()
             .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
-        let user_config = load_user_config(&ctx.pool, user_id.clone())
+        let user_config = user_config_repository
+            .get(&mut conn, user_id.clone())
             .await
             .context("load user_config")?;
 
-        let user_config = user_configs_command::update(
-            &ctx.pool,
-            ctx.now,
-            user_config,
-            input.allow_sharing_character_configs,
-            input.allow_sharing_figure_records,
-        )
-        .await?;
+        let user_config = user_config_repository
+            .save(
+                &mut conn,
+                ctx.now,
+                user_config,
+                input.allow_sharing_character_configs,
+                input.allow_sharing_figure_records,
+            )
+            .await?;
 
         Ok(UpdateUserConfigPayload {
             user_config: Some(UserConfig::from(user_config)),

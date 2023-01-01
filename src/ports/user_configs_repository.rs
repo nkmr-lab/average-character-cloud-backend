@@ -17,8 +17,6 @@ pub trait UserConfigsRepository {
         &mut self,
         conn: &mut Self::Conn,
         now: DateTime<Utc>,
-        mut user_config: entities::UserConfig,
-        allow_sharing_character_configs: Option<bool>,
-        allow_sharing_figure_records: Option<bool>,
+        user_config: entities::UserConfig,
     ) -> Result<entities::UserConfig, Self::Error>;
 }

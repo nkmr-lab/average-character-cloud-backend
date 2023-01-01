@@ -21,4 +21,20 @@ impl UserConfig {
             version: Version::none(),
         }
     }
+
+    pub fn with_allow_sharing_character_configs(
+        mut self,
+        allow_sharing_character_configs: bool,
+    ) -> UserConfig {
+        self.allow_sharing_character_configs = allow_sharing_character_configs;
+        self
+    }
+
+    pub fn with_allow_sharing_figure_records(
+        mut self,
+        allow_sharing_figure_records: bool,
+    ) -> UserConfig {
+        self.allow_sharing_figure_records = allow_sharing_figure_records;
+        self
+    }
 }

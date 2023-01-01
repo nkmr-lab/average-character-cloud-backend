@@ -809,19 +809,23 @@ impl MutationRoot {
             .clone()
             .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
-        let user_config = user_config_repository
+        let mut user_config = user_config_repository
             .get(&mut conn, user_id.clone())
             .await
             .context("load user_config")?;
 
+        if let Some(allow_sharing_character_configs) = input.allow_sharing_character_configs {
+            user_config =
+                user_config.with_allow_sharing_character_configs(allow_sharing_character_configs);
+        }
+
+        if let Some(allow_sharing_figure_records) = input.allow_sharing_figure_records {
+            user_config =
+                user_config.with_allow_sharing_figure_records(allow_sharing_figure_records);
+        }
+
         let user_config = user_config_repository
-            .save(
-                &mut conn,
-                ctx.now,
-                user_config,
-                input.allow_sharing_character_configs,
-                input.allow_sharing_figure_records,
-            )
+            .save(&mut conn, ctx.now, user_config)
             .await?;
 
         Ok(UpdateUserConfigPayload {

@@ -72,21 +72,11 @@ impl ports::UserConfigsRepository for UserConfigsRepositoryImpl {
         conn: &mut Self::Conn,
         now: DateTime<Utc>,
         mut user_config: entities::UserConfig,
-        allow_sharing_character_configs: Option<bool>,
-        allow_sharing_figure_records: Option<bool>,
     ) -> Result<entities::UserConfig, Self::Error> {
         let mut trx = conn.begin().await?;
         let prev_version = user_config.version;
         user_config.version = user_config.version.next();
         user_config.updated_at = Some(now);
-
-        if let Some(allow_sharing_character_configs) = allow_sharing_character_configs {
-            user_config.allow_sharing_character_configs = allow_sharing_character_configs;
-        }
-
-        if let Some(allow_sharing_figure_records) = allow_sharing_figure_records {
-            user_config.allow_sharing_figure_records = allow_sharing_figure_records;
-        }
 
         if prev_version.is_none() {
             sqlx::query!(

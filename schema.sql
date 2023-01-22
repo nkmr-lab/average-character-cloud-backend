@@ -5,13 +5,17 @@ CREATE TABLE "figure_records" (
   "character" VARCHAR(8) NOT NULL,
   "figure" JSONB NOT NULL,
   "created_at" TIMESTAMP WITH TIME ZONE NOT NULL,
-  "stroke_count" INTEGER NOT NULL
+  "stroke_count" INTEGER NOT NULL,
+  "version" INTEGER NOT NULL DEFAULT 1,
+  "disabled" BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 CREATE INDEX "figure_records_user_id_idx" ON "figure_records" ("user_id");
 CREATE INDEX "figure_records_character_idx" ON "figure_records" ("character");
 CREATE INDEX "figure_records_created_at_idx" ON "figure_records" ("created_at");
 CREATE INDEX "figure_records_stroke_count_idx" ON "figure_records" ("stroke_count");
+CREATE INDEX "figure_records_version_idx" ON "figure_records" ("version");
+CREATE INDEX "figure_records_disabled_idx" ON "figure_records" ("disabled");
 
 CREATE TABLE "character_configs" (
   "user_id" VARCHAR(64),

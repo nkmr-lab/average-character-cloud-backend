@@ -221,6 +221,19 @@ struct UpdateCharacterConfigPayload {
 }
 
 #[derive(GraphQLInputObject, Clone, Debug)]
+struct UpdateFigureRecordInput {
+    id: UlidScalar,
+    disabled: Option<bool>,
+}
+
+#[derive(GraphQLObject, Clone, Debug)]
+#[graphql(context = AppCtx)]
+struct UpdateFigureRecordPayload {
+    figure_record: Option<FigureRecord>,
+    errors: Option<Vec<GraphqlErrorType>>,
+}
+
+#[derive(GraphQLInputObject, Clone, Debug)]
 struct UpdateUserConfigInput {
     allow_sharing_character_configs: Option<bool>,
     allow_sharing_figure_records: Option<bool>,
@@ -793,6 +806,39 @@ impl MutationRoot {
 
         Ok(UpdateCharacterConfigPayload {
             character_config: Some(CharacterConfig::from(character_config)),
+            errors: None,
+        })
+    }
+
+    async fn update_figure_record(
+        ctx: &AppCtx,
+        input: UpdateFigureRecordInput,
+    ) -> Result<UpdateFigureRecordPayload, ApiError> {
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
+
+        let id = entities::FigureRecordId::from(input.id.0);
+
+        let figure_record = ctx
+            .loaders
+            .figure_record_by_id_loader
+            .load(
+                FigureRecordByIdLoaderParams {
+                    user_id: user_id.clone(),
+                },
+                id,
+            )
+            .await
+            .context("load figure_record")??
+            .ok_or_else(|| GraphqlUserError::from("Not found"))?;
+
+        let figure_record =
+            figure_records_command::update(&ctx.pool, figure_record, input.disabled).await?;
+
+        Ok(UpdateFigureRecordPayload {
+            figure_record: Some(FigureRecord::from(figure_record)),
             errors: None,
         })
     }

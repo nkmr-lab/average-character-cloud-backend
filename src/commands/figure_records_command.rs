@@ -1,5 +1,5 @@
 use crate::entities;
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use chrono::{DateTime, Utc};
 use sqlx::{Acquire, Postgres};
 use ulid::Ulid;
@@ -18,6 +18,8 @@ pub async fn create(
         character,
         figure,
         created_at: now,
+        disabled: false,
+        version: entities::Version::new(),
     };
 
     sqlx::query!(
@@ -38,4 +40,48 @@ pub async fn create(
 
     trx.commit().await?;
     Ok(record)
+}
+
+pub async fn update(
+    conn: impl Acquire<'_, Database = Postgres>,
+    mut figure_record: entities::FigureRecord,
+    disabled: Option<bool>,
+) -> anyhow::Result<entities::FigureRecord> {
+    let mut trx = conn.begin().await?;
+    let prev_version = figure_record.version;
+
+    figure_record.version = figure_record.version.next();
+    if let Some(disabled) = disabled {
+        figure_record.disabled = disabled;
+    }
+
+    let result = sqlx::query!(
+        r#"
+            UPDATE figure_records
+                SET
+                    disabled = $1,
+                    version = $2
+                WHERE
+                    user_id = $3
+                    AND
+                    id = $4
+                    AND
+                    version = $5
+            "#,
+        disabled,
+        i32::from(figure_record.version),
+        String::from(figure_record.user_id.clone()),
+        Ulid::from(figure_record.id.clone()).to_string(),
+        i32::from(prev_version),
+    )
+    .execute(&mut *trx)
+    .await
+    .context("update figure_record")?;
+
+    if result.rows_affected() == 0 {
+        return Err(anyhow!("conflict"));
+    }
+
+    trx.commit().await?;
+    Ok(figure_record)
 }

@@ -1,4 +1,4 @@
-use super::{character, UserId};
+use super::{character, UserId, Version};
 use chrono::{DateTime, Utc};
 use derive_more::{From, Into};
 use ulid::Ulid;
@@ -13,4 +13,6 @@ pub struct FigureRecord {
     pub character: character::Character,
     pub figure: super::figure::Figure,
     pub created_at: DateTime<Utc>,
+    pub disabled: bool,
+    pub version: Version,
 }

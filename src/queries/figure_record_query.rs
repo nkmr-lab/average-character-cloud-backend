@@ -21,6 +21,8 @@ pub struct FigureRecordModel {
     pub figure: serde_json::Value,
     pub created_at: DateTime<Utc>,
     pub stroke_count: i32,
+    pub disabled: bool,
+    pub version: i32,
 }
 
 impl FigureRecordModel {
@@ -43,6 +45,8 @@ impl FigureRecordModel {
             character,
             figure,
             created_at: self.created_at,
+            disabled: self.disabled,
+            version: entities::Version::try_from(self.version)?,
         })
     }
 }
@@ -83,7 +87,9 @@ impl BatchFnWithParams for FigureRecordByIdLoader {
                     r.character,
                     r.figure,
                     r.created_at,
-                    r.stroke_count
+                    r.stroke_count,
+                    r.disabled,
+                    r.version
                 FROM
                     figure_records AS r
                     LEFT OUTER JOIN user_configs ON r.user_id = user_configs.user_id
@@ -175,7 +181,9 @@ impl BatchFnWithParams for FigureRecordsByCharacterLoader {
                         character,
                         figure,
                         created_at,
-                        stroke_count
+                        stroke_count,
+                        disabled,
+                        version
                     FROM (
                         SELECT
                             r.id,
@@ -189,7 +197,9 @@ impl BatchFnWithParams for FigureRecordsByCharacterLoader {
                                 ORDER BY
                                     CASE WHEN $6 = 0 THEN r.id END DESC,
                                     CASE WHEN $6 = 1 THEN r.id END ASC
-                            ) AS rank
+                            ) AS rank,
+                            r.disabled,
+                            r.version
                         FROM
                             figure_records AS r
                             JOIN character_configs ON r.character = character_configs.character AND r.user_id = character_configs.user_id
@@ -210,7 +220,8 @@ impl BatchFnWithParams for FigureRecordsByCharacterLoader {
                             (NOT $8 OR r.user_id = $1)
                             AND
                             (NOT $9 OR r.user_id <> $1)
-
+                            AND
+                            NOT r.disabled
                     ) as r
                     WHERE
                         rank <= $7

@@ -27,7 +27,6 @@ use average_character_cloud_backend::graphql::{create_schema, AppCtx, Loaders, S
 use average_character_cloud_backend::job::Job;
 use average_character_cloud_backend::{entities, job, jobs};
 use clap::{Parser, Subcommand};
-use guard::guard;
 use jsonwebtoken::jwk::{self, JwkSet};
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
@@ -97,9 +96,14 @@ struct GoogleCallbackParams {
 
 #[get("/google_login")]
 async fn google_login_front(config: web::Data<AppConfig>) -> HttpResponse {
-    guard!(let AuthConfig::Google { client_id, enable_front,.. } = &config.auth else {
+    let AuthConfig::Google {
+        client_id,
+        enable_front,
+        ..
+    } = &config.auth
+    else {
         return HttpResponse::NotFound().body("Not found");
-    });
+    };
 
     if !enable_front {
         return HttpResponse::NotFound().body("Not found");
@@ -145,12 +149,12 @@ async fn google_login_front(config: web::Data<AppConfig>) -> HttpResponse {
 async fn run_task_front(
     faktory_pool: web::Data<r2d2::Pool<FaktoryConnectionManager>>,
 ) -> Result<HttpResponse, error::Error> {
-    (|| async {
+    async {
         (jobs::UpdateSeeds {}).enqueue(&faktory_pool).await?;
         Ok(HttpResponse::Ok()
             .content_type("text/html; charset=utf-8")
             .body("ok"))
-    })()
+    }
     .await
     .map_err(|e: anyhow::Error| {
         tracing::error!("run_task_front error: {}", e);
@@ -176,7 +180,7 @@ fn verify_google_token(
                 let mut validation = jsonwebtoken::Validation::new(
                     j.common
                         .algorithm
-                        .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "not found"))?,
+                        .ok_or_else(|| io::Error::other("not found"))?,
                 );
                 validation.set_audience(&[client_id]);
                 validation.set_issuer(&["accounts.google.com", "https://accounts.google.com"]);
@@ -219,9 +223,14 @@ async fn google_callback(
     google_public_key_provider: web::Data<mpsc::Sender<GooglePublicKeyProviderCommand>>,
     session: Session,
 ) -> Result<HttpResponse, error::Error> {
-    guard!(let AuthConfig::Google { client_id, redirect_url,.. }= &config.auth else {
+    let AuthConfig::Google {
+        client_id,
+        redirect_url,
+        ..
+    } = &config.auth
+    else {
         return Err(error::ErrorBadRequest("Invalid auth kind"));
-    });
+    };
 
     let (jwks_tx, jwks_rx) = oneshot::channel();
     google_public_key_provider
@@ -263,7 +272,7 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
     let cli = Cli::parse();
 
-    let config = AppConfig::from_env().map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+    let config = AppConfig::from_env().map_err(io::Error::other)?;
     let pool = PgPoolOptions::new()
         .connect(&config.database_url)
         .await

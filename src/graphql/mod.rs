@@ -2,7 +2,6 @@ use std::collections::HashSet;
 
 use chrono::{DateTime, Utc};
 use derive_more::From;
-use guard::guard;
 use juniper::FieldResult;
 use juniper::{
     graphql_interface, EmptySubscription, GraphQLInputObject, GraphQLObject, RootNode, ID,
@@ -342,9 +341,9 @@ impl Character {
 
         let after_id = after
             .map(|after| -> anyhow::Result<entities::FigureRecordId> {
-                guard!(let Some(NodeId::FigureRecord(id)) = NodeId::from_id(&ID::new(after)) else {
-                    return Err(GraphqlUserError::from("after must be a valid cursor").into())
-                });
+                let Some(NodeId::FigureRecord(id)) = NodeId::from_id(&ID::new(after)) else {
+                    return Err(GraphqlUserError::from("after must be a valid cursor").into());
+                };
 
                 Ok(id)
             })
@@ -352,9 +351,9 @@ impl Character {
 
         let before_id = before
             .map(|before| -> anyhow::Result<entities::FigureRecordId> {
-                guard!(let Some(NodeId::FigureRecord(id)) = NodeId::from_id(&ID::new(before)) else {
+                let Some(NodeId::FigureRecord(id)) = NodeId::from_id(&ID::new(before)) else {
                     return Err(GraphqlUserError::from("before must be a valid cursor").into());
-                });
+                };
                 Ok(id)
             })
             .transpose()?;
@@ -475,9 +474,9 @@ impl QueryRoot {
             .clone()
             .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
-        guard!(let Some(id) = NodeId::from_id(&id) else {
+        let Some(id) = NodeId::from_id(&id) else {
             return Ok(None);
-        });
+        };
 
         match id {
             NodeId::FigureRecord(id) => {
@@ -562,24 +561,26 @@ impl QueryRoot {
         let limit = encode_limit(first, last)?;
 
         let after_character = after
-                .map(|after| -> anyhow::Result<_> {
-                    guard!(let Some(NodeId::CharacterConfig(_, character)) = NodeId::from_id(&ID::new(after)) else {
-                    return Err(GraphqlUserError::from("after must be a valid cursor").into())
-                });
+            .map(|after| -> anyhow::Result<_> {
+                let Some(NodeId::CharacterConfig(_, character)) = NodeId::from_id(&ID::new(after))
+                else {
+                    return Err(GraphqlUserError::from("after must be a valid cursor").into());
+                };
 
-                    Ok(character)
-                })
-                .transpose()?;
+                Ok(character)
+            })
+            .transpose()?;
 
         let before_character = before
-                .map(|before| -> anyhow::Result<_> {
-                    guard!(let Some(NodeId::CharacterConfig(_, character)) = NodeId::from_id(&ID::new(before)) else {
+            .map(|before| -> anyhow::Result<_> {
+                let Some(NodeId::CharacterConfig(_, character)) = NodeId::from_id(&ID::new(before))
+                else {
                     return Err(GraphqlUserError::from("before must be a valid cursor").into());
-                });
+                };
 
-                    Ok(character)
-                })
-                .transpose()?;
+                Ok(character)
+            })
+            .transpose()?;
 
         let (character_configs, has_extra) = ctx
             .loaders
@@ -634,24 +635,27 @@ impl QueryRoot {
         let limit = encode_limit(first, last)?;
 
         let after_character = after
-                .map(|after| -> anyhow::Result<_> {
-                    guard!(let Some(NodeId::CharacterConfigSeed(character)) = NodeId::from_id(&ID::new(after)) else {
-                    return Err(GraphqlUserError::from("after must be a valid cursor").into())
-                });
+            .map(|after| -> anyhow::Result<_> {
+                let Some(NodeId::CharacterConfigSeed(character)) = NodeId::from_id(&ID::new(after))
+                else {
+                    return Err(GraphqlUserError::from("after must be a valid cursor").into());
+                };
 
-                    Ok(character)
-                })
-                .transpose()?;
+                Ok(character)
+            })
+            .transpose()?;
 
         let before_character = before
-                .map(|before| -> anyhow::Result<_> {
-                    guard!(let Some(NodeId::CharacterConfigSeed(character)) = NodeId::from_id(&ID::new(before)) else {
+            .map(|before| -> anyhow::Result<_> {
+                let Some(NodeId::CharacterConfigSeed(character)) =
+                    NodeId::from_id(&ID::new(before))
+                else {
                     return Err(GraphqlUserError::from("before must be a valid cursor").into());
-                });
+                };
 
-                    Ok(character)
-                })
-                .transpose()?;
+                Ok(character)
+            })
+            .transpose()?;
 
         let (character_config_seeds, has_extra) = ctx
             .loaders
@@ -729,14 +733,14 @@ impl MutationRoot {
             .clone()
             .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
-        guard!(let Ok(stroke_count) = entities::StrokeCount::try_from(input.stroke_count) else {
+        let Ok(stroke_count) = entities::StrokeCount::try_from(input.stroke_count) else {
             return Ok(CreateCharacterConfigPayload {
                 character_config: None,
                 errors: Some(vec![GraphqlErrorType {
                     message: "stroke_count must be an non negative integer".to_string(),
-                }])
+                }]),
             });
-        });
+        };
 
         let character_config = match character_configs_command::create(
             &ctx.pool,
@@ -788,17 +792,18 @@ impl MutationRoot {
             .context("load character_config")??
             .ok_or_else(|| GraphqlUserError::from("Not found"))?;
 
-        guard!(let Ok(stroke_count) = input
-        .stroke_count
-        .map(entities::StrokeCount::try_from)
-        .transpose() else {
-           return Ok(UpdateCharacterConfigPayload {
+        let Ok(stroke_count) = input
+            .stroke_count
+            .map(entities::StrokeCount::try_from)
+            .transpose()
+        else {
+            return Ok(UpdateCharacterConfigPayload {
                 character_config: None,
                 errors: Some(vec![GraphqlErrorType {
                     message: "stroke_count must be an non negative integer".to_string(),
                 }]),
             });
-        });
+        };
 
         let character_config =
             character_configs_command::update(&ctx.pool, ctx.now, character_config, stroke_count)

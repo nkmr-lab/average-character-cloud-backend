@@ -414,7 +414,6 @@ dependencies = [
  "dataloader",
  "derive_more 0.99.20",
  "faktory",
- "guard",
  "jsonwebtoken",
  "juniper",
  "r2d2",
@@ -1261,12 +1260,6 @@ dependencies = [
  "combine 3.8.1",
  "thiserror 1.0.69",
 ]
-
-[[package]]
-name = "guard"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d7402bc4451b9f3cc9a2467bb2faf3ad01b129ae9f47f9943a24ad7a2064d84"
 
 [[package]]
 name = "h2"

@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Context};
-use sqlx::{Acquire, PgConnection};
+use sqlx::{Acquire, Postgres};
 
 use crate::{entities, ports};
 use async_trait::async_trait;
@@ -15,24 +15,28 @@ struct UserConfigModel {
 }
 
 #[derive(Debug)]
-pub struct UserConfigsRepositoryImpl;
+pub struct UserConfigsRepositoryImpl<A> {
+    db: A,
+}
 
-impl UserConfigsRepositoryImpl {
-    pub fn new() -> Self {
-        Self
+impl<A> UserConfigsRepositoryImpl<A> {
+    pub fn new(db: A) -> Self {
+        Self { db }
     }
 }
 
 #[async_trait]
-impl ports::UserConfigsRepository for UserConfigsRepositoryImpl {
-    type Conn = PgConnection;
+impl<A> ports::UserConfigsRepository for UserConfigsRepositoryImpl<A>
+where
+    for<'c> A: Acquire<'c, Database = Postgres> + Send + Copy,
+{
     type Error = anyhow::Error;
 
     async fn get(
         &mut self,
-        conn: &mut Self::Conn,
         user_id: entities::UserId,
     ) -> Result<entities::UserConfig, Self::Error> {
+        let mut conn: <A as Acquire<'_>>::Connection = self.db.acquire().await?;
         let record = sqlx::query_as!(
             UserConfigModel,
             r#"
@@ -69,11 +73,10 @@ impl ports::UserConfigsRepository for UserConfigsRepositoryImpl {
 
     async fn save(
         &mut self,
-        conn: &mut Self::Conn,
         now: DateTime<Utc>,
         mut user_config: entities::UserConfig,
     ) -> Result<entities::UserConfig, Self::Error> {
-        let mut trx = conn.begin().await?;
+        let mut trx = self.db.begin().await?;
         let prev_version = user_config.version;
         user_config.version = user_config.version.next();
         user_config.updated_at = Some(now);
@@ -134,5 +137,41 @@ impl ports::UserConfigsRepository for UserConfigsRepositoryImpl {
         trx.commit().await?;
 
         Ok(user_config)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::Timelike;
+
+    use super::*;
+    use crate::ports::UserConfigsRepository;
+
+    #[sqlx::test]
+    async fn test_user_configs_repository(pool: sqlx::PgPool) {
+        let mut repo = UserConfigsRepositoryImpl::new(&pool);
+        let user_id = entities::UserId::from("test_user".to_string());
+
+        let mut config = repo.get(user_id.clone()).await.unwrap();
+        assert_eq!(config.user_id, user_id);
+        assert!(!config.allow_sharing_character_configs);
+        assert!(!config.allow_sharing_figure_records);
+        assert!(config.updated_at.is_none());
+        assert_eq!(config.version, entities::Version::none());
+
+        // TODO: DBと時刻の精度が違う
+        let now = Utc::now().with_nanosecond(0).unwrap();
+
+        config.allow_sharing_character_configs = true;
+        config.allow_sharing_figure_records = true;
+        let saved_config = repo.save(now, config.clone()).await.unwrap();
+        assert_eq!(saved_config.user_id, user_id);
+        assert!(saved_config.allow_sharing_character_configs);
+        assert!(saved_config.allow_sharing_figure_records);
+        assert_eq!(saved_config.updated_at, Some(now));
+        assert_eq!(saved_config.version, config.version.next());
+
+        let fetched_config = repo.get(user_id).await.unwrap();
+        assert_eq!(fetched_config, saved_config);
     }
 }

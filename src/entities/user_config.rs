@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 
 use super::{UserId, Version};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UserConfig {
     pub user_id: UserId,
     pub allow_sharing_character_configs: bool,

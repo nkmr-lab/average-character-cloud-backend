@@ -455,17 +455,14 @@ impl QueryRoot {
     }
 
     async fn user_config(&self, ctx: &AppCtx) -> Result<UserConfig, ApiError> {
-        let mut user_config_repository = UserConfigsRepositoryImpl::new();
-        let mut conn = ctx.pool.acquire().await?;
+        let mut user_config_repository = UserConfigsRepositoryImpl::new(&ctx.pool);
 
         let user_id = ctx
             .user_id
             .clone()
             .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
-        Ok(UserConfig(
-            user_config_repository.get(&mut conn, user_id).await?,
-        ))
+        Ok(UserConfig(user_config_repository.get(user_id).await?))
     }
 
     async fn node(ctx: &AppCtx, id: ID) -> Result<Option<NodeValue>, ApiError> {
@@ -509,10 +506,9 @@ impl QueryRoot {
                 Ok(Some(NodeValue::Character(Character::from(character))))
             }
             NodeId::UserConfig(_) => {
-                let mut user_config_repository = UserConfigsRepositoryImpl::new();
-                let mut conn = ctx.pool.acquire().await?;
+                let mut user_config_repository = UserConfigsRepositoryImpl::new(&ctx.pool);
 
-                let user_config = user_config_repository.get(&mut conn, user_id).await?;
+                let user_config = user_config_repository.get(user_id).await?;
                 Ok(Some(NodeValue::UserConfig(UserConfig(user_config))))
             }
             NodeId::CharacterConfigSeed(character) => {
@@ -852,8 +848,7 @@ impl MutationRoot {
         ctx: &AppCtx,
         input: UpdateUserConfigInput,
     ) -> Result<UpdateUserConfigPayload, ApiError> {
-        let mut user_config_repository = UserConfigsRepositoryImpl::new();
-        let mut conn = ctx.pool.acquire().await?;
+        let mut user_config_repository = UserConfigsRepositoryImpl::new(&ctx.pool);
 
         let user_id = ctx
             .user_id
@@ -861,7 +856,7 @@ impl MutationRoot {
             .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
         let mut user_config = user_config_repository
-            .get(&mut conn, user_id.clone())
+            .get(user_id.clone())
             .await
             .context("load user_config")?;
 
@@ -875,9 +870,7 @@ impl MutationRoot {
                 user_config.with_allow_sharing_figure_records(allow_sharing_figure_records);
         }
 
-        let user_config = user_config_repository
-            .save(&mut conn, ctx.now, user_config)
-            .await?;
+        let user_config = user_config_repository.save(ctx.now, user_config).await?;
 
         Ok(UpdateUserConfigPayload {
             user_config: Some(UserConfig::from(user_config)),

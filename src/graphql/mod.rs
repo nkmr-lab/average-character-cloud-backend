@@ -8,7 +8,9 @@ use juniper::{
 };
 use ulid::Ulid;
 
-use crate::adapters::{FigureRecordsRepositoryImpl, UserConfigsRepositoryImpl};
+use crate::adapters::{
+    CharacterConfigsRepositoryImpl, FigureRecordsRepositoryImpl, UserConfigsRepositoryImpl,
+};
 use crate::{entities, ports};
 
 use crate::graphql::scalars::{FigureScalar, UlidScalar};
@@ -20,8 +22,7 @@ mod app_ctx;
 pub use app_ctx::*;
 mod loaders;
 use self::scalars::CharacterValueScalar;
-use crate::commands::character_configs_command;
-use crate::ports::{FigureRecordsRepository, UserConfigsRepository};
+use crate::ports::{CharacterConfigsRepository, FigureRecordsRepository, UserConfigsRepository};
 
 mod scalars;
 use crate::queries::{
@@ -721,6 +722,9 @@ impl MutationRoot {
         ctx: &AppCtx,
         input: CreateCharacterConfigInput,
     ) -> Result<CreateCharacterConfigPayload, ApiError> {
+        let mut character_configs_repository =
+            CharacterConfigsRepositoryImpl::new(ctx.pool.clone());
+
         let user_id = ctx
             .user_id
             .clone()
@@ -735,14 +739,9 @@ impl MutationRoot {
             });
         };
 
-        let character_config = match character_configs_command::create(
-            &ctx.pool,
-            user_id,
-            ctx.now,
-            input.character.0,
-            stroke_count,
-        )
-        .await?
+        let character_config = match character_configs_repository
+            .create(user_id, ctx.now, input.character.0, stroke_count)
+            .await?
         {
             Ok(character_config) => character_config,
             Err(e) => {
@@ -765,6 +764,9 @@ impl MutationRoot {
         ctx: &AppCtx,
         input: UpdateCharacterConfigInput,
     ) -> Result<UpdateCharacterConfigPayload, ApiError> {
+        let mut character_configs_repository =
+            CharacterConfigsRepositoryImpl::new(ctx.pool.clone());
+
         let user_id = ctx
             .user_id
             .clone()
@@ -798,9 +800,9 @@ impl MutationRoot {
             });
         };
 
-        let character_config =
-            character_configs_command::update(&ctx.pool, ctx.now, character_config, stroke_count)
-                .await?;
+        let character_config = character_configs_repository
+            .update(ctx.now, character_config, stroke_count)
+            .await?;
 
         Ok(UpdateCharacterConfigPayload {
             character_config: Some(CharacterConfig::from(character_config)),

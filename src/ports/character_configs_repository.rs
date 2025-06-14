@@ -20,6 +20,20 @@ pub trait CharacterConfigsRepository {
         character_config: entities::CharacterConfig,
         stroke_count: Option<entities::StrokeCount>,
     ) -> Result<entities::CharacterConfig, Self::Error>;
+
+    async fn get_by_characters(
+        &mut self,
+        characters: &[entities::Character],
+        user_id: entities::UserId,
+    ) -> Result<Vec<entities::CharacterConfig>, Self::Error>;
+
+    async fn get(
+        &mut self,
+        user_id: entities::UserId,
+        after_character: Option<entities::Character>,
+        before_character: Option<entities::Character>,
+        limit: entities::Limit,
+    ) -> Result<Vec<entities::CharacterConfig>, Self::Error>;
 }
 
 #[derive(Clone, thiserror::Error, Debug)]

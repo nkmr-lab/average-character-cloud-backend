@@ -8,9 +8,12 @@ use crate::queries::{
 use crate::{adapters, DataloaderWithParams};
 
 pub struct Loaders {
-    pub character_config_by_character_loader:
-        DataloaderWithParams<CharacterConfigByCharacterLoader>,
-    pub character_configs_loader: DataloaderWithParams<CharacterConfigsLoader>,
+    pub character_config_by_character_loader: DataloaderWithParams<
+        CharacterConfigByCharacterLoader<adapters::CharacterConfigsRepositoryImpl<PgPool>>,
+    >,
+    pub character_configs_loader: DataloaderWithParams<
+        CharacterConfigsLoader<adapters::CharacterConfigsRepositoryImpl<PgPool>>,
+    >,
     pub figure_record_by_id_loader:
         DataloaderWithParams<FigureRecordByIdLoader<adapters::FigureRecordsRepositoryImpl<PgPool>>>,
     pub figure_records_by_character_loader: DataloaderWithParams<
@@ -25,10 +28,16 @@ impl Loaders {
     pub fn new(pool: &PgPool) -> Self {
         Self {
             character_config_by_character_loader: DataloaderWithParams::new(
-                CharacterConfigByCharacterLoader { pool: pool.clone() },
+                CharacterConfigByCharacterLoader {
+                    character_configs_repository: adapters::CharacterConfigsRepositoryImpl::new(
+                        pool.clone(),
+                    ),
+                },
             ),
             character_configs_loader: DataloaderWithParams::new(CharacterConfigsLoader {
-                pool: pool.clone(),
+                character_configs_repository: adapters::CharacterConfigsRepositoryImpl::new(
+                    pool.clone(),
+                ),
             }),
             figure_record_by_id_loader: DataloaderWithParams::new(FigureRecordByIdLoader {
                 figure_records_repository: adapters::FigureRecordsRepositoryImpl::new(pool.clone()),

@@ -5,6 +5,31 @@ use chrono::{DateTime, Utc};
 use sqlx::{Acquire, Postgres};
 
 #[derive(Debug, Clone)]
+pub struct CharacterConfigModel {
+    pub user_id: String,
+    pub character: String,
+    pub stroke_count: i32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub version: i32,
+}
+
+impl CharacterConfigModel {
+    pub fn into_entity(self) -> anyhow::Result<entities::CharacterConfig> {
+        let character = entities::Character::try_from(self.character.as_str())?;
+
+        Ok(entities::CharacterConfig {
+            user_id: entities::UserId::from(self.user_id),
+            character,
+            stroke_count: entities::StrokeCount::try_from(self.stroke_count)?,
+            created_at: self.created_at,
+            updated_at: self.updated_at,
+            version: entities::Version::try_from(self.version)?,
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct CharacterConfigsRepositoryImpl<A> {
     db: A,
 }
@@ -130,5 +155,100 @@ where
 
         trx.commit().await?;
         Ok(character_config)
+    }
+
+    async fn get_by_characters(
+        &mut self,
+        characters: &[entities::Character],
+        user_id: entities::UserId,
+    ) -> Result<Vec<entities::CharacterConfig>, Self::Error> {
+        let mut conn = self.db.acquire().await?;
+        let character_values = characters
+            .iter()
+            .map(|character| String::from(character.clone()))
+            .collect::<Vec<_>>();
+
+        let models = sqlx::query_as!(
+            CharacterConfigModel,
+            r#"
+                SELECT
+                    user_id,
+                    character,
+                    stroke_count,
+                    created_at,
+                    updated_at,
+                    version
+                FROM
+                    character_configs
+                WHERE
+                    user_id = $1
+                    AND
+                    character = Any($2)
+            "#,
+            String::from(user_id.clone()),
+            character_values.as_slice(),
+        )
+        .fetch_all(&mut *conn)
+        .await
+        .context("fetch character_configs")?;
+
+        let character_configs = models
+            .into_iter()
+            .map(|model| model.into_entity())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .context("convert CharacterConfig")?;
+
+        Ok(character_configs)
+    }
+
+    async fn get(
+        &mut self,
+        user_id: entities::UserId,
+        after_character: Option<entities::Character>,
+        before_character: Option<entities::Character>,
+        limit: entities::Limit,
+    ) -> Result<Vec<entities::CharacterConfig>, Self::Error> {
+        let mut conn = self.db.acquire().await?;
+
+        let models = sqlx::query_as!(
+            CharacterConfigModel,
+            r#"
+            SELECT
+                user_id,
+                character,
+                stroke_count,
+                created_at,
+                updated_at,
+                version
+            FROM
+                character_configs
+            WHERE
+                user_id = $1
+                AND
+                ($2::VARCHAR(64) IS NULL OR character > $2)
+                AND
+                ($3::VARCHAR(64) IS NULL OR character < $3)
+            ORDER BY
+                CASE WHEN $4 = 0 THEN character END ASC,
+                CASE WHEN $4 = 1 THEN character END DESC
+            LIMIT $5
+        "#,
+            String::from(user_id.clone()),
+            after_character.map(String::from),
+            before_character.map(String::from),
+            i32::from(limit.kind() == entities::LimitKind::Last),
+            i64::from(limit.value()),
+        )
+        .fetch_all(&mut *conn)
+        .await
+        .context("fetch character_configs")?;
+
+        let character_configs = models
+            .into_iter()
+            .map(|row| row.into_entity())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .context("convert CharacterConfig")?;
+
+        Ok(character_configs)
     }
 }

@@ -12,5 +12,5 @@ pub mod adapters;
 pub mod faktory;
 pub mod job;
 pub mod jobs;
+pub mod loaders;
 pub mod ports;
-pub mod queries;

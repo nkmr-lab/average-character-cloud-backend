@@ -1,6 +1,6 @@
 use sqlx::PgPool;
 
-use crate::queries::{
+use crate::loaders::{
     CharacterConfigByCharacterLoader, CharacterConfigSeedByCharacterLoader,
     CharacterConfigSeedsLoader, CharacterConfigsLoader, FigureRecordByIdLoader,
     FigureRecordsByCharacterLoader,

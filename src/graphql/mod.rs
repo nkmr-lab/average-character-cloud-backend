@@ -25,7 +25,7 @@ use self::scalars::CharacterValueScalar;
 use crate::ports::{CharacterConfigsRepository, FigureRecordsRepository, UserConfigsRepository};
 
 mod scalars;
-use crate::queries::{
+use crate::loaders::{
     CharacterConfigByCharacterLoaderParams, CharacterConfigSeedByCharacterLoaderParams,
     CharacterConfigSeedsLoaderParams, CharacterConfigsLoaderParams, FigureRecordByIdLoaderParams,
     FigureRecordsByCharacterLoaderParams,

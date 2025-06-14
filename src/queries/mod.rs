@@ -13,9 +13,3 @@ pub use figure_record_query::{
     FigureRecordByIdLoader, FigureRecordByIdLoaderParams, FigureRecordsByCharacterLoader,
     FigureRecordsByCharacterLoaderParams,
 };
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum UserType {
-    Myself,
-    Other,
-}

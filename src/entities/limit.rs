@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LimitKind {
     First,
     Last,
@@ -14,7 +14,7 @@ pub enum CreateLimitError {
     LimitTooLarge,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Limit {
     kind: LimitKind,
     value: i32,
@@ -35,5 +35,12 @@ impl Limit {
 
     pub fn value(&self) -> i32 {
         self.value
+    }
+
+    pub fn increment_unchecked(self) -> Self {
+        Self {
+            kind: self.kind,
+            value: self.value + 1, // インクリメントは高々一回しか呼ばれないのでチェックしない
+        }
     }
 }

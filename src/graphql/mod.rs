@@ -8,8 +8,8 @@ use juniper::{
 };
 use ulid::Ulid;
 
-use crate::adapters::UserConfigsRepositoryImpl;
-use crate::entities;
+use crate::adapters::{FigureRecordsRepositoryImpl, UserConfigsRepositoryImpl};
+use crate::{entities, ports};
 
 use crate::graphql::scalars::{FigureScalar, UlidScalar};
 use anyhow::Context;
@@ -20,11 +20,10 @@ mod app_ctx;
 pub use app_ctx::*;
 mod loaders;
 use self::scalars::CharacterValueScalar;
-use crate::commands::{character_configs_command, figure_records_command};
-use crate::ports::UserConfigsRepository;
+use crate::commands::character_configs_command;
+use crate::ports::{FigureRecordsRepository, UserConfigsRepository};
 
 mod scalars;
-use crate::queries;
 use crate::queries::{
     CharacterConfigByCharacterLoaderParams, CharacterConfigSeedByCharacterLoaderParams,
     CharacterConfigSeedsLoaderParams, CharacterConfigsLoaderParams, FigureRecordByIdLoaderParams,
@@ -358,7 +357,7 @@ impl Character {
             })
             .transpose()?;
 
-        let (records, has_extra) = ctx
+        let result = ctx
             .loaders
             .figure_records_by_character_loader
             .load(
@@ -369,8 +368,8 @@ impl Character {
                     before_id,
                     limit: limit.clone(),
                     user_type: user_type.map(|user_type| match user_type {
-                        UserType::Myself => queries::UserType::Myself,
-                        UserType::Other => queries::UserType::Other,
+                        UserType::Myself => ports::UserType::Myself,
+                        UserType::Other => ports::UserType::Other,
                     }),
                 },
                 self.0.clone(),
@@ -378,15 +377,16 @@ impl Character {
             .await
             .context("load character_config")??;
 
-        let records = records
+        let records = result
+            .values
             .into_iter()
             .map(FigureRecord::from)
             .collect::<Vec<_>>();
 
         Ok(FigureRecordConnection {
             page_info: PageInfo {
-                has_next_page: has_extra && limit.kind() == entities::LimitKind::First,
-                has_previous_page: has_extra && limit.kind() == entities::LimitKind::Last,
+                has_next_page: result.has_next && limit.kind() == entities::LimitKind::First,
+                has_previous_page: result.has_next && limit.kind() == entities::LimitKind::Last,
                 start_cursor: records.first().map(|record| record.node_id().to_string()),
                 end_cursor: records.last().map(|record| record.node_id().to_string()),
             },
@@ -455,7 +455,7 @@ impl QueryRoot {
     }
 
     async fn user_config(&self, ctx: &AppCtx) -> Result<UserConfig, ApiError> {
-        let mut user_config_repository = UserConfigsRepositoryImpl::new(&ctx.pool);
+        let mut user_config_repository = UserConfigsRepositoryImpl::new(ctx.pool.clone());
 
         let user_id = ctx
             .user_id
@@ -506,7 +506,7 @@ impl QueryRoot {
                 Ok(Some(NodeValue::Character(Character::from(character))))
             }
             NodeId::UserConfig(_) => {
-                let mut user_config_repository = UserConfigsRepositoryImpl::new(&ctx.pool);
+                let mut user_config_repository = UserConfigsRepositoryImpl::new(ctx.pool.clone());
 
                 let user_config = user_config_repository.get(user_id).await?;
                 Ok(Some(NodeValue::UserConfig(UserConfig(user_config))))
@@ -700,19 +700,16 @@ impl MutationRoot {
         ctx: &AppCtx,
         input: CreateFigureRecordInput,
     ) -> Result<CreateFigureRecordPayload, ApiError> {
+        let mut figure_records_repository = FigureRecordsRepositoryImpl::new(ctx.pool.clone());
+
         let user_id = ctx
             .user_id
             .clone()
             .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
-        let record = figure_records_command::create(
-            &ctx.pool,
-            user_id,
-            ctx.now,
-            input.character.0,
-            input.figure.0,
-        )
-        .await?;
+        let record = figure_records_repository
+            .create(user_id, ctx.now, input.character.0, input.figure.0)
+            .await?;
 
         Ok(CreateFigureRecordPayload {
             figure_record: Some(FigureRecord::from(record)),
@@ -815,6 +812,8 @@ impl MutationRoot {
         ctx: &AppCtx,
         input: UpdateFigureRecordInput,
     ) -> Result<UpdateFigureRecordPayload, ApiError> {
+        let mut figure_records_repository = FigureRecordsRepositoryImpl::new(ctx.pool.clone());
+
         let user_id = ctx
             .user_id
             .clone()
@@ -835,8 +834,9 @@ impl MutationRoot {
             .context("load figure_record")??
             .ok_or_else(|| GraphqlUserError::from("Not found"))?;
 
-        let figure_record =
-            figure_records_command::update(&ctx.pool, figure_record, input.disabled).await?;
+        let figure_record = figure_records_repository
+            .update(figure_record, input.disabled)
+            .await?;
 
         Ok(UpdateFigureRecordPayload {
             figure_record: Some(FigureRecord::from(figure_record)),
@@ -848,7 +848,7 @@ impl MutationRoot {
         ctx: &AppCtx,
         input: UpdateUserConfigInput,
     ) -> Result<UpdateUserConfigPayload, ApiError> {
-        let mut user_config_repository = UserConfigsRepositoryImpl::new(&ctx.pool);
+        let mut user_config_repository = UserConfigsRepositoryImpl::new(ctx.pool.clone());
 
         let user_id = ctx
             .user_id

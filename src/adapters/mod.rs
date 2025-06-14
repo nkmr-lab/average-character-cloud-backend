@@ -1,3 +1,5 @@
+mod figure_records_repository_impl;
 mod user_configs_repository_impl;
 
+pub use figure_records_repository_impl::FigureRecordsRepositoryImpl;
 pub use user_configs_repository_impl::UserConfigsRepositoryImpl;

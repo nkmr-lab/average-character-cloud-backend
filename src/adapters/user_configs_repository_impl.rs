@@ -14,7 +14,7 @@ struct UserConfigModel {
     version: i32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UserConfigsRepositoryImpl<A> {
     db: A,
 }
@@ -28,7 +28,8 @@ impl<A> UserConfigsRepositoryImpl<A> {
 #[async_trait]
 impl<A> ports::UserConfigsRepository for UserConfigsRepositoryImpl<A>
 where
-    for<'c> A: Acquire<'c, Database = Postgres> + Send + Copy,
+    A: Send,
+    for<'c> &'c A: Acquire<'c, Database = Postgres>,
 {
     type Error = anyhow::Error;
 
@@ -36,7 +37,7 @@ where
         &mut self,
         user_id: entities::UserId,
     ) -> Result<entities::UserConfig, Self::Error> {
-        let mut conn: <A as Acquire<'_>>::Connection = self.db.acquire().await?;
+        let mut conn = self.db.acquire().await?;
         let record = sqlx::query_as!(
             UserConfigModel,
             r#"
@@ -149,7 +150,7 @@ mod tests {
 
     #[sqlx::test]
     async fn test_user_configs_repository(pool: sqlx::PgPool) {
-        let mut repo = UserConfigsRepositoryImpl::new(&pool);
+        let mut repo = UserConfigsRepositoryImpl::new(pool);
         let user_id = entities::UserId::from("test_user".to_string());
 
         let mut config = repo.get(user_id.clone()).await.unwrap();

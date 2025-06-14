@@ -1,8 +1,6 @@
 use crate::entities;
-use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
-#[async_trait]
 pub trait UserConfigsRepository {
     type Error;
 

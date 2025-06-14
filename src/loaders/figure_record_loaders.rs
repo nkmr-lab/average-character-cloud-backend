@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use async_trait::async_trait;
 
 use crate::entities;
 use crate::ports;
@@ -19,7 +18,7 @@ pub struct FigureRecordByIdLoaderParams {
     pub user_id: entities::UserId,
 }
 
-#[async_trait]
+
 impl<A> BatchFnWithParams for FigureRecordByIdLoader<A>
 where
     A: ports::FigureRecordsRepository<Error = anyhow::Error> + Send + Clone,
@@ -74,7 +73,7 @@ pub struct FigureRecordsByCharacterLoaderParams {
     pub user_type: Option<ports::UserType>,
 }
 
-#[async_trait]
+
 impl<A> BatchFnWithParams for FigureRecordsByCharacterLoader<A>
 where
     A: ports::FigureRecordsRepository<Error = anyhow::Error> + Send + Clone,

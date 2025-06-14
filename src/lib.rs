@@ -1,5 +1,5 @@
 #![cfg_attr(not(debug_assertions), deny(warnings))]
-
+#![allow(async_fn_in_trait)]
 pub mod app_config;
 mod dataloader_with_params;
 pub use dataloader_with_params::{BatchFnWithParams, DataloaderWithParams};

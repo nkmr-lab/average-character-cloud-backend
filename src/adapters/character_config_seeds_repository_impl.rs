@@ -1,6 +1,5 @@
 use crate::{entities, ports};
 use anyhow::Context;
-use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::{Acquire, Postgres};
 
@@ -34,7 +33,7 @@ impl<A> CharacterConfigSeedsRepositoryImpl<A> {
     }
 }
 
-#[async_trait]
+
 impl<A> ports::CharacterConfigSeedsRepository for CharacterConfigSeedsRepositoryImpl<A>
 where
     A: Send,

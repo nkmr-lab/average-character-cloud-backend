@@ -8,12 +8,11 @@ actix-session = {version = "0.6.2", features = ["redis-rs-session"]}
 actix-web = "4.0.1"
 actix-web-extras = {git = "https://github.com/ctron/actix-web-extras.git", rev = "e896994e38b253e270546f186780e3d1c99d0d3b"}
 anyhow = "1.0.57"
-async-trait = "0.1.56"
 base64 = "0.13.0"
 chrono = "0.4.19"
 clap = {version = "3.2.16", features = ["derive"]}
 cron = "0.11.0"
-dataloader = {version = "0.15.0", features = ["runtime-tokio"], default-features = false}
+dataloader = {version = "0.18.0", features = ["runtime-tokio"], default-features = false}
 derive_more = "0.99.17"
 faktory = "0.12.1"
 jsonwebtoken = {version = "8.1.0", features = ["use_pem"]}

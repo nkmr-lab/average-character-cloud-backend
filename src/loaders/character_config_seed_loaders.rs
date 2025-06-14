@@ -3,7 +3,6 @@ use crate::ports;
 use crate::BatchFnWithParams;
 use crate::ShareableError;
 use anyhow::Context;
-use async_trait::async_trait;
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
@@ -14,7 +13,7 @@ pub struct CharacterConfigSeedByCharacterLoader<A> {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CharacterConfigSeedByCharacterLoaderParams {}
 
-#[async_trait]
+
 impl<A> BatchFnWithParams for CharacterConfigSeedByCharacterLoader<A>
 where
     A: ports::CharacterConfigSeedsRepository<Error = anyhow::Error> + Send + Clone,
@@ -75,7 +74,7 @@ pub struct CharacterConfigSeedsLoaderParams {
     pub include_exist_character_config: bool,
 }
 
-#[async_trait]
+
 impl<A> BatchFnWithParams for CharacterConfigSeedsLoader<A>
 where
     A: ports::CharacterConfigSeedsRepository<Error = anyhow::Error> + Send + Clone,

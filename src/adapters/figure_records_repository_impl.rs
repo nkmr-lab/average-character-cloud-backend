@@ -5,7 +5,6 @@ use sqlx::{Acquire, Postgres};
 use ulid::Ulid;
 
 use crate::{entities, ports};
-use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone)]
@@ -57,7 +56,7 @@ impl<A> FigureRecordsRepositoryImpl<A> {
     }
 }
 
-#[async_trait]
+
 impl<A> ports::FigureRecordsRepository for FigureRecordsRepositoryImpl<A>
 where
     A: Send,

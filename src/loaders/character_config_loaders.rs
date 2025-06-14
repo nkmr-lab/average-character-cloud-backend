@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use crate::entities;
 use anyhow::Context;
-use async_trait::async_trait;
 
 use crate::ports;
 use crate::BatchFnWithParams;
@@ -18,7 +17,7 @@ pub struct CharacterConfigByCharacterLoaderParams {
     pub user_id: entities::UserId,
 }
 
-#[async_trait]
+
 impl<A> BatchFnWithParams for CharacterConfigByCharacterLoader<A>
 where
     A: ports::CharacterConfigsRepository<Error = anyhow::Error> + Send + Clone,
@@ -71,7 +70,7 @@ pub struct CharacterConfigsLoaderParams {
     pub limit: entities::Limit,
 }
 
-#[async_trait]
+
 impl<A> BatchFnWithParams for CharacterConfigsLoader<A>
 where
     A: ports::CharacterConfigsRepository<Error = anyhow::Error> + Send + Clone,

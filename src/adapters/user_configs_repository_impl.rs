@@ -2,7 +2,6 @@ use anyhow::{anyhow, Context};
 use sqlx::{Acquire, Postgres};
 
 use crate::{entities, ports};
-use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone)]
@@ -25,7 +24,7 @@ impl<A> UserConfigsRepositoryImpl<A> {
     }
 }
 
-#[async_trait]
+
 impl<A> ports::UserConfigsRepository for UserConfigsRepositoryImpl<A>
 where
     A: Send,

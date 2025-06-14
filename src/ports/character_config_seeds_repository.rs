@@ -1,9 +1,7 @@
-use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
 use crate::entities;
 
-#[async_trait]
 pub trait CharacterConfigSeedsRepository {
     type Error;
 

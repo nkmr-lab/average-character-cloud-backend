@@ -655,7 +655,7 @@ impl QueryRoot {
             })
             .transpose()?;
 
-        let (character_config_seeds, has_extra) = ctx
+        let result = ctx
             .loaders
             .character_config_seeds_loader
             .load(
@@ -671,15 +671,16 @@ impl QueryRoot {
             .await
             .context("load character_config_seed")??;
 
-        let records = character_config_seeds
+        let records = result
+            .values
             .into_iter()
             .map(CharacterConfigSeed::from)
             .collect::<Vec<_>>();
 
         Ok(CharacterConfigSeedConnection {
             page_info: PageInfo {
-                has_next_page: has_extra && limit.kind() == entities::LimitKind::First,
-                has_previous_page: has_extra && limit.kind() == entities::LimitKind::Last,
+                has_next_page: result.has_next && limit.kind() == entities::LimitKind::First,
+                has_previous_page: result.has_next && limit.kind() == entities::LimitKind::Last,
                 start_cursor: records.first().map(|record| record.node_id().to_string()),
                 end_cursor: records.last().map(|record| record.node_id().to_string()),
             },

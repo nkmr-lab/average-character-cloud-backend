@@ -19,9 +19,12 @@ pub struct Loaders {
     pub figure_records_by_character_loader: DataloaderWithParams<
         FigureRecordsByCharacterLoader<adapters::FigureRecordsRepositoryImpl<PgPool>>,
     >,
-    pub character_config_seed_by_character_loader:
-        DataloaderWithParams<CharacterConfigSeedByCharacterLoader>,
-    pub character_config_seeds_loader: DataloaderWithParams<CharacterConfigSeedsLoader>,
+    pub character_config_seed_by_character_loader: DataloaderWithParams<
+        CharacterConfigSeedByCharacterLoader<adapters::CharacterConfigSeedsRepositoryImpl<PgPool>>,
+    >,
+    pub character_config_seeds_loader: DataloaderWithParams<
+        CharacterConfigSeedsLoader<adapters::CharacterConfigSeedsRepositoryImpl<PgPool>>,
+    >,
 }
 
 impl Loaders {
@@ -50,10 +53,14 @@ impl Loaders {
                 },
             ),
             character_config_seed_by_character_loader: DataloaderWithParams::new(
-                CharacterConfigSeedByCharacterLoader { pool: pool.clone() },
+                CharacterConfigSeedByCharacterLoader {
+                    character_config_seeds_repository:
+                        adapters::CharacterConfigSeedsRepositoryImpl::new(pool.clone()),
+                },
             ),
             character_config_seeds_loader: DataloaderWithParams::new(CharacterConfigSeedsLoader {
-                pool: pool.clone(),
+                character_config_seeds_repository:
+                    adapters::CharacterConfigSeedsRepositoryImpl::new(pool.clone()),
             }),
         }
     }

@@ -5,6 +5,25 @@ use chrono::{DateTime, Utc};
 use sqlx::{Acquire, Postgres};
 
 #[derive(Debug, Clone)]
+pub struct CharacterConfigSeedModel {
+    pub character: String,
+    pub stroke_count: i32,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl CharacterConfigSeedModel {
+    pub fn into_entity(self) -> anyhow::Result<entities::CharacterConfigSeed> {
+        let character = entities::Character::try_from(self.character.as_str())?;
+
+        Ok(entities::CharacterConfigSeed {
+            character,
+            stroke_count: entities::StrokeCount::try_from(self.stroke_count)?,
+            updated_at: self.updated_at,
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct CharacterConfigSeedsRepositoryImpl<A> {
     db: A,
 }
@@ -63,5 +82,97 @@ where
 
         trx.commit().await?;
         Ok(())
+    }
+
+    async fn get_by_characters(
+        &mut self,
+        characters: &[entities::Character],
+    ) -> Result<Vec<entities::CharacterConfigSeed>, Self::Error> {
+        let character_values = characters
+            .iter()
+            .map(|c| String::from(c.clone()))
+            .collect::<Vec<_>>();
+        let mut conn = self.db.acquire().await?;
+        let models = sqlx::query_as!(
+            CharacterConfigSeedModel,
+            r#"
+                SELECT
+                    character,
+                    stroke_count,
+                    updated_at
+                FROM
+                    character_config_seeds
+                WHERE
+                    character = Any($1)
+            "#,
+            character_values.as_slice(),
+        )
+        .fetch_all(&mut *conn)
+        .await
+        .context("fetch character_config_seeds")?;
+
+        let character_config_seeds = models
+            .into_iter()
+            .map(|model| model.into_entity())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .context("convert CharacterConfigSeed")?;
+        Ok(character_config_seeds)
+    }
+
+    async fn get(
+        &mut self,
+        user_id: entities::UserId,
+        after_character: Option<entities::Character>,
+        before_character: Option<entities::Character>,
+        limit: entities::Limit,
+        include_exist_character_config: bool,
+    ) -> Result<Vec<entities::CharacterConfigSeed>, Self::Error> {
+        let mut conn = self.db.acquire().await?;
+        let models = sqlx::query_as!(
+            CharacterConfigSeedModel,
+            r#"
+            SELECT
+                character,
+                stroke_count,
+                updated_at
+            FROM
+                character_config_seeds
+            WHERE
+                $6 OR NOT EXISTS (
+                    SELECT
+                        1
+                    FROM
+                        character_configs
+                    WHERE
+                        character_configs.user_id = $1
+                        AND character_configs.character = character_config_seeds.character
+                )
+                AND
+                ($2::VARCHAR(64) IS NULL OR character > $2)
+                AND
+                ($3::VARCHAR(64) IS NULL OR character < $3)
+            ORDER BY
+                CASE WHEN $4 = 0 THEN character END ASC,
+                CASE WHEN $4 = 1 THEN character END DESC
+            LIMIT $5
+        "#,
+            String::from(user_id.clone()),
+            after_character.map(String::from),
+            before_character.map(String::from),
+            i32::from(limit.kind() == entities::LimitKind::Last),
+            i64::from(limit.value()),
+            include_exist_character_config,
+        )
+        .fetch_all(&mut *conn)
+        .await
+        .context("fetch character_config_seeds")?;
+
+        let character_config_seeds = models
+            .into_iter()
+            .map(|row| row.into_entity())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .context("convert CharacterConfigSeed")?;
+
+        Ok(character_config_seeds)
     }
 }

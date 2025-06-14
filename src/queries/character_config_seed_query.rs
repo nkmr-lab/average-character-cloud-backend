@@ -1,44 +1,24 @@
-use sqlx::PgPool;
-
-use std::collections::HashMap;
-
-use chrono::{DateTime, Utc};
-
 use crate::entities;
-use anyhow::Context;
-use async_trait::async_trait;
-
+use crate::ports;
 use crate::BatchFnWithParams;
 use crate::ShareableError;
-#[derive(Debug, Clone)]
-pub struct CharacterConfigSeedModel {
-    pub character: String,
-    pub stroke_count: i32,
-    pub updated_at: DateTime<Utc>,
-}
-
-impl CharacterConfigSeedModel {
-    pub fn into_entity(self) -> anyhow::Result<entities::CharacterConfigSeed> {
-        let character = entities::Character::try_from(self.character.as_str())?;
-
-        Ok(entities::CharacterConfigSeed {
-            character,
-            stroke_count: entities::StrokeCount::try_from(self.stroke_count)?,
-            updated_at: self.updated_at,
-        })
-    }
-}
+use anyhow::Context;
+use async_trait::async_trait;
+use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
-pub struct CharacterConfigSeedByCharacterLoader {
-    pub pool: PgPool,
+pub struct CharacterConfigSeedByCharacterLoader<A> {
+    pub character_config_seeds_repository: A,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CharacterConfigSeedByCharacterLoaderParams {}
 
 #[async_trait]
-impl BatchFnWithParams for CharacterConfigSeedByCharacterLoader {
+impl<A> BatchFnWithParams for CharacterConfigSeedByCharacterLoader<A>
+where
+    A: ports::CharacterConfigSeedsRepository<Error = anyhow::Error> + Send + Clone,
+{
     type K = entities::Character;
     type V = Result<Option<entities::CharacterConfigSeed>, ShareableError>;
     type P = CharacterConfigSeedByCharacterLoaderParams;
@@ -48,58 +28,32 @@ impl BatchFnWithParams for CharacterConfigSeedByCharacterLoader {
         _params: &Self::P,
         keys: &[Self::K],
     ) -> HashMap<Self::K, Self::V> {
-        let character_values = keys
-            .iter()
-            .map(|character| String::from(character.clone()))
-            .collect::<Vec<_>>();
-
-        let result: Result<_, ShareableError> = (|| async {
-            let models = sqlx::query_as!(
-                CharacterConfigSeedModel,
-                r#"
-                SELECT
-                    character,
-                    stroke_count,
-                    updated_at
-                FROM
-                    character_config_seeds
-                WHERE
-                    character = Any($1)
-            "#,
-                character_values.as_slice(),
-            )
-            .fetch_all(&self.pool)
+        let character_config_seed_map = self
+            .character_config_seeds_repository
+            .get_by_characters(keys)
             .await
-            .context("fetch character_config_seeds")?;
-
-            let character_config_seeds = models
-                .into_iter()
-                .map(|model| model.into_entity())
-                .collect::<anyhow::Result<Vec<_>>>()
-                .context("convert CharacterConfigSeed")?;
-
-            let character_config_seed_map = character_config_seeds
-                .into_iter()
-                .map(|character_config_seed| {
-                    (
-                        character_config_seed.character.clone(),
-                        character_config_seed,
-                    )
-                })
-                .collect::<HashMap<_, _>>();
-
-            Ok(character_config_seed_map)
-        })()
-        .await
-        .map_err(ShareableError);
+            .map(|character_config_seeds| {
+                character_config_seeds
+                    .into_iter()
+                    .map(|character_config_seed| {
+                        (
+                            character_config_seed.character.clone(),
+                            character_config_seed,
+                        )
+                    })
+                    .collect::<HashMap<_, _>>()
+            })
+            .map_err(ShareableError::from);
 
         keys.iter()
             .map(|key| {
                 (
                     key.clone(),
-                    result
+                    character_config_seed_map
                         .as_ref()
-                        .map(|character_config_map| character_config_map.get(key).cloned())
+                        .map(|character_config_seed_map| {
+                            character_config_seed_map.get(key).cloned()
+                        })
                         .map_err(|e| e.clone()),
                 )
             })
@@ -108,8 +62,8 @@ impl BatchFnWithParams for CharacterConfigSeedByCharacterLoader {
 }
 
 #[derive(Clone, Debug)]
-pub struct CharacterConfigSeedsLoader {
-    pub pool: PgPool,
+pub struct CharacterConfigSeedsLoader<A> {
+    pub character_config_seeds_repository: A,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -122,9 +76,12 @@ pub struct CharacterConfigSeedsLoaderParams {
 }
 
 #[async_trait]
-impl BatchFnWithParams for CharacterConfigSeedsLoader {
+impl<A> BatchFnWithParams for CharacterConfigSeedsLoader<A>
+where
+    A: ports::CharacterConfigSeedsRepository<Error = anyhow::Error> + Send + Clone,
+{
     type K = ();
-    type V = Result<(Vec<entities::CharacterConfigSeed>, bool), ShareableError>;
+    type V = Result<ports::PaginationResult<entities::CharacterConfigSeed>, ShareableError>;
     type P = CharacterConfigSeedsLoaderParams;
 
     async fn load_with_params(
@@ -132,67 +89,30 @@ impl BatchFnWithParams for CharacterConfigSeedsLoader {
         params: &Self::P,
         _: &[Self::K],
     ) -> HashMap<Self::K, Self::V> {
-        let result: Result<_, ShareableError> = (|| async {
-            let models = sqlx::query_as!(
-                CharacterConfigSeedModel,
-                r#"
-            SELECT
-                character,
-                stroke_count,
-                updated_at
-            FROM
-                character_config_seeds
-            WHERE
-                $6 OR NOT EXISTS (
-                    SELECT
-                        1
-                    FROM
-                        character_configs
-                    WHERE
-                        character_configs.user_id = $1
-                        AND character_configs.character = character_config_seeds.character
-                )
-                AND
-                ($2::VARCHAR(64) IS NULL OR character > $2)
-                AND
-                ($3::VARCHAR(64) IS NULL OR character < $3)
-            ORDER BY
-                CASE WHEN $4 = 0 THEN character END ASC,
-                CASE WHEN $4 = 1 THEN character END DESC
-            LIMIT $5
-        "#,
-                String::from(params.user_id.clone()),
-                params.clone().after_character.map(String::from),
-                params.clone().before_character.map(String::from),
-                i32::from(params.limit.kind() == entities::LimitKind::Last),
-                i64::from(params.limit.value()) + 1,
+        let result = self
+            .character_config_seeds_repository
+            .get(
+                params.user_id.clone(),
+                params.after_character.clone(),
+                params.before_character.clone(),
+                params.limit.increment_unchecked(),
                 params.include_exist_character_config,
             )
-            .fetch_all(&self.pool)
             .await
-            .context("fetch character_config_seeds")?;
-
-            let mut character_config_seeds = models
-                .into_iter()
-                .map(|row| row.into_entity())
-                .collect::<anyhow::Result<Vec<_>>>()
-                .context("convert CharacterConfigSeed")?;
-
-            let has_extra = character_config_seeds.len()
-                > usize::try_from(params.limit.value()).context("into usize")?;
-
-            character_config_seeds
-                .truncate(usize::try_from(params.limit.value()).context("into usize")?);
-
-            if params.limit.kind() == entities::LimitKind::Last {
-                character_config_seeds.reverse();
-            }
-
-            Ok((character_config_seeds, has_extra))
-        })()
-        .await
-        .map_err(ShareableError);
-
+            .and_then(|mut character_config_seeds| {
+                let has_next = character_config_seeds.len()
+                    > usize::try_from(params.limit.value()).context("into usize")?;
+                character_config_seeds
+                    .truncate(usize::try_from(params.limit.value()).context("into usize")?);
+                if params.limit.kind() == entities::LimitKind::Last {
+                    character_config_seeds.reverse();
+                }
+                Ok(ports::PaginationResult {
+                    values: character_config_seeds,
+                    has_next,
+                })
+            })
+            .map_err(ShareableError::from);
         vec![((), result)].into_iter().collect()
     }
 }

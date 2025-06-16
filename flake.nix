@@ -77,7 +77,6 @@
             pkgs.sqlx-cli
             pkgs.just
             pkgs.sqldef
-            pkgs.crate2nix
             pkgs.cargo-watch
             cargo2nix.packages.${system}.cargo2nix
           ];

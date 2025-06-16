@@ -64,10 +64,6 @@ jobs:
       - name: Test
         run: |
           cargo test
-      - name: crate2nix
-        run: |
-          crate2nix generate
-          git diff --exit-code
       - name: sqlx prepare
         run: |
           sqlx database reset -y

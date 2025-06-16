@@ -22,7 +22,6 @@ $ just add-migrate マイグレーション名
 
 ```
 # 以下の色々をしてみて
-$ crate2nix generate
 $ just sqlx-prepare
 $ cargo fmt
 $ cargo clippy # エラーが出たところを直す

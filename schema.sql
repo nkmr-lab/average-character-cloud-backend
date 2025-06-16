@@ -18,8 +18,8 @@ CREATE INDEX "figure_records_version_idx" ON "public"."figure_records" ("version
 CREATE INDEX "figure_records_disabled_idx" ON "public"."figure_records" ("disabled");
 
 CREATE TABLE "public"."character_configs" (
-  "user_id" VARCHAR(64),
-  "character" VARCHAR(8),
+  "user_id" VARCHAR(64) NOT NULL,
+  "character" VARCHAR(8) NOT NULL,
   "stroke_count" INTEGER NOT NULL,
   "created_at" TIMESTAMP WITH TIME ZONE NOT NULL,
   "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -44,9 +44,10 @@ CREATE INDEX "user_configs_updated_at_idx" ON "public"."user_configs" ("updated_
 CREATE INDEX "user_configs_version_idx" ON "public"."user_configs" ("version");
 
 CREATE TABLE "public"."character_config_seeds" (
-  "character" VARCHAR(8) PRIMARY KEY,
+  "character" VARCHAR(8) NOT NULL,
   "stroke_count" INTEGER NOT NULL,
-  "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL
+  "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL,
+  PRIMARY KEY ("character", "stroke_count")
 );
 
 CREATE INDEX "character_config_seeds_updated_at_idx" ON "public"."character_config_seeds" ("updated_at");

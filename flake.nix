@@ -75,7 +75,7 @@
           packages = [
             rustToolchain
             pkgs.sqlx-cli
-            pkgs.cargo-make
+            pkgs.just
             pkgs.sqldef
             pkgs.crate2nix
             pkgs.cargo-watch

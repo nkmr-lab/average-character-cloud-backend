@@ -15,7 +15,7 @@ $ cargo run
 
 ```
 # edit schema.sql
-$ cargo make add-migrate マイグレーション名
+$ just add-migrate マイグレーション名
 ```
 
 ## CI落ちた時
@@ -23,7 +23,7 @@ $ cargo make add-migrate マイグレーション名
 ```
 # 以下の色々をしてみて
 $ crate2nix generate
-$ cargo make sqlx-prepare
+$ just sqlx-prepare
 $ cargo fmt
 $ cargo clippy # エラーが出たところを直す
 ```

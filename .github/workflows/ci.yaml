@@ -71,7 +71,7 @@ jobs:
       - name: sqlx prepare
         run: |
           sqlx database reset -y
-          cargo make sqlx-prepare
+          just sqlx-prepare
           git diff --exit-code
       - name: Release build
         run: |

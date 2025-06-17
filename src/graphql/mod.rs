@@ -26,9 +26,10 @@ use crate::ports::{CharacterConfigsRepository, FigureRecordsRepository, UserConf
 
 mod scalars;
 use crate::loaders::{
-    CharacterConfigByCharacterLoaderParams, CharacterConfigSeedByCharacterLoaderParams,
-    CharacterConfigSeedsLoaderParams, CharacterConfigsLoaderParams, FigureRecordByIdLoaderParams,
-    FigureRecordsByCharacterLoaderParams,
+    CharacterConfigByCharacterLoaderParams, CharacterConfigByIdLoaderParams,
+    CharacterConfigLoaderParams, CharacterConfigSeedByCharacterLoaderParams,
+    CharacterConfigSeedByIdLoaderParams, CharacterConfigSeedsLoaderParams,
+    FigureRecordByIdLoaderParams, FigureRecordsByCharacterLoaderParams,
 };
 
 /*
@@ -109,7 +110,12 @@ struct CharacterConfig(entities::CharacterConfig);
 #[graphql_interface]
 impl Node for CharacterConfig {
     fn node_id(&self) -> ID {
-        NodeId::CharacterConfig(self.0.user_id.clone(), self.0.character.clone()).to_id()
+        NodeId::CharacterConfig(
+            self.0.user_id.clone(),
+            self.0.character.clone(),
+            self.0.stroke_count,
+        )
+        .to_id()
     }
 }
 
@@ -164,7 +170,7 @@ struct CharacterConfigSeed(entities::CharacterConfigSeed);
 #[graphql_interface]
 impl Node for CharacterConfigSeed {
     fn node_id(&self) -> ID {
-        NodeId::CharacterConfigSeed(self.0.character.clone()).to_id()
+        NodeId::CharacterConfigSeed(self.0.character.clone(), self.0.stroke_count).to_id()
     }
 }
 
@@ -491,13 +497,13 @@ impl QueryRoot {
                     .map(FigureRecord::from)
                     .map(NodeValue::FigureRecord))
             }
-            NodeId::CharacterConfig(_, character) => {
+            NodeId::CharacterConfig(_, character, stroke_count) => {
                 let character_config = ctx
                     .loaders
-                    .character_config_by_character_loader
+                    .character_config_by_id_loader
                     .load(
-                        CharacterConfigByCharacterLoaderParams { user_id },
-                        character,
+                        CharacterConfigByIdLoaderParams { user_id },
+                        (character, stroke_count),
                     )
                     .await
                     .context("load character_config")??;
@@ -515,11 +521,14 @@ impl QueryRoot {
                 let user_config = user_config_repository.get(user_id).await?;
                 Ok(Some(NodeValue::UserConfig(UserConfig(user_config))))
             }
-            NodeId::CharacterConfigSeed(character) => {
+            NodeId::CharacterConfigSeed(character, stroke_count) => {
                 let character_config_seed = ctx
                     .loaders
-                    .character_config_seed_by_character_loader
-                    .load(CharacterConfigSeedByCharacterLoaderParams {}, character)
+                    .character_config_seed_by_id_loader
+                    .load(
+                        CharacterConfigSeedByIdLoaderParams {},
+                        (character, stroke_count),
+                    )
                     .await
                     .context("load character_config_seed")??;
 
@@ -560,36 +569,38 @@ impl QueryRoot {
 
         let limit = encode_limit(first, last)?;
 
-        let after_character = after
+        let after_id = after
             .map(|after| -> anyhow::Result<_> {
-                let Some(NodeId::CharacterConfig(_, character)) = NodeId::from_id(&ID::new(after))
+                let Some(NodeId::CharacterConfig(_, character, stroke_count)) =
+                    NodeId::from_id(&ID::new(after))
                 else {
                     return Err(GraphqlUserError::from("after must be a valid cursor").into());
                 };
 
-                Ok(character)
+                Ok((character, stroke_count))
             })
             .transpose()?;
 
-        let before_character = before
+        let before_id = before
             .map(|before| -> anyhow::Result<_> {
-                let Some(NodeId::CharacterConfig(_, character)) = NodeId::from_id(&ID::new(before))
+                let Some(NodeId::CharacterConfig(_, character, stroke_count)) =
+                    NodeId::from_id(&ID::new(before))
                 else {
                     return Err(GraphqlUserError::from("before must be a valid cursor").into());
                 };
 
-                Ok(character)
+                Ok((character, stroke_count))
             })
             .transpose()?;
 
         let result = ctx
             .loaders
-            .character_configs_loader
+            .character_config_loader
             .load(
-                CharacterConfigsLoaderParams {
+                CharacterConfigLoaderParams {
                     user_id,
-                    after_character,
-                    before_character,
+                    after_id,
+                    before_id,
                     limit: limit.clone(),
                 },
                 (),
@@ -635,26 +646,27 @@ impl QueryRoot {
 
         let limit = encode_limit(first, last)?;
 
-        let after_character = after
+        let after_id = after
             .map(|after| -> anyhow::Result<_> {
-                let Some(NodeId::CharacterConfigSeed(character)) = NodeId::from_id(&ID::new(after))
+                let Some(NodeId::CharacterConfigSeed(character, stroke_count)) =
+                    NodeId::from_id(&ID::new(after))
                 else {
                     return Err(GraphqlUserError::from("after must be a valid cursor").into());
                 };
 
-                Ok(character)
+                Ok((character, stroke_count))
             })
             .transpose()?;
 
-        let before_character = before
+        let before_id = before
             .map(|before| -> anyhow::Result<_> {
-                let Some(NodeId::CharacterConfigSeed(character)) =
+                let Some(NodeId::CharacterConfigSeed(character, stroke_count)) =
                     NodeId::from_id(&ID::new(before))
                 else {
                     return Err(GraphqlUserError::from("before must be a valid cursor").into());
                 };
 
-                Ok(character)
+                Ok((character, stroke_count))
             })
             .transpose()?;
 
@@ -664,8 +676,8 @@ impl QueryRoot {
             .load(
                 CharacterConfigSeedsLoaderParams {
                     user_id,
-                    after_character,
-                    before_character,
+                    after_id,
+                    before_id,
                     limit: limit.clone(),
                     include_exist_character_config,
                 },
@@ -792,9 +804,10 @@ impl MutationRoot {
             .map_err(|_| GraphqlUserError::from("stroke_count must be an non negative integer"))?;
 
         let character_config = character_configs_repository
-            .get(user_id.clone(), character, stroke_count)
+            .get_by_ids(user_id.clone(), &[(character, stroke_count)])
             .await
             .context("get character_config")?
+            .pop()
             .ok_or_else(|| GraphqlUserError::from("Not found"))?;
 
         let Ok(ratio) = input.ratio.map(entities::Ratio::try_from).transpose() else {

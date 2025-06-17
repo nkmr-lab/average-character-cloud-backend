@@ -87,10 +87,10 @@ pub fn encode_limit(
 #[derive(Debug, Clone)]
 pub enum NodeId {
     FigureRecord(entities::FigureRecordId),
-    CharacterConfig(entities::UserId, entities::Character),
+    CharacterConfig(entities::UserId, entities::Character, entities::StrokeCount),
     Character(entities::Character),
     UserConfig(entities::UserId),
-    CharacterConfigSeed(entities::Character),
+    CharacterConfigSeed(entities::Character, entities::StrokeCount),
 }
 
 impl NodeId {
@@ -99,11 +99,14 @@ impl NodeId {
             NodeId::FigureRecord(id) => {
                 ID::new(base64::encode(format!("FigureRecord:{}", Ulid::from(*id))))
             }
-            NodeId::CharacterConfig(user_id, character) => ID::new(base64::encode(format!(
-                "CharacterConfig:{}-{}",
-                base64::encode(String::from(user_id.clone())),
-                base64::encode(String::from(character.clone()))
-            ))),
+            NodeId::CharacterConfig(user_id, character, stroke_count) => {
+                ID::new(base64::encode(format!(
+                    "CharacterConfig:{}-{}-{}",
+                    base64::encode(String::from(user_id.clone())),
+                    base64::encode(String::from(character.clone())),
+                    base64::encode(i32::from(*stroke_count).to_string())
+                )))
+            }
             NodeId::Character(character) => ID::new(base64::encode(format!(
                 "Character:{}",
                 String::from(character.clone())
@@ -112,10 +115,13 @@ impl NodeId {
                 "UserConfig:{}",
                 String::from(id.clone())
             ))),
-            NodeId::CharacterConfigSeed(character) => ID::new(base64::encode(format!(
-                "CharacterConfigSeed:{}",
-                String::from(character.clone())
-            ))),
+            NodeId::CharacterConfigSeed(character, stroke_count) => {
+                ID::new(base64::encode(format!(
+                    "CharacterConfigSeed:{}-{}",
+                    String::from(character.clone()),
+                    i32::from(*stroke_count),
+                )))
+            }
         }
     }
 
@@ -128,21 +134,35 @@ impl NodeId {
                 .ok()
                 .map(|id| NodeId::FigureRecord(entities::FigureRecordId::from(id))),
             "CharacterConfig" => {
-                let (user_id, character) = id.split_once('-')?;
+                let (user_id, character_stoke_count) = id.split_once('-')?;
+                let (character, stroke_count) = character_stoke_count.split_once('-')?;
                 let user_id = base64::decode(user_id).ok()?;
                 let user_id = entities::UserId::from(String::from_utf8(user_id).ok()?);
                 let character = base64::decode(character).ok()?;
                 let character = String::from_utf8(character).ok()?;
                 let character = entities::Character::try_from(character.as_str()).ok()?;
-                Some(NodeId::CharacterConfig(user_id, character))
+                let stroke_count = base64::decode(stroke_count).ok()?;
+                let stroke_count = String::from_utf8(stroke_count).ok()?;
+                let stroke_count = i32::from_str(&stroke_count).ok()?;
+                let stroke_count = entities::StrokeCount::try_from(stroke_count).ok()?;
+                Some(NodeId::CharacterConfig(user_id, character, stroke_count))
             }
             "Character" => entities::Character::try_from(id)
                 .ok()
                 .map(NodeId::Character),
             "UserConfig" => Some(NodeId::UserConfig(entities::UserId::from(id.to_string()))),
-            "CharacterConfigSeed" => entities::Character::try_from(id)
-                .ok()
-                .map(NodeId::CharacterConfigSeed),
+            "CharacterConfigSeed" => {
+                let (character, stroke_count) = id.split_once('-')?;
+                let character = base64::decode(character).ok()?;
+                let character = String::from_utf8(character).ok()?;
+                let character = entities::Character::try_from(character.as_str()).ok()?;
+                let stroke_count = base64::decode(stroke_count).ok()?;
+                let stroke_count = String::from_utf8(stroke_count).ok()?;
+                let stroke_count = i32::from_str(&stroke_count).ok()?;
+                let stroke_count = entities::StrokeCount::try_from(stroke_count).ok()?;
+                Some(NodeId::CharacterConfigSeed(character, stroke_count))
+            }
+
             _ => None,
         })
     }

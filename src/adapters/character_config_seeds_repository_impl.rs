@@ -122,15 +122,24 @@ where
         Ok(character_config_seeds)
     }
 
-    async fn get(
+    async fn query(
         &mut self,
         user_id: entities::UserId,
-        after_character: Option<entities::Character>,
-        before_character: Option<entities::Character>,
+        after_id: Option<(entities::Character, entities::StrokeCount)>,
+        before_id: Option<(entities::Character, entities::StrokeCount)>,
         limit: entities::Limit,
         include_exist_character_config: bool,
     ) -> Result<Vec<entities::CharacterConfigSeed>, Self::Error> {
         let mut conn = self.db.acquire().await?;
+
+        let after_character = after_id
+            .clone()
+            .map(|(character, _)| String::from(character));
+        let after_stroke_count = after_id.map(|(_, stroke_count)| i32::from(stroke_count));
+        let before_character = before_id
+            .clone()
+            .map(|(character, _)| String::from(character));
+        let before_stroke_count = before_id.map(|(_, stroke_count)| i32::from(stroke_count));
         let models = sqlx::query_as!(
             CharacterConfigSeedModel,
             r#"
@@ -142,7 +151,7 @@ where
             FROM
                 character_config_seeds
             WHERE
-                $6 OR NOT EXISTS (
+                $8 OR NOT EXISTS (
                     SELECT
                         1
                     FROM
@@ -153,17 +162,19 @@ where
                         AND character_configs.stroke_count = character_config_seeds.stroke_count
                 )
                 AND
-                ($2::VARCHAR(64) IS NULL OR character > $2)
+                ($2::VARCHAR(64) IS NULL OR (character, stroke_count) > ($2, $3))
                 AND
-                ($3::VARCHAR(64) IS NULL OR character < $3)
+                ($4::VARCHAR(64) IS NULL OR (character, stroke_count) < ($4, $5))
             ORDER BY
-                CASE WHEN $4 = 0 THEN (character, stroke_count) END ASC,
-                CASE WHEN $4 = 1 THEN (character, stroke_count) END DESC
-            LIMIT $5
+                CASE WHEN $6 = 0 THEN (character, stroke_count) END ASC,
+                CASE WHEN $6 = 1 THEN (character, stroke_count) END DESC
+            LIMIT $7
         "#,
             String::from(user_id.clone()),
-            after_character.map(String::from),
-            before_character.map(String::from),
+            after_character,
+            after_stroke_count,
+            before_character,
+            before_stroke_count,
             i32::from(limit.kind() == entities::LimitKind::Last),
             i64::from(limit.value()),
             include_exist_character_config,
@@ -178,6 +189,55 @@ where
             .collect::<anyhow::Result<Vec<_>>>()
             .context("convert CharacterConfigSeed")?;
 
+        Ok(character_config_seeds)
+    }
+
+    async fn get_by_ids(
+        &mut self,
+        keys: &[(entities::Character, entities::StrokeCount)],
+    ) -> Result<Vec<entities::CharacterConfigSeed>, Self::Error> {
+        let mut conn = self.db.acquire().await?;
+
+        let character_values = keys
+            .iter()
+            .map(|(character, _)| String::from(character.clone()))
+            .collect::<Vec<_>>();
+
+        let stroke_count_values = keys
+            .iter()
+            .map(|(_, stroke_count)| i32::from(*stroke_count))
+            .collect::<Vec<_>>();
+
+        let models = sqlx::query_as!(
+            CharacterConfigSeedModel,
+            r#"
+            WITH input_pairs AS (
+                SELECT a, b
+                FROM unnest($1::VARCHAR(8)[], $2::INTEGER[]) AS t(a, b)
+            )
+            SELECT
+                character,
+                stroke_count,
+                ratio,
+                updated_at
+            FROM
+                character_config_seeds
+            JOIN
+                input_pairs ON character_config_seeds.character = input_pairs.a
+                AND character_config_seeds.stroke_count = input_pairs.b
+        "#,
+            character_values.as_slice(),
+            stroke_count_values.as_slice()
+        )
+        .fetch_all(&mut *conn)
+        .await
+        .context("fetch character_config_seeds")?;
+
+        let character_config_seeds = models
+            .into_iter()
+            .map(|model| model.into_entity())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .context("convert CharacterConfigSeed")?;
         Ok(character_config_seeds)
     }
 }

@@ -13,7 +13,6 @@ pub struct CharacterConfigSeedByCharacterLoader<A> {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CharacterConfigSeedByCharacterLoaderParams {}
 
-
 impl<A> BatchFnWithParams for CharacterConfigSeedByCharacterLoader<A>
 where
     A: ports::CharacterConfigSeedsRepository<Error = anyhow::Error> + Send + Clone,
@@ -68,12 +67,11 @@ pub struct CharacterConfigSeedsLoader<A> {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CharacterConfigSeedsLoaderParams {
     pub user_id: entities::UserId,
-    pub after_character: Option<entities::Character>,
-    pub before_character: Option<entities::Character>,
+    pub after_id: Option<(entities::Character, entities::StrokeCount)>,
+    pub before_id: Option<(entities::Character, entities::StrokeCount)>,
     pub limit: entities::Limit,
     pub include_exist_character_config: bool,
 }
-
 
 impl<A> BatchFnWithParams for CharacterConfigSeedsLoader<A>
 where
@@ -90,10 +88,10 @@ where
     ) -> HashMap<Self::K, Self::V> {
         let result = self
             .character_config_seeds_repository
-            .get(
+            .query(
                 params.user_id.clone(),
-                params.after_character.clone(),
-                params.before_character.clone(),
+                params.after_id.clone(),
+                params.before_id.clone(),
                 params.limit.increment_unchecked(),
                 params.include_exist_character_config,
             )
@@ -113,5 +111,62 @@ where
             })
             .map_err(ShareableError::from);
         vec![((), result)].into_iter().collect()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct CharacterConfigSeedByIdLoader<A> {
+    pub character_config_seeds_repository: A,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct CharacterConfigSeedByIdLoaderParams {}
+
+impl<A> BatchFnWithParams for CharacterConfigSeedByIdLoader<A>
+where
+    A: ports::CharacterConfigSeedsRepository<Error = anyhow::Error> + Send + Clone,
+{
+    type K = (entities::Character, entities::StrokeCount);
+    type V = Result<Option<entities::CharacterConfigSeed>, ShareableError>;
+    type P = CharacterConfigSeedByIdLoaderParams;
+
+    async fn load_with_params(
+        &mut self,
+        _params: &Self::P,
+        keys: &[Self::K],
+    ) -> HashMap<Self::K, Self::V> {
+        let character_config_seed_map = self
+            .character_config_seeds_repository
+            .get_by_ids(keys)
+            .await
+            .map(|character_config_seeds| {
+                character_config_seeds
+                    .into_iter()
+                    .map(|character_config_seed| {
+                        (
+                            (
+                                character_config_seed.character.clone(),
+                                character_config_seed.stroke_count,
+                            ),
+                            character_config_seed,
+                        )
+                    })
+                    .collect::<HashMap<_, _>>()
+            })
+            .map_err(ShareableError::from);
+
+        keys.iter()
+            .map(|key| {
+                (
+                    key.clone(),
+                    character_config_seed_map
+                        .as_ref()
+                        .map(|character_config_seed_map| {
+                            character_config_seed_map.get(key).cloned()
+                        })
+                        .map_err(|e| e.clone()),
+                )
+            })
+            .collect()
     }
 }

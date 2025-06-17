@@ -29,17 +29,16 @@ pub trait CharacterConfigsRepository {
     async fn query(
         &mut self,
         user_id: entities::UserId,
-        after_character: Option<entities::Character>,
-        before_character: Option<entities::Character>,
+        after_id: Option<(entities::Character, entities::StrokeCount)>,
+        before_id: Option<(entities::Character, entities::StrokeCount)>,
         limit: entities::Limit,
     ) -> Result<Vec<entities::CharacterConfig>, Self::Error>;
 
-    async fn get(
+    async fn get_by_ids(
         &mut self,
         user_id: entities::UserId,
-        character: entities::Character,
-        stroke_count: entities::StrokeCount,
-    ) -> Result<Option<entities::CharacterConfig>, Self::Error>;
+        keys: &[(entities::Character, entities::StrokeCount)],
+    ) -> Result<Vec<entities::CharacterConfig>, Self::Error>;
 }
 
 #[derive(Clone, thiserror::Error, Debug)]

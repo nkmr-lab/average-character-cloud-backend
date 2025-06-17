@@ -57,25 +57,25 @@ where
 }
 
 #[derive(Clone, Debug)]
-pub struct CharacterConfigsLoader<A> {
+pub struct CharacterConfigLoader<A> {
     pub character_configs_repository: A,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct CharacterConfigsLoaderParams {
+pub struct CharacterConfigLoaderParams {
     pub user_id: entities::UserId,
-    pub after_character: Option<entities::Character>,
-    pub before_character: Option<entities::Character>,
+    pub after_id: Option<(entities::Character, entities::StrokeCount)>,
+    pub before_id: Option<(entities::Character, entities::StrokeCount)>,
     pub limit: entities::Limit,
 }
 
-impl<A> BatchFnWithParams for CharacterConfigsLoader<A>
+impl<A> BatchFnWithParams for CharacterConfigLoader<A>
 where
     A: ports::CharacterConfigsRepository<Error = anyhow::Error> + Send + Clone,
 {
     type K = ();
     type V = Result<ports::PaginationResult<entities::CharacterConfig>, ShareableError>;
-    type P = CharacterConfigsLoaderParams;
+    type P = CharacterConfigLoaderParams;
 
     async fn load_with_params(
         &mut self,
@@ -86,8 +86,8 @@ where
             .character_configs_repository
             .query(
                 params.user_id.clone(),
-                params.after_character.clone(),
-                params.before_character.clone(),
+                params.after_id.clone(),
+                params.before_id.clone(),
                 params.limit.increment_unchecked(),
             )
             .await
@@ -109,5 +109,62 @@ where
             .map_err(ShareableError::from);
 
         vec![((), result)].into_iter().collect()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct CharacterConfigByIdLoader<A> {
+    pub character_configs_repository: A,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct CharacterConfigByIdLoaderParams {
+    pub user_id: entities::UserId,
+}
+
+impl<A> BatchFnWithParams for CharacterConfigByIdLoader<A>
+where
+    A: ports::CharacterConfigsRepository<Error = anyhow::Error> + Send + Clone,
+{
+    type K = (entities::Character, entities::StrokeCount);
+    type V = Result<Option<entities::CharacterConfig>, ShareableError>;
+    type P = CharacterConfigByIdLoaderParams;
+
+    async fn load_with_params(
+        &mut self,
+        params: &Self::P,
+        keys: &[Self::K],
+    ) -> HashMap<Self::K, Self::V> {
+        let character_config_map = self
+            .character_configs_repository
+            .get_by_ids(params.user_id.clone(), keys)
+            .await
+            .map(|character_configs| {
+                character_configs
+                    .into_iter()
+                    .map(|character_config| {
+                        (
+                            (
+                                character_config.character.clone(),
+                                character_config.stroke_count,
+                            ),
+                            character_config,
+                        )
+                    })
+                    .collect::<HashMap<_, _>>()
+            })
+            .map_err(ShareableError::from);
+
+        keys.iter()
+            .map(|key| {
+                (
+                    key.clone(),
+                    character_config_map
+                        .as_ref()
+                        .map(|character_config_map| character_config_map.get(key).cloned())
+                        .map_err(|e| e.clone()),
+                )
+            })
+            .collect()
     }
 }

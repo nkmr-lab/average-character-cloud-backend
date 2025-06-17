@@ -12,12 +12,17 @@ pub trait CharacterConfigSeedsRepository {
         characters: &[entities::Character],
     ) -> Result<Vec<entities::CharacterConfigSeed>, Self::Error>;
 
-    async fn get(
+    async fn query(
         &mut self,
         user_id: entities::UserId,
-        after_character: Option<entities::Character>,
-        before_character: Option<entities::Character>,
+        after_id: Option<(entities::Character, entities::StrokeCount)>,
+        before_id: Option<(entities::Character, entities::StrokeCount)>,
         limit: entities::Limit,
         include_exist_character_config: bool,
+    ) -> Result<Vec<entities::CharacterConfigSeed>, Self::Error>;
+
+    async fn get_by_ids(
+        &mut self,
+        ids: &[(entities::Character, entities::StrokeCount)],
     ) -> Result<Vec<entities::CharacterConfigSeed>, Self::Error>;
 }

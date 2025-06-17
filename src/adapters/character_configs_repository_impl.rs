@@ -214,11 +214,20 @@ where
     async fn query(
         &mut self,
         user_id: entities::UserId,
-        after_character: Option<entities::Character>,
-        before_character: Option<entities::Character>,
+        after_id: Option<(entities::Character, entities::StrokeCount)>,
+        before_id: Option<(entities::Character, entities::StrokeCount)>,
         limit: entities::Limit,
     ) -> Result<Vec<entities::CharacterConfig>, Self::Error> {
         let mut conn = self.db.acquire().await?;
+
+        let after_character = after_id
+            .clone()
+            .map(|(character, _)| String::from(character));
+        let after_stroke_count = after_id.map(|(_, stroke_count)| i32::from(stroke_count));
+        let before_character = before_id
+            .clone()
+            .map(|(character, _)| String::from(character));
+        let before_stroke_count = before_id.map(|(_, stroke_count)| i32::from(stroke_count));
 
         let models = sqlx::query_as!(
             CharacterConfigModel,
@@ -236,17 +245,19 @@ where
             WHERE
                 user_id = $1
                 AND
-                ($2::VARCHAR(64) IS NULL OR character > $2)
+                ($2::VARCHAR(64) IS NULL OR (character, stroke_count) > ($2, $3))
                 AND
-                ($3::VARCHAR(64) IS NULL OR character < $3)
+                ($4::VARCHAR(64) IS NULL OR (character, stroke_count) < ($4, $5))
             ORDER BY
-                CASE WHEN $4 = 0 THEN (character, ratio) END ASC,
-                CASE WHEN $4 = 1 THEN (character, ratio) END DESC
-            LIMIT $5
+                CASE WHEN $6 = 0 THEN (character, ratio) END ASC,
+                CASE WHEN $6 = 1 THEN (character, ratio) END DESC
+            LIMIT $7
         "#,
             String::from(user_id.clone()),
-            after_character.map(String::from),
-            before_character.map(String::from),
+            after_character,
+            after_stroke_count,
+            before_character,
+            before_stroke_count,
             i32::from(limit.kind() == entities::LimitKind::Last),
             i64::from(limit.value()),
         )
@@ -263,16 +274,30 @@ where
         Ok(character_configs)
     }
 
-    async fn get(
+    async fn get_by_ids(
         &mut self,
         user_id: entities::UserId,
-        character: entities::Character,
-        stroke_count: entities::StrokeCount,
-    ) -> Result<Option<entities::CharacterConfig>, Self::Error> {
+        keys: &[(entities::Character, entities::StrokeCount)],
+    ) -> Result<Vec<entities::CharacterConfig>, Self::Error> {
         let mut conn = self.db.acquire().await?;
-        let model = sqlx::query_as!(
+
+        let character_values = keys
+            .iter()
+            .map(|(character, _)| String::from(character.clone()))
+            .collect::<Vec<_>>();
+
+        let stroke_count_values = keys
+            .iter()
+            .map(|(_, stroke_count)| i32::from(*stroke_count))
+            .collect::<Vec<_>>();
+
+        let models = sqlx::query_as!(
             CharacterConfigModel,
             r#"
+            WITH input_pairs AS (
+                SELECT a, b
+                FROM unnest($1::VARCHAR(8)[], $2::INTEGER[]) AS t(a, b)
+            )
             SELECT
                 user_id,
                 character,
@@ -283,21 +308,26 @@ where
                 version
             FROM
                 character_configs
+            JOIN
+                input_pairs ON character_configs.character = input_pairs.a
+                AND character_configs.stroke_count = input_pairs.b
             WHERE
-                user_id = $1
-                AND
-                character = $2
-                AND
-                stroke_count = $3
+                user_id = $3
         "#,
+            character_values.as_slice(),
+            stroke_count_values.as_slice(),
             String::from(user_id.clone()),
-            String::from(character.clone()),
-            i32::from(stroke_count),
         )
-        .fetch_optional(&mut *conn)
+        .fetch_all(&mut *conn)
         .await
         .context("fetch character_config")?;
 
-        model.map(|model| model.into_entity()).transpose()
+        let character_configs = models
+            .into_iter()
+            .map(|row| row.into_entity())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .context("convert CharacterConfig")?;
+
+        Ok(character_configs)
     }
 }

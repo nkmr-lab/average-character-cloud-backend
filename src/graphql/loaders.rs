@@ -1,9 +1,9 @@
 use sqlx::PgPool;
 
 use crate::loaders::{
-    CharacterConfigByCharacterLoader, CharacterConfigSeedByCharacterLoader,
-    CharacterConfigSeedsLoader, CharacterConfigsLoader, FigureRecordByIdLoader,
-    FigureRecordsByCharacterLoader,
+    CharacterConfigByCharacterLoader, CharacterConfigByIdLoader, CharacterConfigLoader,
+    CharacterConfigSeedByCharacterLoader, CharacterConfigSeedByIdLoader,
+    CharacterConfigSeedsLoader, FigureRecordByIdLoader, FigureRecordsByCharacterLoader,
 };
 use crate::{adapters, DataloaderWithParams};
 
@@ -11,8 +11,11 @@ pub struct Loaders {
     pub character_config_by_character_loader: DataloaderWithParams<
         CharacterConfigByCharacterLoader<adapters::CharacterConfigsRepositoryImpl<PgPool>>,
     >,
-    pub character_configs_loader: DataloaderWithParams<
-        CharacterConfigsLoader<adapters::CharacterConfigsRepositoryImpl<PgPool>>,
+    pub character_config_by_id_loader: DataloaderWithParams<
+        CharacterConfigByIdLoader<adapters::CharacterConfigsRepositoryImpl<PgPool>>,
+    >,
+    pub character_config_loader: DataloaderWithParams<
+        CharacterConfigLoader<adapters::CharacterConfigsRepositoryImpl<PgPool>>,
     >,
     pub figure_record_by_id_loader:
         DataloaderWithParams<FigureRecordByIdLoader<adapters::FigureRecordsRepositoryImpl<PgPool>>>,
@@ -21,6 +24,9 @@ pub struct Loaders {
     >,
     pub character_config_seed_by_character_loader: DataloaderWithParams<
         CharacterConfigSeedByCharacterLoader<adapters::CharacterConfigSeedsRepositoryImpl<PgPool>>,
+    >,
+    pub character_config_seed_by_id_loader: DataloaderWithParams<
+        CharacterConfigSeedByIdLoader<adapters::CharacterConfigSeedsRepositoryImpl<PgPool>>,
     >,
     pub character_config_seeds_loader: DataloaderWithParams<
         CharacterConfigSeedsLoader<adapters::CharacterConfigSeedsRepositoryImpl<PgPool>>,
@@ -37,7 +43,12 @@ impl Loaders {
                     ),
                 },
             ),
-            character_configs_loader: DataloaderWithParams::new(CharacterConfigsLoader {
+            character_config_by_id_loader: DataloaderWithParams::new(CharacterConfigByIdLoader {
+                character_configs_repository: adapters::CharacterConfigsRepositoryImpl::new(
+                    pool.clone(),
+                ),
+            }),
+            character_config_loader: DataloaderWithParams::new(CharacterConfigLoader {
                 character_configs_repository: adapters::CharacterConfigsRepositoryImpl::new(
                     pool.clone(),
                 ),
@@ -54,6 +65,12 @@ impl Loaders {
             ),
             character_config_seed_by_character_loader: DataloaderWithParams::new(
                 CharacterConfigSeedByCharacterLoader {
+                    character_config_seeds_repository:
+                        adapters::CharacterConfigSeedsRepositoryImpl::new(pool.clone()),
+                },
+            ),
+            character_config_seed_by_id_loader: DataloaderWithParams::new(
+                CharacterConfigSeedByIdLoader {
                     character_config_seeds_repository:
                         adapters::CharacterConfigSeedsRepositoryImpl::new(pool.clone()),
                 },

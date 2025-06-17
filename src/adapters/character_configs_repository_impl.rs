@@ -11,6 +11,7 @@ pub struct CharacterConfigModel {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub version: i32,
+    pub ratio: i32,
 }
 
 impl CharacterConfigModel {
@@ -24,6 +25,7 @@ impl CharacterConfigModel {
             created_at: self.created_at,
             updated_at: self.updated_at,
             version: entities::Version::try_from(self.version)?,
+            ratio: entities::Ratio::try_from(self.ratio)?,
         })
     }
 }
@@ -52,6 +54,7 @@ where
         now: DateTime<Utc>,
         character: entities::Character,
         stroke_count: entities::StrokeCount,
+        ratio: entities::Ratio,
     ) -> Result<Result<entities::CharacterConfig, ports::CreateError>, Self::Error> {
         let mut trx = self.db.begin().await?;
         let character_config = entities::CharacterConfig {
@@ -61,6 +64,7 @@ where
             updated_at: now,
             stroke_count,
             version: entities::Version::new(),
+            ratio,
         };
 
         // check exist
@@ -74,9 +78,12 @@ where
                 user_id = $1
                 AND
                 character = $2
+                AND
+                ratio = $3
         "#,
             String::from(character_config.user_id.clone()),
             String::from(character_config.character.clone()),
+            i32::from(character_config.ratio)
         )
         .fetch_optional(&mut *trx)
         .await
@@ -89,14 +96,15 @@ where
 
         sqlx::query!(
             r#"
-                INSERT INTO character_configs (user_id, character, created_at, updated_at, stroke_count, version)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                INSERT INTO character_configs (user_id, character, created_at, updated_at, stroke_count, ratio, version)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
             "#,
             String::from(character_config.user_id.clone()),
             String::from(character_config.character.clone()),
             character_config.created_at,
             character_config.updated_at,
             i32::from(character_config.stroke_count),
+            i32::from(character_config.ratio),
             i32::from(character_config.version),
         )
         .execute(&mut *trx)
@@ -111,15 +119,15 @@ where
         &mut self,
         now: DateTime<Utc>,
         mut character_config: entities::CharacterConfig,
-        stroke_count: Option<entities::StrokeCount>,
+        ratio: Option<entities::Ratio>,
     ) -> Result<entities::CharacterConfig, Self::Error> {
         let mut trx = self.db.begin().await?;
         let prev_version = character_config.version;
 
         character_config.version = character_config.version.next();
         character_config.updated_at = now;
-        if let Some(stroke_count) = stroke_count {
-            character_config.stroke_count = stroke_count;
+        if let Some(ratio) = ratio {
+            character_config.ratio = ratio;
         }
 
         let result = sqlx::query!(
@@ -127,20 +135,23 @@ where
             UPDATE character_configs
                 SET
                     updated_at = $1,
-                    stroke_count = $2,
+                    ratio = $2,
                     version = $3
                 WHERE
                     user_id = $4
                     AND
                     character = $5
                     AND
-                    version = $6
+                    stroke_count = $6
+                    AND
+                    version = $7
             "#,
             &character_config.updated_at,
-            i32::from(character_config.stroke_count),
+            i32::from(character_config.ratio),
             i32::from(character_config.version),
             String::from(character_config.user_id.clone()),
             String::from(character_config.character.clone()),
+            i32::from(character_config.stroke_count),
             i32::from(prev_version),
         )
         .execute(&mut *trx)
@@ -173,6 +184,7 @@ where
                     user_id,
                     character,
                     stroke_count,
+                    ratio,
                     created_at,
                     updated_at,
                     version
@@ -199,7 +211,7 @@ where
         Ok(character_configs)
     }
 
-    async fn get(
+    async fn query(
         &mut self,
         user_id: entities::UserId,
         after_character: Option<entities::Character>,
@@ -215,6 +227,7 @@ where
                 user_id,
                 character,
                 stroke_count,
+                ratio,
                 created_at,
                 updated_at,
                 version
@@ -227,8 +240,8 @@ where
                 AND
                 ($3::VARCHAR(64) IS NULL OR character < $3)
             ORDER BY
-                CASE WHEN $4 = 0 THEN character END ASC,
-                CASE WHEN $4 = 1 THEN character END DESC
+                CASE WHEN $4 = 0 THEN (character, ratio) END ASC,
+                CASE WHEN $4 = 1 THEN (character, ratio) END DESC
             LIMIT $5
         "#,
             String::from(user_id.clone()),
@@ -248,5 +261,43 @@ where
             .context("convert CharacterConfig")?;
 
         Ok(character_configs)
+    }
+
+    async fn get(
+        &mut self,
+        user_id: entities::UserId,
+        character: entities::Character,
+        stroke_count: entities::StrokeCount,
+    ) -> Result<Option<entities::CharacterConfig>, Self::Error> {
+        let mut conn = self.db.acquire().await?;
+        let model = sqlx::query_as!(
+            CharacterConfigModel,
+            r#"
+            SELECT
+                user_id,
+                character,
+                stroke_count,
+                ratio,
+                created_at,
+                updated_at,
+                version
+            FROM
+                character_configs
+            WHERE
+                user_id = $1
+                AND
+                character = $2
+                AND
+                stroke_count = $3
+        "#,
+            String::from(user_id.clone()),
+            String::from(character.clone()),
+            i32::from(stroke_count),
+        )
+        .fetch_optional(&mut *conn)
+        .await
+        .context("fetch character_config")?;
+
+        model.map(|model| model.into_entity()).transpose()
     }
 }

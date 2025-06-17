@@ -24,6 +24,7 @@ CREATE TABLE "public"."character_configs" (
   "created_at" TIMESTAMP WITH TIME ZONE NOT NULL,
   "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL,
   "version" INTEGER NOT NULL,
+  "ratio" INTEGER NOT NULL DEFAULT 100,
   PRIMARY KEY ("user_id", "character", "stroke_count")
 );
 
@@ -47,6 +48,7 @@ CREATE TABLE "public"."character_config_seeds" (
   "character" VARCHAR(8) NOT NULL,
   "stroke_count" INTEGER NOT NULL,
   "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL,
+  "ratio" INTEGER NOT NULL DEFAULT 100,
   PRIMARY KEY ("character", "stroke_count")
 );
 

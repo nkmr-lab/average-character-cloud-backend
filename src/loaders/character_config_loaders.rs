@@ -17,7 +17,6 @@ pub struct CharacterConfigByCharacterLoaderParams {
     pub user_id: entities::UserId,
 }
 
-
 impl<A> BatchFnWithParams for CharacterConfigByCharacterLoader<A>
 where
     A: ports::CharacterConfigsRepository<Error = anyhow::Error> + Send + Clone,
@@ -70,7 +69,6 @@ pub struct CharacterConfigsLoaderParams {
     pub limit: entities::Limit,
 }
 
-
 impl<A> BatchFnWithParams for CharacterConfigsLoader<A>
 where
     A: ports::CharacterConfigsRepository<Error = anyhow::Error> + Send + Clone,
@@ -86,7 +84,7 @@ where
     ) -> HashMap<Self::K, Self::V> {
         let result = self
             .character_configs_repository
-            .get(
+            .query(
                 params.user_id.clone(),
                 params.after_character.clone(),
                 params.before_character.clone(),

@@ -154,6 +154,8 @@ struct CharacterConfigConnection {
 struct CreateCharacterConfigInput {
     character: CharacterValueScalar,
     stroke_count: i32,
+    #[graphql(default = "100")]
+    ratio: i32,
 }
 
 #[derive(Clone, Debug, From)]
@@ -209,7 +211,8 @@ struct CreateCharacterConfigPayload {
 #[derive(GraphQLInputObject, Clone, Debug)]
 struct UpdateCharacterConfigInput {
     character: CharacterValueScalar,
-    stroke_count: Option<i32>,
+    stroke_count: i32,
+    ratio: Option<i32>,
 }
 
 #[derive(GraphQLObject, Clone, Debug)]
@@ -741,8 +744,17 @@ impl MutationRoot {
             });
         };
 
+        let Ok(ratio) = entities::Ratio::try_from(input.ratio) else {
+            return Ok(CreateCharacterConfigPayload {
+                character_config: None,
+                errors: Some(vec![GraphqlErrorType {
+                    message: "ratio must be an non negative integer".to_string(),
+                }]),
+            });
+        };
+
         let character_config = match character_configs_repository
-            .create(user_id, ctx.now, input.character.0, stroke_count)
+            .create(user_id, ctx.now, input.character.0, stroke_count, ratio)
             .await?
         {
             Ok(character_config) => character_config,
@@ -776,34 +788,26 @@ impl MutationRoot {
 
         let character = input.character.0;
 
-        let character_config = ctx
-            .loaders
-            .character_config_by_character_loader
-            .load(
-                CharacterConfigByCharacterLoaderParams {
-                    user_id: user_id.clone(),
-                },
-                character,
-            )
+        let stroke_count = entities::StrokeCount::try_from(input.stroke_count)
+            .map_err(|_| GraphqlUserError::from("stroke_count must be an non negative integer"))?;
+
+        let character_config = character_configs_repository
+            .get(user_id.clone(), character, stroke_count)
             .await
-            .context("load character_config")??
+            .context("get character_config")?
             .ok_or_else(|| GraphqlUserError::from("Not found"))?;
 
-        let Ok(stroke_count) = input
-            .stroke_count
-            .map(entities::StrokeCount::try_from)
-            .transpose()
-        else {
+        let Ok(ratio) = input.ratio.map(entities::Ratio::try_from).transpose() else {
             return Ok(UpdateCharacterConfigPayload {
                 character_config: None,
                 errors: Some(vec![GraphqlErrorType {
-                    message: "stroke_count must be an non negative integer".to_string(),
+                    message: "ratio must be an non negative integer".to_string(),
                 }]),
             });
         };
 
         let character_config = character_configs_repository
-            .update(ctx.now, character_config, stroke_count)
+            .update(ctx.now, character_config, ratio)
             .await?;
 
         Ok(UpdateCharacterConfigPayload {

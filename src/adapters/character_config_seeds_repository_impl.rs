@@ -7,6 +7,7 @@ use sqlx::{Acquire, Postgres};
 pub struct CharacterConfigSeedModel {
     pub character: String,
     pub stroke_count: i32,
+    pub ratio: i32,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -17,6 +18,7 @@ impl CharacterConfigSeedModel {
         Ok(entities::CharacterConfigSeed {
             character,
             stroke_count: entities::StrokeCount::try_from(self.stroke_count)?,
+            ratio: entities::Ratio::try_from(self.ratio)?,
             updated_at: self.updated_at,
         })
     }
@@ -33,7 +35,6 @@ impl<A> CharacterConfigSeedsRepositoryImpl<A> {
     }
 }
 
-
 impl<A> ports::CharacterConfigSeedsRepository for CharacterConfigSeedsRepositoryImpl<A>
 where
     A: Send,
@@ -47,14 +48,15 @@ where
             r#"
             SELECT
                 character,
-                AVG(stroke_count)::INTEGER as avg_stroke_count
+                stroke_count,
+                AVG(ratio)::INTEGER as avg_ratio
             FROM
                 character_configs
                 INNER JOIN user_configs ON character_configs.user_id = user_configs.user_id
             WHERE
                 user_configs.allow_sharing_character_configs
             GROUP BY
-                character
+                character, stroke_count
             "#,
         )
         .fetch_all(&mut *trx)
@@ -67,12 +69,13 @@ where
         for row in result {
             sqlx::query!(
                 r#"
-                INSERT INTO character_config_seeds (character, stroke_count, updated_at)
-                VALUES ($1, $2, $3)
+                INSERT INTO character_config_seeds (character, stroke_count, ratio, updated_at)
+                VALUES ($1, $2, $3, $4)
                 "#,
                 row.character,
-                row.avg_stroke_count
-                    .ok_or_else(|| anyhow::anyhow!("avg_stroke_count is null"))?,
+                row.stroke_count,
+                row.avg_ratio
+                    .ok_or_else(|| anyhow::anyhow!("avg_ratio is null"))?,
                 now,
             )
             .execute(&mut *trx)
@@ -98,6 +101,7 @@ where
                 SELECT
                     character,
                     stroke_count,
+                    ratio,
                     updated_at
                 FROM
                     character_config_seeds
@@ -133,6 +137,7 @@ where
             SELECT
                 character,
                 stroke_count,
+                ratio,
                 updated_at
             FROM
                 character_config_seeds
@@ -145,14 +150,15 @@ where
                     WHERE
                         character_configs.user_id = $1
                         AND character_configs.character = character_config_seeds.character
+                        AND character_configs.stroke_count = character_config_seeds.stroke_count
                 )
                 AND
                 ($2::VARCHAR(64) IS NULL OR character > $2)
                 AND
                 ($3::VARCHAR(64) IS NULL OR character < $3)
             ORDER BY
-                CASE WHEN $4 = 0 THEN character END ASC,
-                CASE WHEN $4 = 1 THEN character END DESC
+                CASE WHEN $4 = 0 THEN (character, stroke_count) END ASC,
+                CASE WHEN $4 = 1 THEN (character, stroke_count) END DESC
             LIMIT $5
         "#,
             String::from(user_id.clone()),

@@ -367,6 +367,7 @@ impl Character {
     }
 
     async fn character_configs(&self, ctx: &mut AppCtx) -> Result<Vec<CharacterConfig>, ApiError> {
+        // 通常は1～3程度になるはずだし、どんなに多くてもStrokeCountの最大値である1000を超えることはないのでページネーションはしない
         let user_id = ctx
             .user_id
             .clone()
@@ -392,6 +393,7 @@ impl Character {
         &self,
         ctx: &mut AppCtx,
     ) -> Result<Vec<CharacterConfigSeed>, ApiError> {
+        // character_configsと同様にページネーションはしない
         let _user_id = ctx
             .user_id
             .clone()

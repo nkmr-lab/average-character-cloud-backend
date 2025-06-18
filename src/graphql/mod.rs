@@ -133,6 +133,10 @@ impl CharacterConfig {
         i32::from(self.0.stroke_count)
     }
 
+    fn ratio(&self) -> i32 {
+        i32::from(self.0.ratio)
+    }
+
     fn created_at(&self) -> DateTime<Utc> {
         self.0.created_at
     }

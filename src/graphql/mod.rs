@@ -373,7 +373,7 @@ impl Character {
             .clone()
             .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
 
-        let character_config = ctx
+        let character_configs = ctx
             .loaders
             .character_config_by_character_loader
             .load(
@@ -383,10 +383,36 @@ impl Character {
             .await
             .context("load character_config")??;
 
-        Ok(character_config
+        Ok(character_configs
             .into_iter()
             .map(CharacterConfig::from)
             .collect())
+    }
+
+    async fn character_config(
+        &self,
+        ctx: &mut AppCtx,
+        stroke_count: i32,
+    ) -> Result<Option<CharacterConfig>, ApiError> {
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
+
+        let stroke_count = entities::StrokeCount::try_from(stroke_count)
+            .map_err(|_| GraphqlUserError::from("stroke_count must be an non negative integer"))?;
+
+        let character_config = ctx
+            .loaders
+            .character_config_by_id_loader
+            .load(
+                CharacterConfigByIdLoaderParams { user_id },
+                (self.0.clone(), stroke_count),
+            )
+            .await
+            .context("load character_config")??;
+
+        Ok(character_config.map(CharacterConfig::from))
     }
 
     async fn character_config_seeds(
@@ -394,12 +420,7 @@ impl Character {
         ctx: &mut AppCtx,
     ) -> Result<Vec<CharacterConfigSeed>, ApiError> {
         // character_configsと同様にページネーションはしない
-        let _user_id = ctx
-            .user_id
-            .clone()
-            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
-
-        let character_config_seed = ctx
+        let character_config_seeds = ctx
             .loaders
             .character_config_seed_by_character_loader
             .load(
@@ -409,10 +430,31 @@ impl Character {
             .await
             .context("load character_config_seed")??;
 
-        Ok(character_config_seed
+        Ok(character_config_seeds
             .into_iter()
             .map(CharacterConfigSeed::from)
             .collect())
+    }
+
+    async fn character_config_seed(
+        &self,
+        ctx: &mut AppCtx,
+        stroke_count: i32,
+    ) -> Result<Option<CharacterConfigSeed>, ApiError> {
+        let stroke_count = entities::StrokeCount::try_from(stroke_count)
+            .map_err(|_| GraphqlUserError::from("stroke_count must be an non negative integer"))?;
+
+        let character_config_seed = ctx
+            .loaders
+            .character_config_seed_by_id_loader
+            .load(
+                CharacterConfigSeedByIdLoaderParams {},
+                (self.0.clone(), stroke_count),
+            )
+            .await
+            .context("load character_config_seed")??;
+
+        Ok(character_config_seed.map(CharacterConfigSeed::from))
     }
 }
 

@@ -25,10 +25,10 @@ pub trait FigureRecordsRepository {
         ids: &[entities::FigureRecordId],
     ) -> Result<Vec<entities::FigureRecord>, Self::Error>;
 
-    async fn get_by_characters(
+    async fn get_by_character_config_ids(
         &mut self,
         user_id: entities::UserId,
-        characters: &[entities::Character],
+        character_config_ids: &[(entities::Character, entities::StrokeCount)],
         ids: Option<&[entities::FigureRecordId]>,
         after_id: Option<entities::FigureRecordId>,
         before_id: Option<entities::FigureRecordId>,

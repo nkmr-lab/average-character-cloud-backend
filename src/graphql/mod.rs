@@ -29,7 +29,7 @@ use crate::loaders::{
     CharacterConfigByCharacterLoaderParams, CharacterConfigByIdLoaderParams,
     CharacterConfigLoaderParams, CharacterConfigSeedByCharacterLoaderParams,
     CharacterConfigSeedByIdLoaderParams, CharacterConfigSeedsLoaderParams,
-    FigureRecordByIdLoaderParams, FigureRecordsByCharacterLoaderParams,
+    FigureRecordByIdLoaderParams, FigureRecordsByCharacterConfigIdLoaderParams,
 };
 
 /*
@@ -139,6 +139,92 @@ impl CharacterConfig {
 
     fn updated_at(&self) -> DateTime<Utc> {
         self.0.updated_at
+    }
+
+    async fn figure_records(
+        &self,
+        ctx: &AppCtx,
+        ids: Option<Vec<UlidScalar>>,
+        first: Option<i32>,
+        after: Option<String>,
+        last: Option<i32>,
+        before: Option<String>,
+        user_type: Option<UserType>,
+    ) -> Result<FigureRecordConnection, ApiError> {
+        // TODO: N+1
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
+
+        let ids = ids.map(|ids| {
+            ids.into_iter()
+                .map(|id| entities::FigureRecordId::from(id.0))
+                .collect::<Vec<_>>()
+        });
+
+        let limit = encode_limit(first, last)?;
+
+        let after_id = after
+            .map(|after| -> anyhow::Result<entities::FigureRecordId> {
+                let Some(NodeId::FigureRecord(id)) = NodeId::from_id(&ID::new(after)) else {
+                    return Err(GraphqlUserError::from("after must be a valid cursor").into());
+                };
+
+                Ok(id)
+            })
+            .transpose()?;
+
+        let before_id = before
+            .map(|before| -> anyhow::Result<entities::FigureRecordId> {
+                let Some(NodeId::FigureRecord(id)) = NodeId::from_id(&ID::new(before)) else {
+                    return Err(GraphqlUserError::from("before must be a valid cursor").into());
+                };
+                Ok(id)
+            })
+            .transpose()?;
+
+        let result = ctx
+            .loaders
+            .figure_records_by_character_config_id_loader
+            .load(
+                FigureRecordsByCharacterConfigIdLoaderParams {
+                    user_id,
+                    ids,
+                    after_id,
+                    before_id,
+                    limit: limit.clone(),
+                    user_type: user_type.map(|user_type| match user_type {
+                        UserType::Myself => ports::UserType::Myself,
+                        UserType::Other => ports::UserType::Other,
+                    }),
+                },
+                (self.0.character.clone(), self.0.stroke_count),
+            )
+            .await
+            .context("load character_config")??;
+
+        let records = result
+            .values
+            .into_iter()
+            .map(FigureRecord::from)
+            .collect::<Vec<_>>();
+
+        Ok(FigureRecordConnection {
+            page_info: PageInfo {
+                has_next_page: result.has_next && limit.kind() == entities::LimitKind::First,
+                has_previous_page: result.has_next && limit.kind() == entities::LimitKind::Last,
+                start_cursor: records.first().map(|record| record.node_id().to_string()),
+                end_cursor: records.last().map(|record| record.node_id().to_string()),
+            },
+            edges: records
+                .into_iter()
+                .map(|record| FigureRecordEdge {
+                    cursor: record.node_id().to_string(),
+                    node: record,
+                })
+                .collect(),
+        })
     }
 }
 
@@ -325,92 +411,6 @@ impl Character {
             .into_iter()
             .map(CharacterConfigSeed::from)
             .collect())
-    }
-
-    async fn figure_records(
-        &self,
-        ctx: &AppCtx,
-        ids: Option<Vec<UlidScalar>>,
-        first: Option<i32>,
-        after: Option<String>,
-        last: Option<i32>,
-        before: Option<String>,
-        user_type: Option<UserType>,
-    ) -> Result<FigureRecordConnection, ApiError> {
-        // TODO: N+1
-        let user_id = ctx
-            .user_id
-            .clone()
-            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
-
-        let ids = ids.map(|ids| {
-            ids.into_iter()
-                .map(|id| entities::FigureRecordId::from(id.0))
-                .collect::<Vec<_>>()
-        });
-
-        let limit = encode_limit(first, last)?;
-
-        let after_id = after
-            .map(|after| -> anyhow::Result<entities::FigureRecordId> {
-                let Some(NodeId::FigureRecord(id)) = NodeId::from_id(&ID::new(after)) else {
-                    return Err(GraphqlUserError::from("after must be a valid cursor").into());
-                };
-
-                Ok(id)
-            })
-            .transpose()?;
-
-        let before_id = before
-            .map(|before| -> anyhow::Result<entities::FigureRecordId> {
-                let Some(NodeId::FigureRecord(id)) = NodeId::from_id(&ID::new(before)) else {
-                    return Err(GraphqlUserError::from("before must be a valid cursor").into());
-                };
-                Ok(id)
-            })
-            .transpose()?;
-
-        let result = ctx
-            .loaders
-            .figure_records_by_character_loader
-            .load(
-                FigureRecordsByCharacterLoaderParams {
-                    user_id,
-                    ids,
-                    after_id,
-                    before_id,
-                    limit: limit.clone(),
-                    user_type: user_type.map(|user_type| match user_type {
-                        UserType::Myself => ports::UserType::Myself,
-                        UserType::Other => ports::UserType::Other,
-                    }),
-                },
-                self.0.clone(),
-            )
-            .await
-            .context("load character_config")??;
-
-        let records = result
-            .values
-            .into_iter()
-            .map(FigureRecord::from)
-            .collect::<Vec<_>>();
-
-        Ok(FigureRecordConnection {
-            page_info: PageInfo {
-                has_next_page: result.has_next && limit.kind() == entities::LimitKind::First,
-                has_previous_page: result.has_next && limit.kind() == entities::LimitKind::Last,
-                start_cursor: records.first().map(|record| record.node_id().to_string()),
-                end_cursor: records.last().map(|record| record.node_id().to_string()),
-            },
-            edges: records
-                .into_iter()
-                .map(|record| FigureRecordEdge {
-                    cursor: record.node_id().to_string(),
-                    node: record,
-                })
-                .collect(),
-        })
     }
 }
 

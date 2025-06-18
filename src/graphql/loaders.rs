@@ -3,7 +3,7 @@ use sqlx::PgPool;
 use crate::loaders::{
     CharacterConfigByCharacterLoader, CharacterConfigByIdLoader, CharacterConfigLoader,
     CharacterConfigSeedByCharacterLoader, CharacterConfigSeedByIdLoader,
-    CharacterConfigSeedsLoader, FigureRecordByIdLoader, FigureRecordsByCharacterLoader,
+    CharacterConfigSeedsLoader, FigureRecordByIdLoader, FigureRecordsByCharacterConfigIdLoader,
 };
 use crate::{adapters, DataloaderWithParams};
 
@@ -19,8 +19,8 @@ pub struct Loaders {
     >,
     pub figure_record_by_id_loader:
         DataloaderWithParams<FigureRecordByIdLoader<adapters::FigureRecordsRepositoryImpl<PgPool>>>,
-    pub figure_records_by_character_loader: DataloaderWithParams<
-        FigureRecordsByCharacterLoader<adapters::FigureRecordsRepositoryImpl<PgPool>>,
+    pub figure_records_by_character_config_id_loader: DataloaderWithParams<
+        FigureRecordsByCharacterConfigIdLoader<adapters::FigureRecordsRepositoryImpl<PgPool>>,
     >,
     pub character_config_seed_by_character_loader: DataloaderWithParams<
         CharacterConfigSeedByCharacterLoader<adapters::CharacterConfigSeedsRepositoryImpl<PgPool>>,
@@ -56,8 +56,8 @@ impl Loaders {
             figure_record_by_id_loader: DataloaderWithParams::new(FigureRecordByIdLoader {
                 figure_records_repository: adapters::FigureRecordsRepositoryImpl::new(pool.clone()),
             }),
-            figure_records_by_character_loader: DataloaderWithParams::new(
-                FigureRecordsByCharacterLoader {
+            figure_records_by_character_config_id_loader: DataloaderWithParams::new(
+                FigureRecordsByCharacterConfigIdLoader {
                     figure_records_repository: adapters::FigureRecordsRepositoryImpl::new(
                         pool.clone(),
                     ),

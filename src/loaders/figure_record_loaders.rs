@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-
 use crate::entities;
 use crate::ports;
 use anyhow::Context;
@@ -17,7 +16,6 @@ pub struct FigureRecordByIdLoader<A> {
 pub struct FigureRecordByIdLoaderParams {
     pub user_id: entities::UserId,
 }
-
 
 impl<A> BatchFnWithParams for FigureRecordByIdLoader<A>
 where
@@ -59,12 +57,12 @@ where
 }
 
 #[derive(Clone, Debug)]
-pub struct FigureRecordsByCharacterLoader<A> {
+pub struct FigureRecordsByCharacterConfigIdLoader<A> {
     pub figure_records_repository: A,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct FigureRecordsByCharacterLoaderParams {
+pub struct FigureRecordsByCharacterConfigIdLoaderParams {
     pub user_id: entities::UserId,
     pub ids: Option<Vec<entities::FigureRecordId>>,
     pub after_id: Option<entities::FigureRecordId>,
@@ -73,14 +71,13 @@ pub struct FigureRecordsByCharacterLoaderParams {
     pub user_type: Option<ports::UserType>,
 }
 
-
-impl<A> BatchFnWithParams for FigureRecordsByCharacterLoader<A>
+impl<A> BatchFnWithParams for FigureRecordsByCharacterConfigIdLoader<A>
 where
     A: ports::FigureRecordsRepository<Error = anyhow::Error> + Send + Clone,
 {
-    type K = entities::Character;
+    type K = (entities::Character, entities::StrokeCount);
     type V = Result<ports::PaginationResult<entities::FigureRecord>, ShareableError>;
-    type P = FigureRecordsByCharacterLoaderParams;
+    type P = FigureRecordsByCharacterConfigIdLoaderParams;
 
     async fn load_with_params(
         &mut self,
@@ -89,7 +86,7 @@ where
     ) -> HashMap<Self::K, Self::V> {
         let figure_record_map = self
             .figure_records_repository
-            .get_by_characters(
+            .get_by_character_config_ids(
                 params.user_id.clone(),
                 keys,
                 params.ids.as_ref().map(|ids| ids.as_slice()),
@@ -103,9 +100,12 @@ where
                 figure_records
                     .into_iter()
                     .fold(HashMap::new(), |mut map, figure_record| {
-                        map.entry(figure_record.character.clone())
-                            .or_insert_with(Vec::new)
-                            .push(figure_record);
+                        map.entry((
+                            figure_record.character.clone(),
+                            figure_record.figure.stroke_count(),
+                        ))
+                        .or_insert_with(Vec::new)
+                        .push(figure_record);
                         map
                     })
             })

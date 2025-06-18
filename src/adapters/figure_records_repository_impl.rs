@@ -56,7 +56,6 @@ impl<A> FigureRecordsRepositoryImpl<A> {
     }
 }
 
-
 impl<A> ports::FigureRecordsRepository for FigureRecordsRepositoryImpl<A>
 where
     A: Send,
@@ -192,10 +191,10 @@ where
         Ok(figure_records)
     }
 
-    async fn get_by_characters(
+    async fn get_by_character_config_ids(
         &mut self,
         user_id: entities::UserId,
-        characters: &[entities::Character],
+        character_config_ids: &[(entities::Character, entities::StrokeCount)],
         ids: Option<&[entities::FigureRecordId]>,
         after_id: Option<entities::FigureRecordId>,
         before_id: Option<entities::FigureRecordId>,
@@ -210,14 +209,23 @@ where
                 .collect::<Vec<_>>()
         });
 
-        let characters = characters
+        let character_values = character_config_ids
             .iter()
-            .map(|c| String::from(c.clone()))
+            .map(|(character, _)| String::from(character.clone()))
+            .collect::<Vec<_>>();
+
+        let stroke_count_values = character_config_ids
+            .iter()
+            .map(|(_, stroke_count)| i32::from(*stroke_count))
             .collect::<Vec<_>>();
 
         let models = sqlx::query_as!(
-                FigureRecordModel,
-                r#"
+            FigureRecordModel,
+            r#"
+                    WITH inputs AS (
+                        SELECT character, stroke_count
+                        FROM unnest($1::VARCHAR(8)[], $2::INTEGER[]) AS t(character, stroke_count)
+                    )
                     SELECT
                         id,
                         user_id,
@@ -238,52 +246,52 @@ where
                             rank() OVER (
                                 PARTITION BY r.character
                                 ORDER BY
-                                    CASE WHEN $6 = 0 THEN r.id END DESC,
-                                    CASE WHEN $6 = 1 THEN r.id END ASC
+                                    CASE WHEN $7 = 0 THEN r.id END DESC,
+                                    CASE WHEN $7 = 1 THEN r.id END ASC
                             ) AS rank,
                             r.disabled,
                             r.version
                         FROM
                             figure_records AS r
-                            JOIN character_configs ON r.character = character_configs.character AND r.user_id = character_configs.user_id
-                            LEFT OUTER JOIN user_configs ON r.user_id = user_configs.user_id
+                        JOIN
+                            inputs ON r.character = inputs.character
+                            AND
+                            r.stroke_count = inputs.stroke_count
+                        LEFT OUTER JOIN user_configs ON r.user_id = user_configs.user_id
                         WHERE
-                            (r.user_id = $1 OR user_configs.allow_sharing_figure_records)
+                            (r.user_id = $3 OR user_configs.allow_sharing_figure_records)
                             AND
-                            r.character = Any($2)
+                            ($4::VARCHAR(64)[] IS NULL OR r.id = Any($4))
                             AND
-                            ($3::VARCHAR(64)[] IS NULL OR r.id = Any($3))
+                            ($5::VARCHAR(64) IS NULL OR r.id < $5)
                             AND
-                            ($4::VARCHAR(64) IS NULL OR r.id < $4)
+                            ($6::VARCHAR(64) IS NULL OR r.id > $6)
                             AND
-                            ($5::VARCHAR(64) IS NULL OR r.id > $5)
+                            (NOT $9 OR r.user_id = $3)
                             AND
-                            r.stroke_count = character_configs.stroke_count
-                            AND
-                            (NOT $8 OR r.user_id = $1)
-                            AND
-                            (NOT $9 OR r.user_id <> $1)
+                            (NOT $10 OR r.user_id <> $3)
                             AND
                             NOT r.disabled
                     ) as r
                     WHERE
-                        rank <= $7
+                        rank <= $8
                     ORDER BY
                         id DESC
                 "#,
-                String::from(user_id.clone()),
-                characters.as_slice(),
-                ids.as_ref().map(|ids| ids.as_slice()),
-                after_id.map(|id| Ulid::from(id).to_string()),
-                before_id.map(|id| Ulid::from(id).to_string()),
-                i32::from(limit_per_character.kind() == entities::LimitKind::Last),
-                i64::from(limit_per_character.value()),
-                user_type == Some(ports::UserType::Myself),
-                user_type == Some(ports::UserType::Other),
-            )
-            .fetch_all(&mut *conn)
-            .await
-            .context("fetch figure_records")?;
+            character_values.as_slice(),
+            stroke_count_values.as_slice(),
+            String::from(user_id.clone()),
+            ids.as_ref().map(|ids| ids.as_slice()),
+            after_id.map(|id| Ulid::from(id).to_string()),
+            before_id.map(|id| Ulid::from(id).to_string()),
+            i32::from(limit_per_character.kind() == entities::LimitKind::Last),
+            i64::from(limit_per_character.value()),
+            user_type == Some(ports::UserType::Myself),
+            user_type == Some(ports::UserType::Other),
+        )
+        .fetch_all(&mut *conn)
+        .await
+        .context("fetch figure_records")?;
 
         let figure_records = models
             .into_iter()

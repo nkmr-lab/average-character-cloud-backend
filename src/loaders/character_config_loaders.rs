@@ -22,7 +22,7 @@ where
     A: ports::CharacterConfigsRepository<Error = anyhow::Error> + Send + Clone,
 {
     type K = entities::Character;
-    type V = Result<Option<entities::CharacterConfig>, ShareableError>;
+    type V = Result<Vec<entities::CharacterConfig>, ShareableError>;
     type P = CharacterConfigByCharacterLoaderParams;
 
     async fn load_with_params(
@@ -37,8 +37,12 @@ where
             .map(|character_configs| {
                 character_configs
                     .into_iter()
-                    .map(|character_config| (character_config.character.clone(), character_config))
-                    .collect::<HashMap<_, _>>()
+                    .fold(HashMap::new(), |mut acc, character_config| {
+                        acc.entry(character_config.character.clone())
+                            .or_insert_with(Vec::new)
+                            .push(character_config);
+                        acc
+                    })
             })
             .map_err(ShareableError::from);
 
@@ -48,7 +52,9 @@ where
                     key.clone(),
                     character_config_map
                         .as_ref()
-                        .map(|character_config_map| character_config_map.get(key).cloned())
+                        .map(|character_config_map| {
+                            character_config_map.get(key).cloned().unwrap_or_default()
+                        })
                         .map_err(|e| e.clone()),
                 )
             })

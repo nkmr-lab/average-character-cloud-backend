@@ -18,7 +18,7 @@ where
     A: ports::CharacterConfigSeedsRepository<Error = anyhow::Error> + Send + Clone,
 {
     type K = entities::Character;
-    type V = Result<Option<entities::CharacterConfigSeed>, ShareableError>;
+    type V = Result<Vec<entities::CharacterConfigSeed>, ShareableError>;
     type P = CharacterConfigSeedByCharacterLoaderParams;
 
     async fn load_with_params(
@@ -31,15 +31,15 @@ where
             .get_by_characters(keys)
             .await
             .map(|character_config_seeds| {
-                character_config_seeds
-                    .into_iter()
-                    .map(|character_config_seed| {
-                        (
-                            character_config_seed.character.clone(),
-                            character_config_seed,
-                        )
-                    })
-                    .collect::<HashMap<_, _>>()
+                character_config_seeds.into_iter().fold(
+                    HashMap::new(),
+                    |mut acc, character_config_seed| {
+                        acc.entry(character_config_seed.character.clone())
+                            .or_insert_with(Vec::new)
+                            .push(character_config_seed);
+                        acc
+                    },
+                )
             })
             .map_err(ShareableError::from);
 
@@ -50,7 +50,10 @@ where
                     character_config_seed_map
                         .as_ref()
                         .map(|character_config_seed_map| {
-                            character_config_seed_map.get(key).cloned()
+                            character_config_seed_map
+                                .get(key)
+                                .cloned()
+                                .unwrap_or_default()
                         })
                         .map_err(|e| e.clone()),
                 )

@@ -280,10 +280,7 @@ impl Character {
         CharacterValueScalar(self.0.clone())
     }
 
-    async fn character_config(
-        &self,
-        ctx: &mut AppCtx,
-    ) -> Result<Option<CharacterConfig>, ApiError> {
+    async fn character_configs(&self, ctx: &mut AppCtx) -> Result<Vec<CharacterConfig>, ApiError> {
         let user_id = ctx
             .user_id
             .clone()
@@ -299,13 +296,16 @@ impl Character {
             .await
             .context("load character_config")??;
 
-        Ok(character_config.map(CharacterConfig::from))
+        Ok(character_config
+            .into_iter()
+            .map(CharacterConfig::from)
+            .collect())
     }
 
-    async fn character_config_seed(
+    async fn character_config_seeds(
         &self,
         ctx: &mut AppCtx,
-    ) -> Result<Option<CharacterConfigSeed>, ApiError> {
+    ) -> Result<Vec<CharacterConfigSeed>, ApiError> {
         let _user_id = ctx
             .user_id
             .clone()
@@ -321,7 +321,10 @@ impl Character {
             .await
             .context("load character_config_seed")??;
 
-        Ok(character_config_seed.map(CharacterConfigSeed::from))
+        Ok(character_config_seed
+            .into_iter()
+            .map(CharacterConfigSeed::from)
+            .collect())
     }
 
     async fn figure_records(

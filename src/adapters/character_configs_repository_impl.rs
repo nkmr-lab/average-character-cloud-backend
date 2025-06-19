@@ -84,7 +84,8 @@ where
                         SET
                             updated_at = $1,
                             ratio = $2,
-                            version = $3
+                            version = $3,
+                            disabled = $8
                         WHERE
                             user_id = $4
                             AND
@@ -103,6 +104,7 @@ where
                 String::from(character_config.character.clone()),
                 i32::from(character_config.stroke_count),
                 i32::from(prev_version),
+                character_config.disabled,
             )
             .execute(&mut *trx)
             .await

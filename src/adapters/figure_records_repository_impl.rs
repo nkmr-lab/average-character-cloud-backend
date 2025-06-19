@@ -244,7 +244,7 @@ where
                             r.created_at,
                             r.stroke_count,
                             rank() OVER (
-                                PARTITION BY r.character
+                                PARTITION BY r.character, r.stroke_count
                                 ORDER BY
                                     CASE WHEN $7 = 0 THEN r.id END DESC,
                                     CASE WHEN $7 = 1 THEN r.id END ASC

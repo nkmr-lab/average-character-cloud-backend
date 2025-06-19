@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{entities, ports};
 use anyhow::{anyhow, Context};
 use chrono::{DateTime, Utc};
@@ -8,10 +10,10 @@ pub struct CharacterConfigModel {
     pub user_id: String,
     pub character: String,
     pub stroke_count: i32,
-    pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub version: i32,
     pub ratio: i32,
+    pub disabled: bool,
 }
 
 impl CharacterConfigModel {
@@ -22,10 +24,10 @@ impl CharacterConfigModel {
             user_id: entities::UserId::from(self.user_id),
             character,
             stroke_count: entities::StrokeCount::try_from(self.stroke_count)?,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
+            updated_at: Some(self.updated_at),
             version: entities::Version::try_from(self.version)?,
             ratio: entities::Ratio::try_from(self.ratio)?,
+            disabled: self.disabled,
         })
     }
 }
@@ -48,118 +50,67 @@ where
 {
     type Error = anyhow::Error;
 
-    async fn create(
-        &mut self,
-        user_id: entities::UserId,
-        now: DateTime<Utc>,
-        character: entities::Character,
-        stroke_count: entities::StrokeCount,
-        ratio: entities::Ratio,
-    ) -> Result<Result<entities::CharacterConfig, ports::CreateError>, Self::Error> {
-        let mut trx = self.db.begin().await?;
-        let character_config = entities::CharacterConfig {
-            user_id,
-            character,
-            created_at: now,
-            updated_at: now,
-            stroke_count,
-            version: entities::Version::new(),
-            ratio,
-        };
-
-        // check exist
-        let exists = sqlx::query!(
-            r#"
-            SELECT
-                1 as check
-            FROM
-                character_configs
-            WHERE
-                user_id = $1
-                AND
-                character = $2
-                AND
-                ratio = $3
-        "#,
-            String::from(character_config.user_id.clone()),
-            String::from(character_config.character.clone()),
-            i32::from(character_config.ratio)
-        )
-        .fetch_optional(&mut *trx)
-        .await
-        .context("check character_config exist")?
-        .is_some();
-
-        if exists {
-            return Ok(Err(ports::CreateError::AlreadyExists));
-        }
-
-        sqlx::query!(
-            r#"
-                INSERT INTO character_configs (user_id, character, created_at, updated_at, stroke_count, ratio, version)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-            "#,
-            String::from(character_config.user_id.clone()),
-            String::from(character_config.character.clone()),
-            character_config.created_at,
-            character_config.updated_at,
-            i32::from(character_config.stroke_count),
-            i32::from(character_config.ratio),
-            i32::from(character_config.version),
-        )
-        .execute(&mut *trx)
-        .await
-        .context("insert character_configs")?;
-
-        trx.commit().await?;
-        Ok(Ok(character_config))
-    }
-
-    async fn update(
+    async fn save(
         &mut self,
         now: DateTime<Utc>,
         mut character_config: entities::CharacterConfig,
-        ratio: Option<entities::Ratio>,
     ) -> Result<entities::CharacterConfig, Self::Error> {
         let mut trx = self.db.begin().await?;
         let prev_version = character_config.version;
-
         character_config.version = character_config.version.next();
-        character_config.updated_at = now;
-        if let Some(ratio) = ratio {
-            character_config.ratio = ratio;
-        }
+        character_config.updated_at = Some(now);
 
-        let result = sqlx::query!(
-            r#"
-            UPDATE character_configs
-                SET
-                    updated_at = $1,
-                    ratio = $2,
-                    version = $3
-                WHERE
-                    user_id = $4
-                    AND
-                    character = $5
-                    AND
-                    stroke_count = $6
-                    AND
-                    version = $7
-            "#,
-            &character_config.updated_at,
-            i32::from(character_config.ratio),
-            i32::from(character_config.version),
-            String::from(character_config.user_id.clone()),
-            String::from(character_config.character.clone()),
-            i32::from(character_config.stroke_count),
-            i32::from(prev_version),
-        )
-        .execute(&mut *trx)
-        .await
-        .context("update character_config")?;
+        if prev_version.is_none() {
+            sqlx::query!(
+                r#"
+                    INSERT INTO character_configs (user_id, character, updated_at, stroke_count, ratio, version, disabled)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                "#,
+                String::from(character_config.user_id.clone()),
+                String::from(character_config.character.clone()),
+                character_config.updated_at,
+                i32::from(character_config.stroke_count),
+                i32::from(character_config.ratio),
+                i32::from(character_config.version),
+                character_config.disabled,
+            )
+            .execute(&mut *trx)
+            .await
+            .context("insert character_configs")?;
+        } else {
+            let result = sqlx::query!(
+                r#"
+                    UPDATE character_configs
+                        SET
+                            updated_at = $1,
+                            ratio = $2,
+                            version = $3
+                        WHERE
+                            user_id = $4
+                            AND
+                            character = $5
+                            AND
+                            stroke_count = $6
+                            AND
+                            version = $7
+                "#,
+                &character_config
+                    .updated_at
+                    .ok_or(anyhow!("updated_at is None"))?,
+                i32::from(character_config.ratio),
+                i32::from(character_config.version),
+                String::from(character_config.user_id.clone()),
+                String::from(character_config.character.clone()),
+                i32::from(character_config.stroke_count),
+                i32::from(prev_version),
+            )
+            .execute(&mut *trx)
+            .await
+            .context("update character_config")?;
 
-        if result.rows_affected() == 0 {
-            return Err(anyhow!("conflict"));
+            if result.rows_affected() == 0 {
+                return Err(anyhow!("conflict"));
+            }
         }
 
         trx.commit().await?;
@@ -185,15 +136,17 @@ where
                     character,
                     stroke_count,
                     ratio,
-                    created_at,
                     updated_at,
-                    version
+                    version,
+                    disabled
                 FROM
                     character_configs
                 WHERE
                     user_id = $1
                     AND
                     character = Any($2)
+                    AND
+                    disabled = false
             "#,
             String::from(user_id.clone()),
             character_values.as_slice(),
@@ -237,9 +190,9 @@ where
                 character,
                 stroke_count,
                 ratio,
-                created_at,
                 updated_at,
-                version
+                version,
+                disabled
             FROM
                 character_configs
             WHERE
@@ -248,9 +201,11 @@ where
                 ($2::VARCHAR(64) IS NULL OR (character, stroke_count) > ($2, $3))
                 AND
                 ($4::VARCHAR(64) IS NULL OR (character, stroke_count) < ($4, $5))
+                AND
+                disabled = false
             ORDER BY
-                CASE WHEN $6 = 0 THEN (character, ratio) END ASC,
-                CASE WHEN $6 = 1 THEN (character, ratio) END DESC
+                CASE WHEN $6 = 0 THEN (character, stroke_count) END ASC,
+                CASE WHEN $6 = 1 THEN (character, stroke_count) END DESC
             LIMIT $7
         "#,
             String::from(user_id.clone()),
@@ -278,7 +233,10 @@ where
         &mut self,
         user_id: entities::UserId,
         keys: &[(entities::Character, entities::StrokeCount)],
-    ) -> Result<Vec<entities::CharacterConfig>, Self::Error> {
+    ) -> Result<
+        HashMap<(entities::Character, entities::StrokeCount), entities::CharacterConfig>,
+        Self::Error,
+    > {
         let mut conn = self.db.acquire().await?;
 
         let character_values = keys
@@ -303,9 +261,9 @@ where
                 character,
                 stroke_count,
                 ratio,
-                created_at,
                 updated_at,
-                version
+                version,
+                disabled
             FROM
                 character_configs
             JOIN
@@ -328,6 +286,29 @@ where
             .collect::<anyhow::Result<Vec<_>>>()
             .context("convert CharacterConfig")?;
 
-        Ok(character_configs)
+        let mut character_config_map = character_configs
+            .iter()
+            .map(|config| {
+                (
+                    (config.character.clone(), config.stroke_count),
+                    config.clone(),
+                )
+            })
+            .collect::<std::collections::HashMap<_, _>>();
+
+        for key in keys {
+            if !character_config_map.contains_key(key) {
+                character_config_map.insert(
+                    key.clone(),
+                    entities::CharacterConfig::default_config(
+                        user_id.clone(),
+                        key.0.clone(),
+                        key.1,
+                    ),
+                );
+            }
+        }
+
+        Ok(character_config_map)
     }
 }

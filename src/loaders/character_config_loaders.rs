@@ -133,7 +133,7 @@ where
     A: ports::CharacterConfigsRepository<Error = anyhow::Error> + Send + Clone,
 {
     type K = (entities::Character, entities::StrokeCount);
-    type V = Result<Option<entities::CharacterConfig>, ShareableError>;
+    type V = Result<entities::CharacterConfig, ShareableError>;
     type P = CharacterConfigByIdLoaderParams;
 
     async fn load_with_params(
@@ -145,32 +145,18 @@ where
             .character_configs_repository
             .get_by_ids(params.user_id.clone(), keys)
             .await
-            .map(|character_configs| {
-                character_configs
-                    .into_iter()
-                    .map(|character_config| {
-                        (
-                            (
-                                character_config.character.clone(),
-                                character_config.stroke_count,
-                            ),
-                            character_config,
-                        )
-                    })
-                    .collect::<HashMap<_, _>>()
-            })
             .map_err(ShareableError::from);
 
-        keys.iter()
-            .map(|key| {
-                (
-                    key.clone(),
-                    character_config_map
-                        .as_ref()
-                        .map(|character_config_map| character_config_map.get(key).cloned())
-                        .map_err(|e| e.clone()),
-                )
+        character_config_map
+            .map(|map| {
+                map.into_iter()
+                    .map(|(key, value)| (key, Ok(value)))
+                    .collect()
             })
-            .collect()
+            .unwrap_or_else(|e| {
+                keys.iter()
+                    .map(|key| (key.clone(), Err(e.clone())))
+                    .collect()
+            })
     }
 }

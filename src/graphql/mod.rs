@@ -137,11 +137,7 @@ impl CharacterConfig {
         i32::from(self.0.ratio)
     }
 
-    fn created_at(&self) -> DateTime<Utc> {
-        self.0.created_at
-    }
-
-    fn updated_at(&self) -> DateTime<Utc> {
+    fn updated_at(&self) -> Option<DateTime<Utc>> {
         self.0.updated_at
     }
 
@@ -246,14 +242,6 @@ struct CharacterConfigConnection {
     edges: Vec<CharacterConfigEdge>,
 }
 
-#[derive(GraphQLInputObject, Clone, Debug)]
-struct CreateCharacterConfigInput {
-    character: CharacterValueScalar,
-    stroke_count: i32,
-    #[graphql(default = "100")]
-    ratio: i32,
-}
-
 #[derive(Clone, Debug, From)]
 struct CharacterConfigSeed(entities::CharacterConfigSeed);
 
@@ -297,18 +285,12 @@ struct CharacterConfigSeedConnection {
     edges: Vec<CharacterConfigSeedEdge>,
 }
 
-#[derive(GraphQLObject, Clone, Debug)]
-#[graphql(context = AppCtx)]
-struct CreateCharacterConfigPayload {
-    character_config: Option<CharacterConfig>,
-    errors: Option<Vec<GraphqlErrorType>>,
-}
-
 #[derive(GraphQLInputObject, Clone, Debug)]
 struct UpdateCharacterConfigInput {
     character: CharacterValueScalar,
     stroke_count: i32,
     ratio: Option<i32>,
+    disabled: Option<bool>,
 }
 
 #[derive(GraphQLObject, Clone, Debug)]
@@ -397,7 +379,7 @@ impl Character {
         &self,
         ctx: &mut AppCtx,
         stroke_count: i32,
-    ) -> Result<Option<CharacterConfig>, ApiError> {
+    ) -> Result<CharacterConfig, ApiError> {
         let user_id = ctx
             .user_id
             .clone()
@@ -416,7 +398,7 @@ impl Character {
             .await
             .context("load character_config")??;
 
-        Ok(character_config.map(CharacterConfig::from))
+        Ok(CharacterConfig::from(character_config))
     }
 
     async fn character_config_seeds(
@@ -559,9 +541,9 @@ impl QueryRoot {
                     .await
                     .context("load character_config")??;
 
-                Ok(character_config
-                    .map(CharacterConfig::from)
-                    .map(NodeValue::CharacterConfig))
+                Ok(Some(NodeValue::CharacterConfig(CharacterConfig::from(
+                    character_config,
+                ))))
             }
             NodeId::Character(character) => {
                 Ok(Some(NodeValue::Character(Character::from(character))))
@@ -786,57 +768,6 @@ impl MutationRoot {
         })
     }
 
-    async fn create_character_config(
-        ctx: &AppCtx,
-        input: CreateCharacterConfigInput,
-    ) -> Result<CreateCharacterConfigPayload, ApiError> {
-        let mut character_configs_repository =
-            CharacterConfigsRepositoryImpl::new(ctx.pool.clone());
-
-        let user_id = ctx
-            .user_id
-            .clone()
-            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
-
-        let Ok(stroke_count) = entities::StrokeCount::try_from(input.stroke_count) else {
-            return Ok(CreateCharacterConfigPayload {
-                character_config: None,
-                errors: Some(vec![GraphqlErrorType {
-                    message: "stroke_count must be an non negative integer".to_string(),
-                }]),
-            });
-        };
-
-        let Ok(ratio) = entities::Ratio::try_from(input.ratio) else {
-            return Ok(CreateCharacterConfigPayload {
-                character_config: None,
-                errors: Some(vec![GraphqlErrorType {
-                    message: "ratio must be an non negative integer".to_string(),
-                }]),
-            });
-        };
-
-        let character_config = match character_configs_repository
-            .create(user_id, ctx.now, input.character.0, stroke_count, ratio)
-            .await?
-        {
-            Ok(character_config) => character_config,
-            Err(e) => {
-                return Ok(CreateCharacterConfigPayload {
-                    character_config: None,
-                    errors: Some(vec![GraphqlErrorType {
-                        message: e.to_string(),
-                    }]),
-                });
-            }
-        };
-
-        Ok(CreateCharacterConfigPayload {
-            character_config: Some(CharacterConfig::from(character_config)),
-            errors: None,
-        })
-    }
-
     async fn update_character_config(
         ctx: &AppCtx,
         input: UpdateCharacterConfigInput,
@@ -854,12 +785,12 @@ impl MutationRoot {
         let stroke_count = entities::StrokeCount::try_from(input.stroke_count)
             .map_err(|_| GraphqlUserError::from("stroke_count must be an non negative integer"))?;
 
-        let character_config = character_configs_repository
-            .get_by_ids(user_id.clone(), &[(character, stroke_count)])
+        let mut character_config = character_configs_repository
+            .get_by_ids(user_id.clone(), &[(character.clone(), stroke_count)])
             .await
             .context("get character_config")?
-            .pop()
-            .ok_or_else(|| GraphqlUserError::from("Not found"))?;
+            .remove(&(character, stroke_count))
+            .ok_or_else(|| anyhow::anyhow!("character_config not found"))?;
 
         let Ok(ratio) = input.ratio.map(entities::Ratio::try_from).transpose() else {
             return Ok(UpdateCharacterConfigPayload {
@@ -870,8 +801,16 @@ impl MutationRoot {
             });
         };
 
+        if let Some(ratio) = ratio {
+            character_config = character_config.with_ratio(ratio);
+        }
+
+        if let Some(disabled) = input.disabled {
+            character_config = character_config.with_disabled(disabled);
+        }
+
         let character_config = character_configs_repository
-            .update(ctx.now, character_config, ratio)
+            .save(ctx.now, character_config)
             .await?;
 
         Ok(UpdateCharacterConfigPayload {

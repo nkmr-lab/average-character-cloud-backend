@@ -21,17 +21,19 @@ CREATE TABLE "public"."character_configs" (
   "user_id" VARCHAR(64) NOT NULL,
   "character" VARCHAR(8) NOT NULL,
   "stroke_count" INTEGER NOT NULL,
-  "created_at" TIMESTAMP WITH TIME ZONE NOT NULL,
   "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL,
   "version" INTEGER NOT NULL,
   "ratio" INTEGER NOT NULL DEFAULT 100,
+  "disabled" BOOLEAN NOT NULL DEFAULT FALSE,
   PRIMARY KEY ("user_id", "character", "stroke_count")
 );
 
+CREATE INDEX "character_configs_user_id_idx" ON "public"."character_configs" ("user_id");
+CREATE INDEX "character_configs_character_idx" ON "public"."character_configs" ("character");
 CREATE INDEX "character_configs_stroke_count_idx" ON "public"."character_configs" ("stroke_count");
-CREATE INDEX "character_configs_created_at_idx" ON "public"."character_configs" ("created_at");
 CREATE INDEX "character_configs_updated_at_idx" ON "public"."character_configs" ("updated_at");
 CREATE INDEX "character_configs_version_idx" ON "public"."character_configs" ("version");
+CREATE INDEX "character_configs_disabled_idx" ON "public"."character_configs" ("disabled");
 
 CREATE TABLE "public"."user_configs" (
   "user_id" VARCHAR(64) PRIMARY KEY,

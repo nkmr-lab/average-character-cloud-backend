@@ -55,6 +55,8 @@ where
                 INNER JOIN user_configs ON character_configs.user_id = user_configs.user_id
             WHERE
                 user_configs.allow_sharing_character_configs
+                AND
+                character_configs.disabled = false
             GROUP BY
                 character, stroke_count
             "#,
@@ -160,6 +162,7 @@ where
                         character_configs.user_id = $1
                         AND character_configs.character = character_config_seeds.character
                         AND character_configs.stroke_count = character_config_seeds.stroke_count
+                        AND character_configs.disabled = false
                 )
                 AND
                 ($2::VARCHAR(64) IS NULL OR (character, stroke_count) > ($2, $3))

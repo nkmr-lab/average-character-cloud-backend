@@ -32,3 +32,9 @@ impl TryFrom<i32> for Ratio {
         }
     }
 }
+
+impl Default for Ratio {
+    fn default() -> Self {
+        Ratio(MAX_RATIO)
+    }
+}

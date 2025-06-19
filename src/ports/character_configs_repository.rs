@@ -1,31 +1,25 @@
+use std::collections::HashMap;
+
 use crate::entities;
 use chrono::{DateTime, Utc};
 
 pub trait CharacterConfigsRepository {
     type Error;
 
-    async fn create(
-        &mut self,
-        user_id: entities::UserId,
-        now: DateTime<Utc>,
-        character: entities::Character,
-        stroke_count: entities::StrokeCount,
-        ratio: entities::Ratio,
-    ) -> Result<Result<entities::CharacterConfig, CreateError>, Self::Error>;
-
-    async fn update(
+    async fn save(
         &mut self,
         now: DateTime<Utc>,
         character_config: entities::CharacterConfig,
-        ratio: Option<entities::Ratio>,
     ) -> Result<entities::CharacterConfig, Self::Error>;
 
+    // disabled=falseのみ
     async fn get_by_characters(
         &mut self,
         characters: &[entities::Character],
         user_id: entities::UserId,
     ) -> Result<Vec<entities::CharacterConfig>, Self::Error>;
 
+    // disabled=falseのみ
     async fn query(
         &mut self,
         user_id: entities::UserId,
@@ -34,11 +28,15 @@ pub trait CharacterConfigsRepository {
         limit: entities::Limit,
     ) -> Result<Vec<entities::CharacterConfig>, Self::Error>;
 
+    // disabled=trueも含む全て
     async fn get_by_ids(
         &mut self,
         user_id: entities::UserId,
         keys: &[(entities::Character, entities::StrokeCount)],
-    ) -> Result<Vec<entities::CharacterConfig>, Self::Error>;
+    ) -> Result<
+        HashMap<(entities::Character, entities::StrokeCount), entities::CharacterConfig>,
+        Self::Error,
+    >;
 }
 
 #[derive(Clone, thiserror::Error, Debug)]

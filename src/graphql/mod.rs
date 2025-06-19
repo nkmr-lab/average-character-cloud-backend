@@ -141,6 +141,10 @@ impl CharacterConfig {
         self.0.updated_at
     }
 
+    fn disabled(&self) -> bool {
+        self.0.disabled
+    }
+
     async fn figure_records(
         &self,
         ctx: &AppCtx,

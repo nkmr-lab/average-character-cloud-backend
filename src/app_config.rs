@@ -43,6 +43,8 @@ pub struct AppConfig {
     pub enqueue_cron_task: bool,
     #[serde(default)]
     pub enable_task_front: bool,
+    #[serde(default = "workers_default")]
+    pub workers: usize,
 }
 
 // serde_envがprefixに未対応なので
@@ -80,6 +82,10 @@ fn port_default() -> u16 {
 
 fn host_default() -> String {
     "localhost".to_string()
+}
+
+fn workers_default() -> usize {
+    num_cpus::get()
 }
 
 impl AppConfig {

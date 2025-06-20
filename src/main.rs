@@ -289,6 +289,7 @@ async fn main() -> anyhow::Result<()> {
         None => {
             let host = config.host.clone();
             let port = config.port;
+            let workers = config.workers;
             let schema = Arc::new(create_schema());
 
             let redis_session_config = if let SessionConfig::Redis {
@@ -372,6 +373,7 @@ async fn main() -> anyhow::Result<()> {
                         }),
                     ))
             })
+            .workers(workers)
             .bind((host.as_str(), port))?
             .run()
             .await

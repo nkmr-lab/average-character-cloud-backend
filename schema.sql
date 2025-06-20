@@ -39,6 +39,8 @@ CREATE TABLE "public"."user_configs" (
   "user_id" VARCHAR(64) PRIMARY KEY,
   "allow_sharing_character_configs" BOOLEAN NOT NULL,
   "allow_sharing_figure_records" BOOLEAN NOT NULL,
+  "random_level" INTEGER NOT NULL DEFAULT 50,
+  "shared_proportion" INTEGER NOT NULL DEFAULT 50,
   "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL,
   "version" INTEGER NOT NULL
 );

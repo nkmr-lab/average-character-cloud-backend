@@ -321,6 +321,8 @@ struct UpdateFigureRecordPayload {
 struct UpdateUserConfigInput {
     allow_sharing_character_configs: Option<bool>,
     allow_sharing_figure_records: Option<bool>,
+    random_level: Option<i32>,
+    shared_proportion: Option<i32>,
 }
 
 #[derive(GraphQLObject, Clone, Debug)]
@@ -470,6 +472,14 @@ impl UserConfig {
 
     fn allow_sharing_figure_records(&self) -> bool {
         self.0.allow_sharing_figure_records
+    }
+
+    fn random_level(&self) -> i32 {
+        i32::from(self.0.random_level)
+    }
+
+    fn shared_proportion(&self) -> i32 {
+        i32::from(self.0.shared_proportion)
     }
 
     fn updated_at(&self) -> Option<DateTime<Utc>> {
@@ -883,6 +893,18 @@ impl MutationRoot {
         if let Some(allow_sharing_figure_records) = input.allow_sharing_figure_records {
             user_config =
                 user_config.with_allow_sharing_figure_records(allow_sharing_figure_records);
+        }
+
+        if let Some(random_level) = input.random_level {
+            let random_level = entities::RandomLevel::try_from(random_level)
+                .map_err(|_| GraphqlUserError::from("random_level is invalid"))?;
+            user_config = user_config.with_random_level(random_level);
+        }
+
+        if let Some(shared_proportion) = input.shared_proportion {
+            let shared_proportion = entities::SharedProportion::try_from(shared_proportion)
+                .map_err(|_| GraphqlUserError::from("shared_proportion is invalid"))?;
+            user_config = user_config.with_shared_proportion(shared_proportion);
         }
 
         let user_config = user_config_repository.save(ctx.now, user_config).await?;

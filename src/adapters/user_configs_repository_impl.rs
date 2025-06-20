@@ -9,6 +9,8 @@ struct UserConfigModel {
     user_id: String,
     allow_sharing_character_configs: bool,
     allow_sharing_figure_records: bool,
+    random_level: i32,
+    shared_proportion: i32,
     updated_at: DateTime<Utc>,
     version: i32,
 }
@@ -23,7 +25,6 @@ impl<A> UserConfigsRepositoryImpl<A> {
         Self { db }
     }
 }
-
 
 impl<A> ports::UserConfigsRepository for UserConfigsRepositoryImpl<A>
 where
@@ -44,6 +45,8 @@ where
                 user_id,
                 allow_sharing_character_configs,
                 allow_sharing_figure_records,
+                random_level,
+                shared_proportion,
                 updated_at,
                 version
             FROM
@@ -62,6 +65,10 @@ where
                     user_id: entities::UserId::from(record.user_id),
                     allow_sharing_character_configs: record.allow_sharing_character_configs,
                     allow_sharing_figure_records: record.allow_sharing_figure_records,
+                    random_level: entities::RandomLevel::try_from(record.random_level)?,
+                    shared_proportion: entities::SharedProportion::try_from(
+                        record.shared_proportion,
+                    )?,
                     updated_at: Some(record.updated_at),
                     version: entities::Version::try_from(record.version)?,
                 })
@@ -89,13 +96,17 @@ where
                             user_id,
                             allow_sharing_character_configs,
                             allow_sharing_figure_records,
+                            random_level,
+                            shared_proportion,
                             updated_at,
                             version
-                        ) VALUES ($1, $2, $3, $4, $5)
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
                     "#,
                 &String::from(user_config.user_id.clone()),
                 user_config.allow_sharing_character_configs,
                 user_config.allow_sharing_figure_records,
+                i32::from(user_config.random_level),
+                i32::from(user_config.shared_proportion),
                 user_config.updated_at,
                 i32::from(user_config.version)
             )
@@ -110,17 +121,21 @@ where
                             updated_at = $1,
                             allow_sharing_character_configs = $2,
                             allow_sharing_figure_records = $3,
-                            version = $4
-                        WHERE
-                            user_id = $5
-                            AND
+                            random_level = $4,
+                            shared_proportion = $5,
                             version = $6
+                        WHERE
+                            user_id = $7
+                            AND
+                            version = $8
                     "#,
                 &user_config
                     .updated_at
                     .ok_or(anyhow!("updated_at is None"))?,
                 user_config.allow_sharing_character_configs,
                 user_config.allow_sharing_figure_records,
+                i32::from(user_config.random_level),
+                i32::from(user_config.shared_proportion),
                 i32::from(user_config.version),
                 &String::from(user_config.user_id.clone()),
                 i32::from(prev_version),
@@ -156,6 +171,11 @@ mod tests {
         assert_eq!(config.user_id, user_id);
         assert!(!config.allow_sharing_character_configs);
         assert!(!config.allow_sharing_figure_records);
+        assert_eq!(config.random_level, entities::RandomLevel::default());
+        assert_eq!(
+            config.shared_proportion,
+            entities::SharedProportion::default()
+        );
         assert!(config.updated_at.is_none());
         assert_eq!(config.version, entities::Version::none());
 
@@ -164,10 +184,20 @@ mod tests {
 
         config.allow_sharing_character_configs = true;
         config.allow_sharing_figure_records = true;
+        config.random_level = entities::RandomLevel::try_from(3).unwrap();
+        config.shared_proportion = entities::SharedProportion::try_from(80).unwrap();
         let saved_config = repo.save(now, config.clone()).await.unwrap();
         assert_eq!(saved_config.user_id, user_id);
         assert!(saved_config.allow_sharing_character_configs);
         assert!(saved_config.allow_sharing_figure_records);
+        assert_eq!(
+            saved_config.random_level,
+            entities::RandomLevel::try_from(3).unwrap()
+        );
+        assert_eq!(
+            saved_config.shared_proportion,
+            entities::SharedProportion::try_from(80).unwrap()
+        );
         assert_eq!(saved_config.updated_at, Some(now));
         assert_eq!(saved_config.version, config.version.next());
 

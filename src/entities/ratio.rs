@@ -13,9 +13,9 @@ const MAX_RATIO: i32 = 100;
 
 #[derive(Error, Debug, Clone)]
 pub enum RatioTryFromError {
-    #[error("Stroke count must be less than {}", MAX_RATIO)]
+    #[error("Ratio must be less than {}", MAX_RATIO)]
     TooLarge,
-    #[error("Stroke count must be non negative")]
+    #[error("Ratio must be non negative")]
     TooSmall,
 }
 

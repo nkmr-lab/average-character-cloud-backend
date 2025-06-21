@@ -269,6 +269,9 @@ async fn google_callback(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let config = aws_config::from_env().load().await;
+    let client = aws_sdk_s3::Client::new(&config);
+
     tracing_subscriber::fmt::init();
     let cli = Cli::parse();
 

@@ -7,8 +7,12 @@ add-migrate name:
 migrate: docker-up
     cargo sqlx migrate run
 
+minio-configure: docker-up
+    mc alias set minio http://localhost:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD
+    mc mb -p minio/$AVCC_STORAGE_BUCKET
+
 docker-up:
     docker compose up -d
 
-serve: migrate
+serve: migrate minio-configure
     cargo watch -x run

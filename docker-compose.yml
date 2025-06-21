@@ -2,7 +2,7 @@ services:
   postgres:
     image: "postgres:10.5"
     environment:
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
     ports:
       - 5432:5432
     volumes:
@@ -20,7 +20,23 @@ services:
       - 7420:7420
     volumes:
       - faktory:/var/lib/faktory/db
+  minio:
+    image: "quay.io/minio/minio:RELEASE.2024-03-26T22-10-45Z"
+    environment:
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY}
+    ports:
+      - 9000:9000
+      - 9001:9001
+    volumes:
+      - minio:/data
+    command:
+      - server
+      - /data
+      - --console-address
+      - ":9001"
 volumes:
   postgres:
   redis:
   faktory:
+  minio:

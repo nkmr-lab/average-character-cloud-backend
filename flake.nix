@@ -78,6 +78,7 @@
             pkgs.just
             pkgs.sqldef
             pkgs.cargo-watch
+            pkgs.minio-client
             cargo2nix.packages.${system}.cargo2nix
           ];
         };

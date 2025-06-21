@@ -45,6 +45,7 @@ pub struct AppConfig {
     pub enable_task_front: bool,
     #[serde(default = "workers_default")]
     pub workers: usize,
+    pub storage: StorageConfig,
 }
 
 // serde_envがprefixに未対応なので
@@ -86,6 +87,23 @@ fn host_default() -> String {
 
 fn workers_default() -> usize {
     num_cpus::get()
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct StorageConfig {
+    pub bucket: String,
+    #[serde(default = "storage_presigned_upload_expires_in_secs_default")]
+    pub presigned_upload_expires_in_secs: u64,
+    #[serde(default = "storage_presigned_download_expires_in_secs_default")]
+    pub presigned_download_expires_in_secs: u64,
+}
+
+fn storage_presigned_upload_expires_in_secs_default() -> u64 {
+    60 * 60 // 1 hour
+}
+
+fn storage_presigned_download_expires_in_secs_default() -> u64 {
+    60 * 60 * 24 // 1 day
 }
 
 impl AppConfig {

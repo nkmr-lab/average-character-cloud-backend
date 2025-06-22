@@ -24,11 +24,11 @@ impl TryFrom<i32> for WritingMode {
     }
 }
 
-impl Into<i32> for WritingMode {
-    fn into(self) -> i32 {
-        match self {
-            Self::Horizontal => 0,
-            Self::Vertical => 1,
+impl From<WritingMode> for i32 {
+    fn from(value: WritingMode) -> Self {
+        match value {
+            WritingMode::Horizontal => 0,
+            WritingMode::Vertical => 1,
         }
     }
 }

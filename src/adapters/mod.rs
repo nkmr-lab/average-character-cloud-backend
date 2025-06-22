@@ -2,6 +2,7 @@ mod character_config_seeds_repository_impl;
 mod character_configs_repository_impl;
 mod figure_records_repository_impl;
 mod files_repository_impl;
+mod generate_templates_repository_impl;
 mod storage_impl;
 mod user_configs_repository_impl;
 
@@ -9,5 +10,6 @@ pub use character_config_seeds_repository_impl::CharacterConfigSeedsRepositoryIm
 pub use character_configs_repository_impl::CharacterConfigsRepositoryImpl;
 pub use figure_records_repository_impl::FigureRecordsRepositoryImpl;
 pub use files_repository_impl::FilesRepositoryImpl;
+pub use generate_templates_repository_impl::GenerateTemplatesRepositoryImpl;
 pub use storage_impl::StorageImpl;
 pub use user_configs_repository_impl::UserConfigsRepositoryImpl;

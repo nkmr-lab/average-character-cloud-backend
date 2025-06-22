@@ -16,7 +16,7 @@ pub struct GenerateTemplate {
     pub font_size: FontSize,
     pub font_weight: FontWeight,
     pub created_at: DateTime<Utc>,
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: DateTime<Utc>,
     pub disabled: bool,
     pub version: Version,
 }

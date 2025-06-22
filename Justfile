@@ -8,7 +8,7 @@ migrate: docker-up
     cargo sqlx migrate run
 
 minio-configure: docker-up
-    mc alias set minio http://localhost:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD
+    mc alias set minio http://localhost:9000 $AWS_ACCESS_KEY_ID $AWS_SECRET_ACCESS_KEY
     mc mb -p minio/$AVCC_STORAGE_BUCKET
 
 docker-up:

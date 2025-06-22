@@ -272,12 +272,18 @@ async fn google_callback(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let s3_client = aws_sdk_s3::Client::new(&aws_config::from_env().load().await);
-
     tracing_subscriber::fmt::init();
     let cli = Cli::parse();
 
     let config = AppConfig::from_env().map_err(io::Error::other)?;
+
+    let aws_config = aws_config::from_env().load().await;
+    let mut s3_config_builder = aws_sdk_s3::config::Builder::from(&aws_config);
+    if config.storage.path_style {
+        s3_config_builder = s3_config_builder.force_path_style(true);
+    }
+    let s3_client = aws_sdk_s3::Client::from_conf(s3_config_builder.build());
+
     let pool = PgPoolOptions::new()
         .connect(&config.database_url)
         .await

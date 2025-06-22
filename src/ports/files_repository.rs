@@ -22,5 +22,6 @@ pub trait FilesRepository {
         &mut self,
         user_id: entities::UserId,
         ids: &[entities::FileId],
+        verified_only: bool,
     ) -> Result<Vec<entities::File>, Self::Error>;
 }

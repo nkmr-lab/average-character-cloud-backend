@@ -4,6 +4,7 @@ use crate::loaders::{
     CharacterConfigByCharacterLoader, CharacterConfigByIdLoader, CharacterConfigLoader,
     CharacterConfigSeedByCharacterLoader, CharacterConfigSeedByIdLoader,
     CharacterConfigSeedsLoader, FigureRecordByIdLoader, FigureRecordsByCharacterConfigIdLoader,
+    FileByIdLoader,
 };
 use crate::{adapters, DataloaderWithParams};
 
@@ -31,6 +32,8 @@ pub struct Loaders {
     pub character_config_seeds_loader: DataloaderWithParams<
         CharacterConfigSeedsLoader<adapters::CharacterConfigSeedsRepositoryImpl<PgPool>>,
     >,
+    pub file_by_id_loader:
+        DataloaderWithParams<FileByIdLoader<adapters::FilesRepositoryImpl<PgPool>>>,
 }
 
 impl Loaders {
@@ -78,6 +81,9 @@ impl Loaders {
             character_config_seeds_loader: DataloaderWithParams::new(CharacterConfigSeedsLoader {
                 character_config_seeds_repository:
                     adapters::CharacterConfigSeedsRepositoryImpl::new(pool.clone()),
+            }),
+            file_by_id_loader: DataloaderWithParams::new(FileByIdLoader {
+                files_repository: adapters::FilesRepositoryImpl::new(pool.clone()),
             }),
         }
     }

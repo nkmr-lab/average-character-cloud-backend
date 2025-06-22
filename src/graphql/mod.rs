@@ -9,7 +9,8 @@ use juniper::{
 use ulid::Ulid;
 
 use crate::adapters::{
-    CharacterConfigsRepositoryImpl, FigureRecordsRepositoryImpl, UserConfigsRepositoryImpl,
+    CharacterConfigsRepositoryImpl, FigureRecordsRepositoryImpl, FilesRepositoryImpl, StorageImpl,
+    UserConfigsRepositoryImpl,
 };
 use crate::{entities, ports};
 
@@ -22,7 +23,10 @@ mod app_ctx;
 pub use app_ctx::*;
 mod loaders;
 use self::scalars::CharacterValueScalar;
-use crate::ports::{CharacterConfigsRepository, FigureRecordsRepository, UserConfigsRepository};
+use crate::ports::{
+    CharacterConfigsRepository, FigureRecordsRepository, FilesRepository, Storage,
+    UserConfigsRepository,
+};
 
 mod scalars;
 use crate::loaders::{
@@ -30,6 +34,7 @@ use crate::loaders::{
     CharacterConfigLoaderParams, CharacterConfigSeedByCharacterLoaderParams,
     CharacterConfigSeedByIdLoaderParams, CharacterConfigSeedsLoaderParams,
     FigureRecordByIdLoaderParams, FigureRecordsByCharacterConfigIdLoaderParams,
+    FileByIdLoaderParams,
 };
 
 /*
@@ -38,7 +43,7 @@ use crate::loaders::{
  *   https://relay.dev/graphql/connections.htm
 */
 
-#[graphql_interface(for = [FigureRecord, CharacterConfig, Character, UserConfig, CharacterConfigSeed], context = AppCtx)]
+#[graphql_interface(for = [FigureRecord, CharacterConfig, Character, UserConfig, CharacterConfigSeed, File], context = AppCtx)]
 trait Node {
     #[graphql(name = "id")]
     fn node_id(&self) -> ID;
@@ -101,6 +106,90 @@ struct CreateFigureRecordInput {
 #[graphql(context = AppCtx)]
 struct CreateFigureRecordPayload {
     figure_record: Option<FigureRecord>,
+    errors: Option<Vec<GraphqlErrorType>>,
+}
+
+#[derive(Clone, Debug, From)]
+struct File(entities::File);
+
+#[juniper::graphql_object(Context = AppCtx, impl = NodeValue)]
+impl File {
+    fn id(&self) -> ID {
+        self.node_id()
+    }
+
+    fn file_id(&self) -> UlidScalar {
+        UlidScalar(Ulid::from(self.0.id))
+    }
+
+    fn mime_type(&self) -> String {
+        self.0.mime_type.value().to_string()
+    }
+
+    fn size(&self) -> i32 {
+        i32::from(self.0.size)
+    }
+
+    fn verified(&self) -> bool {
+        self.0.verified
+    }
+
+    fn created_at(&self) -> DateTime<Utc> {
+        self.0.created_at
+    }
+
+    fn updated_at(&self) -> DateTime<Utc> {
+        self.0.updated_at
+    }
+
+    async fn upload_url(&self, ctx: &AppCtx) -> Result<String, ApiError> {
+        let mut storage = StorageImpl::new(ctx.config.clone(), ctx.s3_client.clone());
+        let url = storage
+            .generate_upload_url(&self.0)
+            .await
+            .map_err(|_| GraphqlUserError::from("Failed to generate upload URL"))?;
+        Ok(url)
+    }
+
+    async fn download_url(&self, ctx: &AppCtx) -> Result<String, ApiError> {
+        let mut storage = StorageImpl::new(ctx.config.clone(), ctx.s3_client.clone());
+        let url = storage
+            .generate_download_url(&self.0)
+            .await
+            .map_err(|_| GraphqlUserError::from("Failed to generate download URL"))?;
+        Ok(url)
+    }
+}
+
+#[graphql_interface]
+impl Node for File {
+    fn node_id(&self) -> ID {
+        NodeId::File(self.0.id).to_id()
+    }
+}
+
+#[derive(GraphQLInputObject, Clone, Debug)]
+struct CreateFileInput {
+    mime_type: String,
+    size: i32,
+}
+
+#[derive(GraphQLObject, Clone, Debug)]
+#[graphql(context = AppCtx)]
+struct CreateFilePayload {
+    file: Option<File>,
+    errors: Option<Vec<GraphqlErrorType>>,
+}
+
+#[derive(GraphQLInputObject, Clone, Debug)]
+struct VerifyFileInput {
+    id: UlidScalar,
+}
+
+#[derive(GraphQLObject, Clone, Debug)]
+#[graphql(context = AppCtx)]
+struct VerifyFilePayload {
+    file: Option<File>,
     errors: Option<Vec<GraphqlErrorType>>,
 }
 
@@ -583,6 +672,21 @@ impl QueryRoot {
                     .map(CharacterConfigSeed::from)
                     .map(NodeValue::CharacterConfigSeed))
             }
+            NodeId::File(id) => {
+                let file = ctx
+                    .loaders
+                    .file_by_id_loader
+                    .load(
+                        FileByIdLoaderParams {
+                            user_id,
+                            verified_only: false,
+                        },
+                        id,
+                    )
+                    .await
+                    .context("load file")??;
+                Ok(file.map(File::from).map(NodeValue::File))
+            }
         }
     }
 
@@ -911,6 +1015,80 @@ impl MutationRoot {
 
         Ok(UpdateUserConfigPayload {
             user_config: Some(UserConfig::from(user_config)),
+            errors: None,
+        })
+    }
+
+    async fn create_file(
+        ctx: &AppCtx,
+        input: CreateFileInput,
+    ) -> Result<CreateFilePayload, ApiError> {
+        let mut files_repository = FilesRepositoryImpl::new(ctx.pool.clone());
+
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
+
+        let mime_type = entities::MimeType::try_from(input.mime_type.clone())
+            .map_err(|_| GraphqlUserError::from("mime_type is invalid"))?;
+
+        let size = entities::FileSize::try_from(input.size)
+            .map_err(|_| GraphqlUserError::from("size is invalid"))?;
+
+        let file = files_repository
+            .create(user_id, ctx.now, mime_type, size)
+            .await?;
+
+        Ok(CreateFilePayload {
+            file: Some(File::from(file)),
+            errors: None,
+        })
+    }
+
+    async fn verify_file(
+        ctx: &AppCtx,
+        input: VerifyFileInput,
+    ) -> Result<VerifyFilePayload, ApiError> {
+        let mut files_repository = FilesRepositoryImpl::new(ctx.pool.clone());
+        let mut storage = StorageImpl::new(ctx.config.clone(), ctx.s3_client.clone());
+
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
+
+        let file = ctx
+            .loaders
+            .file_by_id_loader
+            .load(
+                FileByIdLoaderParams {
+                    user_id: user_id.clone(),
+                    verified_only: false,
+                },
+                entities::FileId::from(input.id.0),
+            )
+            .await
+            .context("load file")??;
+        let file = file.ok_or_else(|| GraphqlUserError::from("File not found"))?;
+
+        // TODO: ここでやることではない
+        if file.verified {
+            return Ok(VerifyFilePayload {
+                file: Some(File::from(file)),
+                errors: None,
+            });
+        }
+
+        storage.verify(&file).await?;
+
+        let file = files_repository
+            .verified(ctx.now, file)
+            .await
+            .context("verify file")?;
+
+        Ok(VerifyFilePayload {
+            file: Some(File::from(file)),
             errors: None,
         })
     }

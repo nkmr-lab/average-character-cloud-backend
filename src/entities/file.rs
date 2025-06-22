@@ -66,7 +66,7 @@ pub enum FileSizeTryFromError {
     TooLarge,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash, PartialOrd, Ord, Into)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord, Into)]
 pub struct FileSize(i32);
 
 impl TryFrom<i32> for FileSize {

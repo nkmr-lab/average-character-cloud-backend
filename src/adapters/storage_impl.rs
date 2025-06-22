@@ -10,17 +10,24 @@ pub struct StorageImpl {
     pub client: aws_sdk_s3::Client,
 }
 
+impl StorageImpl {
+    pub fn new(config: AppConfig, client: aws_sdk_s3::Client) -> Self {
+        Self { config, client }
+    }
+}
+
 impl Storage for StorageImpl {
     type Error = anyhow::Error;
 
-    async fn generate_upload_url(&mut self, file: entities::File) -> Result<String, Self::Error> {
-        let expires_in = Duration::from_secs(self.config.storage.presigned_upload_expires_in_secs);
+    async fn generate_upload_url(&mut self, file: &entities::File) -> Result<String, Self::Error> {
+        let expires_in: Duration =
+            Duration::from_secs(self.config.storage.presigned_upload_expires_in_secs);
 
         let req = self
             .client
             .put_object()
             .bucket(&self.config.storage.bucket)
-            .key(String::from(file.key).as_str())
+            .key(String::from(file.key.clone()).as_str())
             .content_type(file.mime_type.value())
             .content_length(i32::from(file.size) as i64);
 
@@ -32,7 +39,10 @@ impl Storage for StorageImpl {
         Ok(url)
     }
 
-    async fn generate_download_url(&mut self, file: entities::File) -> Result<String, Self::Error> {
+    async fn generate_download_url(
+        &mut self,
+        file: &entities::File,
+    ) -> Result<String, Self::Error> {
         let expires_in =
             Duration::from_secs(self.config.storage.presigned_download_expires_in_secs);
 
@@ -40,7 +50,7 @@ impl Storage for StorageImpl {
             .client
             .get_object()
             .bucket(&self.config.storage.bucket)
-            .key(String::from(file.key).as_str());
+            .key(String::from(file.key.clone()).as_str());
 
         let presigned_req = req
             .presigned(PresigningConfig::expires_in(expires_in)?)
@@ -50,12 +60,12 @@ impl Storage for StorageImpl {
         Ok(url)
     }
 
-    async fn verify(&mut self, file: entities::File) -> Result<(), Self::Error> {
+    async fn verify(&mut self, file: &entities::File) -> Result<(), Self::Error> {
         let req = self
             .client
             .head_object()
             .bucket(&self.config.storage.bucket)
-            .key(String::from(file.key).as_str());
+            .key(String::from(file.key.clone()).as_str());
         let _ = req.send().await?;
 
         Ok(())

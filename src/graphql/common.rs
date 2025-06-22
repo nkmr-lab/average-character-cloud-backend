@@ -91,6 +91,7 @@ pub enum NodeId {
     Character(entities::Character),
     UserConfig(entities::UserId),
     CharacterConfigSeed(entities::Character, entities::StrokeCount),
+    File(entities::FileId),
 }
 
 impl NodeId {
@@ -102,9 +103,9 @@ impl NodeId {
             NodeId::CharacterConfig(user_id, character, stroke_count) => {
                 ID::new(base64::encode(format!(
                     "CharacterConfig:{}-{}-{}",
-                    base64::encode(String::from(user_id.clone())),
+                    String::from(user_id.clone()),
                     base64::encode(String::from(character.clone())),
-                    base64::encode(i32::from(*stroke_count).to_string())
+                    i32::from(*stroke_count)
                 )))
             }
             NodeId::Character(character) => ID::new(base64::encode(format!(
@@ -122,6 +123,7 @@ impl NodeId {
                     i32::from(*stroke_count),
                 )))
             }
+            NodeId::File(id) => ID::new(base64::encode(format!("File:{}", Ulid::from(*id)))),
         }
     }
 
@@ -136,14 +138,11 @@ impl NodeId {
             "CharacterConfig" => {
                 let (user_id, character_stoke_count) = id.split_once('-')?;
                 let (character, stroke_count) = character_stoke_count.split_once('-')?;
-                let user_id = base64::decode(user_id).ok()?;
-                let user_id = entities::UserId::from(String::from_utf8(user_id).ok()?);
+                let user_id = entities::UserId::from(user_id.to_string());
                 let character = base64::decode(character).ok()?;
                 let character = String::from_utf8(character).ok()?;
                 let character = entities::Character::try_from(character.as_str()).ok()?;
-                let stroke_count = base64::decode(stroke_count).ok()?;
-                let stroke_count = String::from_utf8(stroke_count).ok()?;
-                let stroke_count = i32::from_str(&stroke_count).ok()?;
+                let stroke_count = i32::from_str(stroke_count).ok()?;
                 let stroke_count = entities::StrokeCount::try_from(stroke_count).ok()?;
                 Some(NodeId::CharacterConfig(user_id, character, stroke_count))
             }
@@ -162,7 +161,9 @@ impl NodeId {
                 let stroke_count = entities::StrokeCount::try_from(stroke_count).ok()?;
                 Some(NodeId::CharacterConfigSeed(character, stroke_count))
             }
-
+            "File" => Ulid::from_str(id)
+                .ok()
+                .map(|id| NodeId::File(entities::FileId::from(id))),
             _ => None,
         })
     }

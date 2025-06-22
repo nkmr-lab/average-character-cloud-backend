@@ -61,6 +61,7 @@ async fn graphiql(config: web::Data<AppConfig>) -> HttpResponse {
 async fn graphql(
     st: web::Data<Arc<Schema>>,
     pool: web::Data<PgPool>,
+    s3_client: web::Data<aws_sdk_s3::Client>,
     data: web::Json<GraphQLRequest>,
     session: Session,
     config: web::Data<AppConfig>,
@@ -80,6 +81,8 @@ async fn graphql(
         },
         now: Utc::now(),
         loaders: Loaders::new(pool.get_ref()),
+        config: config.get_ref().clone(),
+        s3_client: s3_client.get_ref().clone(),
     };
     let res = data.execute(&st, &ctx).await;
     let json = serde_json::to_string(&res)?;
@@ -269,8 +272,7 @@ async fn google_callback(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let config = aws_config::from_env().load().await;
-    let client = aws_sdk_s3::Client::new(&config);
+    let s3_client = aws_sdk_s3::Client::new(&aws_config::from_env().load().await);
 
     tracing_subscriber::fmt::init();
     let cli = Cli::parse();
@@ -345,6 +347,7 @@ async fn main() -> anyhow::Result<()> {
                     .app_data(web::Data::new(schema.clone()))
                     .app_data(web::Data::new(config.clone()))
                     .app_data(web::Data::new(pool.clone()))
+                    .app_data(web::Data::new(s3_client.clone()))
                     .app_data(web::Data::new(faktory_pool.clone()))
                     .service(graphql)
                     .service(graphiql)

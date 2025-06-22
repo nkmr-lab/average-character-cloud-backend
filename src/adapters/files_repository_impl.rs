@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr};
+use std::str::FromStr;
 
 use crate::{entities, ports};
 use anyhow::{anyhow, Context};
@@ -86,7 +86,7 @@ where
             Ulid::from(file.id).to_string(),
             String::from(file.user_id.clone()),
             String::from(file.key.clone()),
-            file.mime_type.value().clone(),
+            file.mime_type.value(),
             i32::from(file.size.clone()),
             file.verified,
             file.created_at,
@@ -150,6 +150,7 @@ where
         &mut self,
         user_id: entities::UserId,
         ids: &[entities::FileId],
+        verified_only: bool,
     ) -> Result<Vec<entities::File>, Self::Error> {
         let mut conn = self.db.acquire().await?;
         let ids = ids
@@ -175,10 +176,11 @@ where
                 WHERE
                     id = Any($1)
                     AND user_id = $2
-                    AND verified = true
+                    AND ((NOT $3) OR verified = true)
             "#,
             ids.as_slice(),
             String::from(user_id.clone()),
+            verified_only,
         )
         .fetch_all(&mut *conn)
         .await

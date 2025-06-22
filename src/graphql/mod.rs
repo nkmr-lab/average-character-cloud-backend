@@ -367,6 +367,7 @@ struct DeleteGenerateTemplateInput {
 #[derive(GraphQLObject, Clone, Debug)]
 #[graphql(context = AppCtx)]
 struct DeleteGenerateTemplatePayload {
+    id: ID,
     errors: Option<Vec<GraphqlErrorType>>,
 }
 
@@ -1437,14 +1438,11 @@ impl MutationRoot {
             .user_id
             .clone()
             .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
-
+        let id = entities::GenerateTemplateId::from(input.generate_template_id.0);
         let mut generate_template = ctx
             .loaders
             .generate_template_by_id_loader
-            .load(
-                GenerateTemplateByIdLoaderParams { user_id },
-                entities::GenerateTemplateId::from(input.generate_template_id.0),
-            )
+            .load(GenerateTemplateByIdLoaderParams { user_id }, id)
             .await
             .context("load generate_template")??
             .ok_or_else(|| GraphqlUserError::from("id must be a valid generate template id"))?;
@@ -1455,7 +1453,10 @@ impl MutationRoot {
             .await
             .context("update generate_template")?;
 
-        Ok(DeleteGenerateTemplatePayload { errors: None })
+        Ok(DeleteGenerateTemplatePayload {
+            id: NodeId::GenerateTemplate(id).to_id(),
+            errors: None,
+        })
     }
 
     async fn update_generate_template(

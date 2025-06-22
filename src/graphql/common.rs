@@ -92,6 +92,7 @@ pub enum NodeId {
     UserConfig(entities::UserId),
     CharacterConfigSeed(entities::Character, entities::StrokeCount),
     File(entities::FileId),
+    GenerateTemplate(entities::GenerateTemplateId),
 }
 
 impl NodeId {
@@ -124,6 +125,10 @@ impl NodeId {
                 )))
             }
             NodeId::File(id) => ID::new(base64::encode(format!("File:{}", Ulid::from(*id)))),
+            NodeId::GenerateTemplate(id) => ID::new(base64::encode(format!(
+                "GenerateTemplate:{}",
+                Ulid::from(*id)
+            ))),
         }
     }
 
@@ -164,6 +169,9 @@ impl NodeId {
             "File" => Ulid::from_str(id)
                 .ok()
                 .map(|id| NodeId::File(entities::FileId::from(id))),
+            "GenerateTemplate" => Ulid::from_str(id)
+                .ok()
+                .map(|id| NodeId::GenerateTemplate(entities::GenerateTemplateId::from(id))),
             _ => None,
         })
     }

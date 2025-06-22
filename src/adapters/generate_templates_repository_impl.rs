@@ -166,6 +166,7 @@ where
                 WHERE
                     id = Any($1)
                     AND user_id = $2
+                    AND disabled = false
             "#,
             ids.as_slice(),
             String::from(user_id.clone()),
@@ -278,6 +279,7 @@ where
                     user_id = $1
                     AND ($2::VARCHAR(64) IS NULL OR id > $2)
                     AND ($3::VARCHAR(64) IS NULL OR id < $3)
+                    AND disabled = false
                 ORDER BY
                     CASE WHEN $4 = 0 THEN id END ASC,
                     CASE WHEN $4 = 1 THEN id END DESC

@@ -9,8 +9,8 @@ use juniper::{
 use ulid::Ulid;
 
 use crate::adapters::{
-    CharacterConfigsRepositoryImpl, FigureRecordsRepositoryImpl, FilesRepositoryImpl, StorageImpl,
-    UserConfigsRepositoryImpl,
+    CharacterConfigsRepositoryImpl, FigureRecordsRepositoryImpl, FilesRepositoryImpl,
+    GenerateTemplatesRepositoryImpl, StorageImpl, UserConfigsRepositoryImpl,
 };
 use crate::{entities, ports};
 
@@ -24,8 +24,8 @@ pub use app_ctx::*;
 mod loaders;
 use self::scalars::CharacterValueScalar;
 use crate::ports::{
-    CharacterConfigsRepository, FigureRecordsRepository, FilesRepository, Storage,
-    UserConfigsRepository,
+    CharacterConfigsRepository, FigureRecordsRepository, FilesRepository,
+    GenerateTemplatesRepository, Storage, UserConfigsRepository,
 };
 
 mod scalars;
@@ -34,7 +34,7 @@ use crate::loaders::{
     CharacterConfigLoaderParams, CharacterConfigSeedByCharacterLoaderParams,
     CharacterConfigSeedByIdLoaderParams, CharacterConfigSeedsLoaderParams,
     FigureRecordByIdLoaderParams, FigureRecordsByCharacterConfigIdLoaderParams,
-    FileByIdLoaderParams,
+    FileByIdLoaderParams, GenerateTemplateByIdLoaderParams, GenerateTemplatesLoaderParams,
 };
 
 /*
@@ -43,7 +43,7 @@ use crate::loaders::{
  *   https://relay.dev/graphql/connections.htm
 */
 
-#[graphql_interface(for = [FigureRecord, CharacterConfig, Character, UserConfig, CharacterConfigSeed, File], context = AppCtx)]
+#[graphql_interface(for = [FigureRecord, CharacterConfig, Character, UserConfig, CharacterConfigSeed, File, GenerateTemplate], context = AppCtx)]
 trait Node {
     #[graphql(name = "id")]
     fn node_id(&self) -> ID;
@@ -190,6 +190,183 @@ struct VerifyFileInput {
 #[graphql(context = AppCtx)]
 struct VerifyFilePayload {
     file: Option<File>,
+    errors: Option<Vec<GraphqlErrorType>>,
+}
+
+#[derive(Clone, Debug, From)]
+struct GenerateTemplate(entities::GenerateTemplate);
+
+#[juniper::graphql_object(Context = AppCtx, impl = NodeValue)]
+impl GenerateTemplate {
+    fn id(&self) -> ID {
+        self.node_id()
+    }
+
+    fn generate_template_id(&self) -> UlidScalar {
+        UlidScalar(Ulid::from(self.0.id))
+    }
+
+    async fn background_image_file(&self, ctx: &AppCtx) -> Result<File, ApiError> {
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
+
+        let file = ctx
+            .loaders
+            .file_by_id_loader
+            .load(
+                FileByIdLoaderParams {
+                    user_id,
+                    verified_only: true,
+                },
+                self.0.background_image_file_id.clone(),
+            )
+            .await
+            .context("load file")??
+            .ok_or_else(|| {
+                // TODO: internal error
+                GraphqlUserError::from("Background image file not found or not verified")
+            })?;
+
+        Ok(File::from(file))
+    }
+
+    fn font_color(&self) -> i32 {
+        i32::from(self.0.font_color)
+    }
+
+    fn writing_mode(&self) -> WritingMode {
+        WritingMode::from(self.0.writing_mode)
+    }
+
+    fn margin_block_start(&self) -> i32 {
+        i32::from(self.0.margin_block_start)
+    }
+
+    fn margin_inline_start(&self) -> i32 {
+        i32::from(self.0.margin_inline_start)
+    }
+
+    fn line_spacing(&self) -> i32 {
+        i32::from(self.0.line_spacing)
+    }
+
+    fn letter_spacing(&self) -> i32 {
+        i32::from(self.0.letter_spacing)
+    }
+
+    fn font_size(&self) -> i32 {
+        i32::from(self.0.font_size)
+    }
+
+    fn font_weight(&self) -> i32 {
+        i32::from(self.0.font_weight)
+    }
+
+    fn created_at(&self) -> DateTime<Utc> {
+        self.0.created_at
+    }
+
+    fn updated_at(&self) -> DateTime<Utc> {
+        self.0.updated_at
+    }
+}
+
+#[graphql_interface]
+impl Node for GenerateTemplate {
+    fn node_id(&self) -> ID {
+        NodeId::GenerateTemplate(self.0.id).to_id()
+    }
+}
+
+#[derive(GraphQLObject, Clone, Debug)]
+#[graphql(context = AppCtx)]
+struct GenerateTemplateEdge {
+    cursor: String,
+    node: GenerateTemplate,
+}
+
+#[derive(GraphQLObject, Clone, Debug)]
+#[graphql(context = AppCtx)]
+struct GenerateTemplateConnection {
+    page_info: PageInfo,
+    edges: Vec<GenerateTemplateEdge>,
+}
+
+#[derive(juniper::GraphQLEnum, Clone, Debug)]
+enum WritingMode {
+    Horizontal,
+    Vertical,
+}
+
+impl From<entities::WritingMode> for WritingMode {
+    fn from(value: entities::WritingMode) -> Self {
+        match value {
+            entities::WritingMode::Horizontal => WritingMode::Horizontal,
+            entities::WritingMode::Vertical => WritingMode::Vertical,
+        }
+    }
+}
+
+impl From<WritingMode> for entities::WritingMode {
+    fn from(value: WritingMode) -> Self {
+        match value {
+            WritingMode::Horizontal => entities::WritingMode::Horizontal,
+            WritingMode::Vertical => entities::WritingMode::Vertical,
+        }
+    }
+}
+
+#[derive(GraphQLInputObject, Clone, Debug)]
+struct CreateGenerateTemplateInput {
+    background_image_file_id: UlidScalar,
+    font_color: i32,
+    writing_mode: WritingMode,
+    margin_block_start: i32,
+    margin_inline_start: i32,
+    line_spacing: i32,
+    letter_spacing: i32,
+    font_size: i32,
+    font_weight: i32,
+}
+
+#[derive(GraphQLObject, Clone, Debug)]
+#[graphql(context = AppCtx)]
+struct CreateGenerateTemplatePayload {
+    generate_template: Option<GenerateTemplate>,
+    errors: Option<Vec<GraphqlErrorType>>,
+}
+
+#[derive(GraphQLInputObject, Clone, Debug)]
+struct UpdateGenerateTemplateInput {
+    generate_template_id: UlidScalar,
+    background_image_file_id: Option<UlidScalar>,
+    font_color: Option<i32>,
+    writing_mode: Option<WritingMode>,
+    margin_block_start: Option<i32>,
+    margin_inline_start: Option<i32>,
+    line_spacing: Option<i32>,
+    letter_spacing: Option<i32>,
+    font_size: Option<i32>,
+    font_weight: Option<i32>,
+}
+
+#[derive(GraphQLObject, Clone, Debug)]
+#[graphql(context = AppCtx)]
+struct UpdateGenerateTemplatePayload {
+    generate_template: Option<GenerateTemplate>,
+    errors: Option<Vec<GraphqlErrorType>>,
+}
+
+#[derive(GraphQLInputObject, Clone, Debug)]
+struct DeleteGenerateTemplateInput {
+    generate_template_id: UlidScalar,
+}
+
+#[derive(GraphQLObject, Clone, Debug)]
+#[graphql(context = AppCtx)]
+struct DeleteGenerateTemplatePayload {
     errors: Option<Vec<GraphqlErrorType>>,
 }
 
@@ -687,6 +864,17 @@ impl QueryRoot {
                     .context("load file")??;
                 Ok(file.map(File::from).map(NodeValue::File))
             }
+            NodeId::GenerateTemplate(id) => {
+                let generate_template = ctx
+                    .loaders
+                    .generate_template_by_id_loader
+                    .load(GenerateTemplateByIdLoaderParams { user_id }, id)
+                    .await
+                    .context("load generate_template")??;
+                Ok(generate_template
+                    .map(GenerateTemplate::from)
+                    .map(NodeValue::GenerateTemplate))
+            }
         }
     }
 
@@ -855,6 +1043,78 @@ impl QueryRoot {
                 .map(|character| CharacterConfigSeedEdge {
                     cursor: character.node_id().to_string(),
                     node: character,
+                })
+                .collect(),
+        })
+    }
+
+    async fn generate_templates(
+        ctx: &AppCtx,
+        first: Option<i32>,
+        after: Option<String>,
+        last: Option<i32>,
+        before: Option<String>,
+    ) -> Result<GenerateTemplateConnection, ApiError> {
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
+
+        let limit = encode_limit(first, last)?;
+
+        let after_id = after
+            .map(|after| -> anyhow::Result<_> {
+                let Some(NodeId::GenerateTemplate(id)) = NodeId::from_id(&ID::new(after)) else {
+                    return Err(GraphqlUserError::from("after must be a valid cursor").into());
+                };
+
+                Ok(id)
+            })
+            .transpose()?;
+
+        let before_id = before
+            .map(|before| -> anyhow::Result<_> {
+                let Some(NodeId::GenerateTemplate(id)) = NodeId::from_id(&ID::new(before)) else {
+                    return Err(GraphqlUserError::from("before must be a valid cursor").into());
+                };
+
+                Ok(id)
+            })
+            .transpose()?;
+
+        let result = ctx
+            .loaders
+            .generate_templates_loader
+            .load(
+                GenerateTemplatesLoaderParams {
+                    user_id,
+                    after_id,
+                    before_id,
+                    limit: limit.clone(),
+                },
+                (),
+            )
+            .await
+            .context("load generate_template")??;
+
+        let records = result
+            .values
+            .into_iter()
+            .map(GenerateTemplate::from)
+            .collect::<Vec<_>>();
+
+        Ok(GenerateTemplateConnection {
+            page_info: PageInfo {
+                has_next_page: result.has_next && limit.kind() == entities::LimitKind::First,
+                has_previous_page: result.has_next && limit.kind() == entities::LimitKind::Last,
+                start_cursor: records.first().map(|record| record.node_id().to_string()),
+                end_cursor: records.last().map(|record| record.node_id().to_string()),
+            },
+            edges: records
+                .into_iter()
+                .map(|generate_template| GenerateTemplateEdge {
+                    cursor: generate_template.node_id().to_string(),
+                    node: generate_template,
                 })
                 .collect(),
         })
@@ -1089,6 +1349,211 @@ impl MutationRoot {
 
         Ok(VerifyFilePayload {
             file: Some(File::from(file)),
+            errors: None,
+        })
+    }
+
+    async fn create_generate_template(
+        ctx: &AppCtx,
+        input: CreateGenerateTemplateInput,
+    ) -> Result<CreateGenerateTemplatePayload, ApiError> {
+        let mut generate_templates_repository =
+            GenerateTemplatesRepositoryImpl::new(ctx.pool.clone());
+
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
+
+        let id = entities::GenerateTemplateId::from(Ulid::from_datetime(ctx.now));
+        let background_image_file = ctx
+            .loaders
+            .file_by_id_loader
+            .load(
+                FileByIdLoaderParams {
+                    user_id: user_id.clone(),
+                    verified_only: true,
+                },
+                entities::FileId::from(input.background_image_file_id.0),
+            )
+            .await
+            .context("load background image file")??
+            .ok_or_else(|| {
+                GraphqlUserError::from("background_image_file_id must be a valid file id")
+            })?;
+        let font_color = entities::Color::try_from(input.font_color)
+            .map_err(|_| GraphqlUserError::from("font_color must be a valid hex color"))?;
+        let writing_mode = entities::WritingMode::try_from(input.writing_mode)
+            .map_err(|_| GraphqlUserError::from("writing_mode must be a valid writing mode"))?;
+        let margin_block_start = entities::Margin::try_from(input.margin_block_start)
+            .map_err(|_| GraphqlUserError::from("margin_block_start must be a valid margin"))?;
+        let margin_inline_start = entities::Margin::try_from(input.margin_inline_start)
+            .map_err(|_| GraphqlUserError::from("margin_inline_start must be a valid margin"))?;
+        let line_spacing = entities::Spacing::try_from(input.line_spacing)
+            .map_err(|_| GraphqlUserError::from("line_spacing must be a valid spacing"))?;
+        let letter_spacing = entities::Spacing::try_from(input.letter_spacing)
+            .map_err(|_| GraphqlUserError::from("letter_spacing must be a valid spacing"))?;
+        let font_size = entities::FontSize::try_from(input.font_size)
+            .map_err(|_| GraphqlUserError::from("font_size must be a valid font size"))?;
+        let font_weight = entities::FontWeight::try_from(input.font_weight)
+            .map_err(|_| GraphqlUserError::from("font_weight must be a valid font weight"))?;
+
+        let generate_template = entities::GenerateTemplate {
+            id,
+            user_id,
+            background_image_file_id: background_image_file.id,
+            font_color,
+            writing_mode,
+            margin_block_start,
+            margin_inline_start,
+            line_spacing,
+            letter_spacing,
+            font_size,
+            font_weight,
+            created_at: ctx.now,
+            updated_at: ctx.now,
+            disabled: false,
+            version: entities::Version::none(),
+        };
+
+        let generate_template = generate_templates_repository
+            .create(generate_template)
+            .await?;
+
+        Ok(CreateGenerateTemplatePayload {
+            generate_template: Some(GenerateTemplate::from(generate_template)),
+            errors: None,
+        })
+    }
+
+    async fn delete_generate_template(
+        ctx: &AppCtx,
+        input: DeleteGenerateTemplateInput,
+    ) -> Result<DeleteGenerateTemplatePayload, ApiError> {
+        let mut generate_templates_repository =
+            GenerateTemplatesRepositoryImpl::new(ctx.pool.clone());
+
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
+
+        let mut generate_template = ctx
+            .loaders
+            .generate_template_by_id_loader
+            .load(
+                GenerateTemplateByIdLoaderParams { user_id },
+                entities::GenerateTemplateId::from(input.generate_template_id.0),
+            )
+            .await
+            .context("load generate_template")??
+            .ok_or_else(|| GraphqlUserError::from("id must be a valid generate template id"))?;
+
+        generate_template.disabled = true;
+        generate_templates_repository
+            .update(ctx.now, generate_template)
+            .await
+            .context("update generate_template")?;
+
+        Ok(DeleteGenerateTemplatePayload { errors: None })
+    }
+
+    async fn update_generate_template(
+        ctx: &AppCtx,
+        input: UpdateGenerateTemplateInput,
+    ) -> Result<UpdateGenerateTemplatePayload, ApiError> {
+        let mut generate_templates_repository =
+            GenerateTemplatesRepositoryImpl::new(ctx.pool.clone());
+
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
+
+        let id = entities::GenerateTemplateId::from(input.generate_template_id.0);
+
+        let mut generate_template = ctx
+            .loaders
+            .generate_template_by_id_loader
+            .load(
+                GenerateTemplateByIdLoaderParams {
+                    user_id: user_id.clone(),
+                },
+                id,
+            )
+            .await
+            .context("load generate_template")??
+            .ok_or_else(|| GraphqlUserError::from("id must be a valid generate template id"))?;
+
+        if let Some(background_image_file_id) = input.background_image_file_id {
+            let background_image_file = ctx
+                .loaders
+                .file_by_id_loader
+                .load(
+                    FileByIdLoaderParams {
+                        user_id: user_id.clone(),
+                        verified_only: true,
+                    },
+                    entities::FileId::from(background_image_file_id.0),
+                )
+                .await
+                .context("load background image file")??
+                .ok_or_else(|| {
+                    GraphqlUserError::from("background_image_file_id must be a valid file id")
+                })?;
+            generate_template.background_image_file_id = background_image_file.id;
+        }
+
+        if let Some(font_color) = input.font_color {
+            generate_template.font_color = entities::Color::try_from(font_color)
+                .map_err(|_| GraphqlUserError::from("font_color must be a valid hex color"))?;
+        }
+
+        if let Some(writing_mode) = input.writing_mode {
+            generate_template.writing_mode = entities::WritingMode::from(writing_mode);
+        }
+
+        if let Some(margin_block_start) = input.margin_block_start {
+            generate_template.margin_block_start = entities::Margin::try_from(margin_block_start)
+                .map_err(|_| {
+                GraphqlUserError::from("margin_block_start must be a valid margin")
+            })?;
+        }
+
+        if let Some(margin_inline_start) = input.margin_inline_start {
+            generate_template.margin_inline_start = entities::Margin::try_from(margin_inline_start)
+                .map_err(|_| {
+                    GraphqlUserError::from("margin_inline_start must be a valid margin")
+                })?;
+        }
+
+        if let Some(line_spacing) = input.line_spacing {
+            generate_template.line_spacing = entities::Spacing::try_from(line_spacing)
+                .map_err(|_| GraphqlUserError::from("line_spacing must be a valid spacing"))?;
+        }
+
+        if let Some(letter_spacing) = input.letter_spacing {
+            generate_template.letter_spacing = entities::Spacing::try_from(letter_spacing)
+                .map_err(|_| GraphqlUserError::from("letter_spacing must be a valid spacing"))?;
+        }
+
+        if let Some(font_size) = input.font_size {
+            generate_template.font_size = entities::FontSize::try_from(font_size)
+                .map_err(|_| GraphqlUserError::from("font_size must be a valid font size"))?;
+        }
+
+        if let Some(font_weight) = input.font_weight {
+            generate_template.font_weight = entities::FontWeight::try_from(font_weight)
+                .map_err(|_| GraphqlUserError::from("font_weight must be a valid font weight"))?;
+        }
+
+        let generate_template = generate_templates_repository
+            .update(ctx.now, generate_template)
+            .await
+            .context("update generate_template")?;
+
+        Ok(UpdateGenerateTemplatePayload {
+            generate_template: Some(GenerateTemplate::from(generate_template)),
             errors: None,
         })
     }

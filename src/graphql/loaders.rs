@@ -4,7 +4,7 @@ use crate::loaders::{
     CharacterConfigByCharacterLoader, CharacterConfigByIdLoader, CharacterConfigLoader,
     CharacterConfigSeedByCharacterLoader, CharacterConfigSeedByIdLoader,
     CharacterConfigSeedsLoader, FigureRecordByIdLoader, FigureRecordsByCharacterConfigIdLoader,
-    FileByIdLoader,
+    FileByIdLoader, GenerateTemplateByIdLoader, GenerateTemplatesLoader,
 };
 use crate::{adapters, DataloaderWithParams};
 
@@ -34,6 +34,12 @@ pub struct Loaders {
     >,
     pub file_by_id_loader:
         DataloaderWithParams<FileByIdLoader<adapters::FilesRepositoryImpl<PgPool>>>,
+    pub generate_template_by_id_loader: DataloaderWithParams<
+        GenerateTemplateByIdLoader<adapters::GenerateTemplatesRepositoryImpl<PgPool>>,
+    >,
+    pub generate_templates_loader: DataloaderWithParams<
+        GenerateTemplatesLoader<adapters::GenerateTemplatesRepositoryImpl<PgPool>>,
+    >,
 }
 
 impl Loaders {
@@ -84,6 +90,16 @@ impl Loaders {
             }),
             file_by_id_loader: DataloaderWithParams::new(FileByIdLoader {
                 files_repository: adapters::FilesRepositoryImpl::new(pool.clone()),
+            }),
+            generate_template_by_id_loader: DataloaderWithParams::new(GenerateTemplateByIdLoader {
+                generate_templates_repository: adapters::GenerateTemplatesRepositoryImpl::new(
+                    pool.clone(),
+                ),
+            }),
+            generate_templates_loader: DataloaderWithParams::new(GenerateTemplatesLoader {
+                generate_templates_repository: adapters::GenerateTemplatesRepositoryImpl::new(
+                    pool.clone(),
+                ),
             }),
         }
     }

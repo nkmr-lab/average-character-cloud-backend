@@ -67,8 +67,8 @@
       in
       {
         packages = {
-          default = (self.packages.${system}.average-character-cloud-backend { }).bin;
-          average-character-cloud-backend = rustPkgs.workspace.average-character-cloud-backend;
+          default = self.packages.${system}.average-character-cloud-backend;
+          average-character-cloud-backend = (rustPkgs.workspace.average-character-cloud-backend { }).bin;
           average-character-cloud-backend-docker = pkgs.dockerTools.buildImage {
             name = "average-character-cloud-backend";
             contents = [

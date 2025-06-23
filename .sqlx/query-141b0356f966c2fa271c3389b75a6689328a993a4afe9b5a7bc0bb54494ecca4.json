@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                character,\n                stroke_count,\n                ratio,\n                updated_at\n            FROM\n                character_config_seeds\n            WHERE\n                $8 OR NOT EXISTS (\n                    SELECT\n                        1\n                    FROM\n                        character_configs\n                    WHERE\n                        character_configs.user_id = $1\n                        AND character_configs.character = character_config_seeds.character\n                        AND character_configs.stroke_count = character_config_seeds.stroke_count\n                        AND character_configs.disabled = false\n                )\n                AND\n                ($2::VARCHAR(64) IS NULL OR (character, stroke_count) > ($2, $3))\n                AND\n                ($4::VARCHAR(64) IS NULL OR (character, stroke_count) < ($4, $5))\n            ORDER BY\n                CASE WHEN $6 = 0 THEN (character, stroke_count) END ASC,\n                CASE WHEN $6 = 1 THEN (character, stroke_count) END DESC\n            LIMIT $7\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "character",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "stroke_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "ratio",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Varchar",
+        "Int4",
+        "Varchar",
+        "Int4",
+        "Int4",
+        "Int8",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "141b0356f966c2fa271c3389b75a6689328a993a4afe9b5a7bc0bb54494ecca4"
+}

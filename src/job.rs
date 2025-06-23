@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use r2d2::Pool;
 
 use sqlx::PgPool;
@@ -13,8 +12,7 @@ use thiserror::Error;
 #[error(transparent)]
 pub struct JobError(#[from] pub anyhow::Error);
 
-#[async_trait]
-pub trait Job<'de>: Deserialize<'de> + Serialize + 'static {
+pub trait Job<'de>: Deserialize<'de> + Serialize + 'static + Send {
     const JOB_TYPE: &'static str;
 
     async fn run(self, ctx: Ctx) -> Result<(), anyhow::Error>;

@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    r.id,\n                    r.user_id,\n                    r.character,\n                    r.figure,\n                    r.created_at,\n                    r.stroke_count,\n                    r.disabled,\n                    r.version\n                FROM\n                    figure_records AS r\n                    LEFT OUTER JOIN user_configs ON r.user_id = user_configs.user_id\n                WHERE\n                    r.id = Any($1)\n                    AND (r.user_id = $2 OR user_configs.allow_sharing_figure_records)\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "character",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "figure",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "stroke_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "disabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "version",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "aefcff071f276e10d3f673724cc7cb4dcdc8f4e2163d4afb1ce24891ec936fda"
+}

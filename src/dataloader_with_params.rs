@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use dataloader::cached::Loader;
 use dataloader::BatchFn;
 use std::collections::HashMap;
@@ -9,7 +8,6 @@ use std::marker::Send;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-#[async_trait]
 pub trait BatchFnWithParams: Clone + Send {
     type K: Eq + Hash + Clone + fmt::Debug + Send + Sync;
     type V: Clone + Send;
@@ -27,7 +25,6 @@ pub struct DataloaderWithParamsBatchFn<F: BatchFnWithParams> {
     f: F,
 }
 
-#[async_trait]
 impl<F: BatchFnWithParams> BatchFn<F::K, F::V> for DataloaderWithParamsBatchFn<F> {
     async fn load(&mut self, keys: &[F::K]) -> HashMap<F::K, F::V> {
         self.f.load_with_params(&self.params, keys).await

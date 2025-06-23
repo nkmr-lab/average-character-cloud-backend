@@ -1,4 +1,2 @@
 flake.lock linguist-generated=true
-crate-hashes.json linguist-generated=true
-sqlx-data.json linguist-generated=true
-Cargo.nix linguist-generated=true
+.sqlx/ linguist-generated=true

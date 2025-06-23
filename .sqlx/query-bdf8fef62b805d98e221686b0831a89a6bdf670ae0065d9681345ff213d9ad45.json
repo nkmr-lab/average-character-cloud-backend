@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    character,\n                    stroke_count,\n                    ratio,\n                    updated_at\n                FROM\n                    character_config_seeds\n                WHERE\n                    character = Any($1)\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "character",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "stroke_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "ratio",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "bdf8fef62b805d98e221686b0831a89a6bdf670ae0065d9681345ff213d9ad45"
+}

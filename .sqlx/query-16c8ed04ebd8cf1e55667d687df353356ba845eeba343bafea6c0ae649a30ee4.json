@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM character_config_seeds",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "16c8ed04ebd8cf1e55667d687df353356ba845eeba343bafea6c0ae649a30ee4"
+}

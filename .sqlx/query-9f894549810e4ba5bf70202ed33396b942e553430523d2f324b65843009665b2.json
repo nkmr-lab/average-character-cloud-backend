@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    UPDATE user_configs\n                        SET\n                            updated_at = $1,\n                            allow_sharing_character_configs = $2,\n                            allow_sharing_figure_records = $3,\n                            random_level = $4,\n                            shared_proportion = $5,\n                            version = $6\n                        WHERE\n                            user_id = $7\n                            AND\n                            version = $8\n                    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Bool",
+        "Bool",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9f894549810e4ba5bf70202ed33396b942e553430523d2f324b65843009665b2"
+}

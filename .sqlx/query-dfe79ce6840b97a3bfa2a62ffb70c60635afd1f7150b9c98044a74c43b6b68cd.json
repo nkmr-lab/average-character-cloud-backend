@@ -1,0 +1,110 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    id,\n                    user_id,\n                    background_image_file_id,\n                    font_color,\n                    writing_mode,\n                    margin_block_start,\n                    margin_inline_start,\n                    line_spacing,\n                    letter_spacing,\n                    font_size,\n                    font_weight,\n                    created_at,\n                    updated_at,\n                    disabled,\n                    version\n                FROM\n                    generate_templates\n                WHERE\n                    user_id = $1\n                    AND ($2::VARCHAR(64) IS NULL OR id > $2)\n                    AND ($3::VARCHAR(64) IS NULL OR id < $3)\n                    AND disabled = false\n                ORDER BY\n                    CASE WHEN $4 = 0 THEN id END ASC,\n                    CASE WHEN $4 = 1 THEN id END DESC\n                LIMIT $5\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "background_image_file_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "font_color",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "writing_mode",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "margin_block_start",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "margin_inline_start",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "line_spacing",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "letter_spacing",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "font_size",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "font_weight",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "disabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 14,
+        "name": "version",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Varchar",
+        "Varchar",
+        "Int4",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "dfe79ce6840b97a3bfa2a62ffb70c60635afd1f7150b9c98044a74c43b6b68cd"
+}

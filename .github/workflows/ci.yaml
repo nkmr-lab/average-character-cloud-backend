@@ -75,7 +75,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: average-character-cloud-backend
-          path: result-release/bin/average-character-cloud-backend
+          path: result-release-bin/bin/average-character-cloud-backend
       - name: Docker build
         run: |
           nix build .#average-character-cloud-backend-docker --out-link result-docker

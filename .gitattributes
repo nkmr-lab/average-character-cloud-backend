@@ -1,2 +1,2 @@
 flake.lock linguist-generated=true
-sqlx-data.json linguist-generated=true
+.sqlx/ linguist-generated=true

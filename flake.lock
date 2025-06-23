@@ -33,11 +33,11 @@
         "crate2nix": "crate2nix"
       },
       "locked": {
-        "lastModified": 1741315409,
-        "narHash": "sha256-2AxBH/NLbbbCfbtF3XS77+fibidg5XL3Lwm5msdPETw=",
+        "lastModified": 1750664309,
+        "narHash": "sha256-RYo1toLRBZAx64J9kpytBFu9HSMB2nG3H5SAR0ffG18=",
         "owner": "kgtkr",
         "repo": "cargo2nix-ifd",
-        "rev": "a9e936141be28e24d5c37d9f40ed866fa5043373",
+        "rev": "47df3e078d7f2fe99523a6c6eba53d6ff7a26c4c",
         "type": "github"
       },
       "original": {

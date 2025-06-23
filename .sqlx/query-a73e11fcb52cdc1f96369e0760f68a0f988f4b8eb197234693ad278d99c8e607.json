@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE figure_records\n                SET\n                    disabled = $1,\n                    version = $2\n                WHERE\n                    user_id = $3\n                    AND\n                    id = $4\n                    AND\n                    version = $5\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bool",
+        "Int4",
+        "Text",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a73e11fcb52cdc1f96369e0760f68a0f988f4b8eb197234693ad278d99c8e607"
+}

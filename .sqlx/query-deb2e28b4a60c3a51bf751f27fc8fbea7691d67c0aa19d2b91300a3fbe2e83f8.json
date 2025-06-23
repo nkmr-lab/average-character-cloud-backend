@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE files\n                SET\n                    verified = $1,\n                    updated_at = $2,\n                    version = $3\n                WHERE\n                    user_id = $4\n                    AND\n                    id = $5\n                    AND\n                    version = $6\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bool",
+        "Timestamptz",
+        "Int4",
+        "Text",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "deb2e28b4a60c3a51bf751f27fc8fbea7691d67c0aa19d2b91300a3fbe2e83f8"
+}

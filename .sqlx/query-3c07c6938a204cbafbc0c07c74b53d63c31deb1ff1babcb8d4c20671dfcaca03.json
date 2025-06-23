@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO generate_templates (\n                    id,\n                    user_id,\n                    background_image_file_id,\n                    font_color,\n                    writing_mode,\n                    margin_block_start,\n                    margin_inline_start,\n                    line_spacing,\n                    letter_spacing,\n                    font_size,\n                    font_weight,\n                    created_at,\n                    updated_at,\n                    disabled,\n                    version\n                )\n                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Timestamptz",
+        "Timestamptz",
+        "Bool",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3c07c6938a204cbafbc0c07c74b53d63c31deb1ff1babcb8d4c20671dfcaca03"
+}

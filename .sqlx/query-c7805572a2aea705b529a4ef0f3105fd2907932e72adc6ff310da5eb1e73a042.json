@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    UPDATE character_configs\n                        SET\n                            updated_at = $1,\n                            ratio = $2,\n                            version = $3,\n                            disabled = $8\n                        WHERE\n                            user_id = $4\n                            AND\n                            character = $5\n                            AND\n                            stroke_count = $6\n                            AND\n                            version = $7\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Int4",
+        "Int4",
+        "Text",
+        "Text",
+        "Int4",
+        "Int4",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c7805572a2aea705b529a4ef0f3105fd2907932e72adc6ff310da5eb1e73a042"
+}

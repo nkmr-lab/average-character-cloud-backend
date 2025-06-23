@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH input_pairs AS (\n                SELECT a, b\n                FROM unnest($1::VARCHAR(8)[], $2::INTEGER[]) AS t(a, b)\n            )\n            SELECT\n                character,\n                stroke_count,\n                ratio,\n                updated_at\n            FROM\n                character_config_seeds\n            JOIN\n                input_pairs ON character_config_seeds.character = input_pairs.a\n                AND character_config_seeds.stroke_count = input_pairs.b\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "character",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "stroke_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "ratio",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "VarcharArray",
+        "Int4Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "ab64620b5fbe8c3d8dfd01183364df2de9e328578a525e0719b80416aab55f2a"
+}

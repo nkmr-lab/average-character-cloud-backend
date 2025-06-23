@@ -28,9 +28,9 @@
         filteredSrc = cargo2nix-ifd-lib.filterSrc {
           orFilter = path: _type:
             let
-              files = [ "sqlx-data.json" ];
+              parentDirs = [ "migrations" ".sqlx" ];
             in
-            pkgs.lib.any (file: baseNameOf path == file) files;
+            pkgs.lib.any (dir: baseNameOf (dirOf path) == dir) parentDirs;
           inherit projectName src;
         };
         generatedSrc = cargo2nix-ifd-lib.generateSrc {
@@ -46,6 +46,19 @@
                 overrideAttrs = drv:
                   {
                     SQLX_OFFLINE = 1;
+                  };
+              })
+              # https://github.com/launchbadge/sqlx/issues/2911 の問題でnix buildのときビルドしてしまうためworkaround
+              (pkgs.rustBuilder.rustLib.makeOverride {
+                name = "sqlx-sqlite";
+                overrideAttrs = drv:
+                  {
+                    propagatedBuildInputs = drv.propagatedBuildInputs or [ ] ++ [
+                      pkgs.sqlite
+                    ];
+                    patchPhase = ''
+                      echo "" > src/lib.rs
+                    '';
                   };
               })
             ];

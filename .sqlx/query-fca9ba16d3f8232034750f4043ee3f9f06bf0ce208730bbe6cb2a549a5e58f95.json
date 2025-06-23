@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                user_id,\n                character,\n                stroke_count,\n                ratio,\n                updated_at,\n                version,\n                disabled\n            FROM\n                character_configs\n            WHERE\n                user_id = $1\n                AND\n                ($2::VARCHAR(64) IS NULL OR (character, stroke_count) > ($2, $3))\n                AND\n                ($4::VARCHAR(64) IS NULL OR (character, stroke_count) < ($4, $5))\n                AND\n                disabled = false\n            ORDER BY\n                CASE WHEN $6 = 0 THEN (character, stroke_count) END ASC,\n                CASE WHEN $6 = 1 THEN (character, stroke_count) END DESC\n            LIMIT $7\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "character",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "stroke_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "ratio",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "version",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "disabled",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Varchar",
+        "Int4",
+        "Varchar",
+        "Int4",
+        "Int4",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "fca9ba16d3f8232034750f4043ee3f9f06bf0ce208730bbe6cb2a549a5e58f95"
+}

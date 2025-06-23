@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                user_id,\n                allow_sharing_character_configs,\n                allow_sharing_figure_records,\n                random_level,\n                shared_proportion,\n                updated_at,\n                version\n            FROM\n                user_configs\n            WHERE\n                user_id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "allow_sharing_character_configs",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 2,
+        "name": "allow_sharing_figure_records",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 3,
+        "name": "random_level",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "shared_proportion",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "version",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "65c13d9934a8d84c9843e2fad4d98f6272826d964c3bd3ca31cd734aaa6846a8"
+}

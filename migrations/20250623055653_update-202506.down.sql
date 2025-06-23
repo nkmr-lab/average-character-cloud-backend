@@ -1,0 +1,16 @@
+ALTER TABLE "public"."character_config_seeds" DROP CONSTRAINT "character";
+ALTER TABLE "public"."character_config_seeds" ADD CONSTRAINT "character_config_seeds_pkey" PRIMARY KEY ("character");
+ALTER TABLE "public"."character_configs" ADD COLUMN "created_at" timestamp WITH TIME ZONE NOT NULL;
+ALTER TABLE "public"."character_configs" DROP CONSTRAINT "user_id";
+ALTER TABLE "public"."character_configs" ADD CONSTRAINT "character_configs_pkey" PRIMARY KEY ("user_id", "character");
+CREATE INDEX character_configs_created_at_idx ON public.character_configs USING btree (created_at);
+DROP INDEX "public"."character_configs_user_id_idx";
+DROP INDEX "public"."character_configs_character_idx";
+DROP INDEX "public"."character_configs_disabled_idx";
+ALTER TABLE "public"."character_configs" DROP COLUMN "ratio";
+ALTER TABLE "public"."character_configs" DROP COLUMN "disabled";
+ALTER TABLE "public"."user_configs" DROP COLUMN "random_level";
+ALTER TABLE "public"."user_configs" DROP COLUMN "shared_proportion";
+ALTER TABLE "public"."character_config_seeds" DROP COLUMN "ratio";
+DROP TABLE "public"."files";
+DROP TABLE "public"."generate_templates";

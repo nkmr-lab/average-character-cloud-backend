@@ -540,6 +540,25 @@ impl CharacterConfigSeed {
     fn updated_at(&self) -> DateTime<Utc> {
         self.0.updated_at
     }
+
+    async fn character_config(&self, ctx: &mut AppCtx) -> Result<CharacterConfig, ApiError> {
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
+
+        let character_config = ctx
+            .loaders
+            .character_config_by_id_loader
+            .load(
+                CharacterConfigByIdLoaderParams { user_id },
+                (self.0.character.clone(), self.0.stroke_count),
+            )
+            .await
+            .context("load character_config")??;
+
+        Ok(CharacterConfig::from(character_config))
+    }
 }
 
 #[derive(GraphQLObject, Clone, Debug)]

@@ -48,8 +48,7 @@ where
             r#"
             SELECT
                 character,
-                stroke_count,
-                AVG(ratio)::INTEGER as avg_ratio
+                ROUND(AVG(stroke_count))::INTEGER AS stroke_count
             FROM
                 character_configs
                 INNER JOIN user_configs ON character_configs.user_id = user_configs.user_id
@@ -58,7 +57,7 @@ where
                 AND
                 character_configs.disabled = false
             GROUP BY
-                character, stroke_count
+                character
             "#,
         )
         .fetch_all(&mut *trx)
@@ -76,8 +75,7 @@ where
                 "#,
                 row.character,
                 row.stroke_count,
-                row.avg_ratio
-                    .ok_or_else(|| anyhow::anyhow!("avg_ratio is null"))?,
+                100,
                 now,
             )
             .execute(&mut *trx)

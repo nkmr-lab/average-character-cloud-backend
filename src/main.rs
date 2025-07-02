@@ -40,6 +40,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     Migrate,
+    MigrateStorage,
 }
 
 #[get("/graphiql")]
@@ -297,6 +298,25 @@ async fn main() -> anyhow::Result<()> {
             .run(&pool)
             .await
             .context("migrate"),
+        Some(Commands::MigrateStorage) => {
+            let bucket_exists = s3_client
+                .head_bucket()
+                .bucket(config.storage.bucket.clone())
+                .send()
+                .await
+                .is_ok();
+            if bucket_exists {
+                tracing::info!("S3 bucket already exists: {}", config.storage.bucket);
+            } else {
+                s3_client
+                    .create_bucket()
+                    .bucket(config.storage.bucket.clone())
+                    .send()
+                    .await
+                    .context("Failed to create S3 bucket")?;
+            }
+            Ok(())
+        }
         None => {
             let host = config.host.clone();
             let port = config.port;

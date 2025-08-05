@@ -143,7 +143,11 @@ impl File {
     }
 
     async fn upload_url(&self, ctx: &AppCtx) -> Result<String, ApiError> {
-        let mut storage = StorageImpl::new(ctx.config.clone(), ctx.s3_client.clone());
+        let mut storage = StorageImpl::new(
+            ctx.config.clone(),
+            ctx.s3_client.clone(),
+            ctx.s3_presign_client.clone(),
+        );
         let url = storage
             .generate_upload_url(&self.0)
             .await
@@ -152,7 +156,11 @@ impl File {
     }
 
     async fn download_url(&self, ctx: &AppCtx) -> Result<String, ApiError> {
-        let mut storage = StorageImpl::new(ctx.config.clone(), ctx.s3_client.clone());
+        let mut storage = StorageImpl::new(
+            ctx.config.clone(),
+            ctx.s3_client.clone(),
+            ctx.s3_presign_client.clone(),
+        );
         let url = storage
             .generate_download_url(&self.0)
             .await
@@ -539,6 +547,25 @@ impl CharacterConfigSeed {
 
     fn updated_at(&self) -> DateTime<Utc> {
         self.0.updated_at
+    }
+
+    async fn character_config(&self, ctx: &mut AppCtx) -> Result<CharacterConfig, ApiError> {
+        let user_id = ctx
+            .user_id
+            .clone()
+            .ok_or_else(|| GraphqlUserError::from("Authentication required"))?;
+
+        let character_config = ctx
+            .loaders
+            .character_config_by_id_loader
+            .load(
+                CharacterConfigByIdLoaderParams { user_id },
+                (self.0.character.clone(), self.0.stroke_count),
+            )
+            .await
+            .context("load character_config")??;
+
+        Ok(CharacterConfig::from(character_config))
     }
 }
 
@@ -1312,7 +1339,11 @@ impl MutationRoot {
         input: VerifyFileInput,
     ) -> Result<VerifyFilePayload, ApiError> {
         let mut files_repository = FilesRepositoryImpl::new(ctx.pool.clone());
-        let mut storage = StorageImpl::new(ctx.config.clone(), ctx.s3_client.clone());
+        let mut storage = StorageImpl::new(
+            ctx.config.clone(),
+            ctx.s3_client.clone(),
+            ctx.s3_presign_client.clone(),
+        );
 
         let user_id = ctx
             .user_id

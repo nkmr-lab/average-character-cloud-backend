@@ -40,6 +40,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     Migrate,
+    MigrateStorage,
 }
 
 #[get("/graphiql")]
@@ -62,6 +63,7 @@ async fn graphql(
     st: web::Data<Arc<Schema>>,
     pool: web::Data<PgPool>,
     s3_client: web::Data<aws_sdk_s3::Client>,
+    s3_presign_client: web::Data<S3PresignClient>,
     data: web::Json<GraphQLRequest>,
     session: Session,
     config: web::Data<AppConfig>,
@@ -83,6 +85,7 @@ async fn graphql(
         loaders: Loaders::new(pool.get_ref()),
         config: config.get_ref().clone(),
         s3_client: s3_client.get_ref().clone(),
+        s3_presign_client: s3_presign_client.0.clone(),
     };
     let res = data.execute(&st, &ctx).await;
     let json = serde_json::to_string(&res)?;
@@ -90,6 +93,10 @@ async fn graphql(
         .content_type("application/json")
         .body(json))
 }
+
+// newtype for web::Data
+#[derive(Debug, Clone)]
+struct S3PresignClient(aws_sdk_s3::Client);
 
 #[derive(Serialize, Deserialize)]
 struct GoogleCallbackParams {
@@ -282,7 +289,12 @@ async fn main() -> anyhow::Result<()> {
     if config.storage.path_style {
         s3_config_builder = s3_config_builder.force_path_style(true);
     }
-    let s3_client = aws_sdk_s3::Client::from_conf(s3_config_builder.build());
+    let s3_client = aws_sdk_s3::Client::from_conf(s3_config_builder.clone().build());
+    if let Some(public_endpoint) = &config.storage.public_endpoint {
+        s3_config_builder = s3_config_builder.endpoint_url(public_endpoint.clone());
+    }
+    let s3_presign_client =
+        S3PresignClient(aws_sdk_s3::Client::from_conf(s3_config_builder.build()));
 
     let pool = PgPoolOptions::new()
         .connect(&config.database_url)
@@ -297,6 +309,25 @@ async fn main() -> anyhow::Result<()> {
             .run(&pool)
             .await
             .context("migrate"),
+        Some(Commands::MigrateStorage) => {
+            let bucket_exists = s3_client
+                .head_bucket()
+                .bucket(config.storage.bucket.clone())
+                .send()
+                .await
+                .is_ok();
+            if bucket_exists {
+                tracing::info!("S3 bucket already exists: {}", config.storage.bucket);
+            } else {
+                s3_client
+                    .create_bucket()
+                    .bucket(config.storage.bucket.clone())
+                    .send()
+                    .await
+                    .context("Failed to create S3 bucket")?;
+            }
+            Ok(())
+        }
         None => {
             let host = config.host.clone();
             let port = config.port;
@@ -354,6 +385,7 @@ async fn main() -> anyhow::Result<()> {
                     .app_data(web::Data::new(config.clone()))
                     .app_data(web::Data::new(pool.clone()))
                     .app_data(web::Data::new(s3_client.clone()))
+                    .app_data(web::Data::new(s3_presign_client.clone()))
                     .app_data(web::Data::new(faktory_pool.clone()))
                     .service(graphql)
                     .service(graphiql)

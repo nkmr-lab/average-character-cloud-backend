@@ -13,6 +13,7 @@ pub struct AppCtx {
     pub loaders: Loaders,
     pub config: AppConfig,
     pub s3_client: aws_sdk_s3::Client,
+    pub s3_presign_client: aws_sdk_s3::Client,
 }
 
 impl juniper::Context for AppCtx {}

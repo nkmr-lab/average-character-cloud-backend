@@ -1,8 +1,8 @@
 use derive_more::Into;
 use thiserror::Error;
 
-// 20 MB
-const MAX_FILE_SIZE: i32 = 20 * 1024 * 1024;
+// 50 MB
+const MAX_FILE_SIZE: i32 = 50 * 1024 * 1024;
 
 #[derive(Error, Debug, Clone)]
 pub enum FileSizeTryFromError {

@@ -98,6 +98,8 @@ pub struct StorageConfig {
     pub presigned_download_expires_in_secs: u64,
     #[serde(default)]
     pub path_style: bool,
+    #[serde(default)]
+    pub public_endpoint: Option<String>,
 }
 
 fn storage_presigned_upload_expires_in_secs_default() -> u64 {

@@ -7,12 +7,21 @@ use crate::{app_config::AppConfig, entities, ports::Storage};
 #[derive(Debug, Clone)]
 pub struct StorageImpl {
     pub config: AppConfig,
-    pub client: aws_sdk_s3::Client,
+    pub s3_client: aws_sdk_s3::Client,
+    pub s3_presign_client: aws_sdk_s3::Client,
 }
 
 impl StorageImpl {
-    pub fn new(config: AppConfig, client: aws_sdk_s3::Client) -> Self {
-        Self { config, client }
+    pub fn new(
+        config: AppConfig,
+        s3_client: aws_sdk_s3::Client,
+        s3_presign_client: aws_sdk_s3::Client,
+    ) -> Self {
+        Self {
+            config,
+            s3_client,
+            s3_presign_client,
+        }
     }
 }
 
@@ -24,7 +33,7 @@ impl Storage for StorageImpl {
             Duration::from_secs(self.config.storage.presigned_upload_expires_in_secs);
 
         let req = self
-            .client
+            .s3_presign_client
             .put_object()
             .bucket(&self.config.storage.bucket)
             .key(String::from(file.key.clone()).as_str())
@@ -47,7 +56,7 @@ impl Storage for StorageImpl {
             Duration::from_secs(self.config.storage.presigned_download_expires_in_secs);
 
         let req = self
-            .client
+            .s3_presign_client
             .get_object()
             .bucket(&self.config.storage.bucket)
             .key(String::from(file.key.clone()).as_str());
@@ -62,7 +71,7 @@ impl Storage for StorageImpl {
 
     async fn verify(&mut self, file: &entities::File) -> Result<(), Self::Error> {
         let req = self
-            .client
+            .s3_client
             .head_object()
             .bucket(&self.config.storage.bucket)
             .key(String::from(file.key.clone()).as_str());
